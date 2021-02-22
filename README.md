@@ -45,5 +45,6 @@ Design Systems
 
 - [Design Systems](https://www.smashingmagazine.com/design-systems-book/) - Alla Kholmatova
 
-Reasearch
+Research
 - [The Mom Test](http://momtestbook.com/de/) - Rob Fitzpatrick
+- [The Lean Product Playbook](https://leanproductplaybook.com/) Dan Olsen
