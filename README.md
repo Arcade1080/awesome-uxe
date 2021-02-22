@@ -13,7 +13,9 @@
 <!-- vscode-markdown-toc -->
 
 - [Books](#Books)
-- [Articles](#Articles)
+- [Tools](#Tools)
+- [Accessibility](#Accessibility)
+- [Pattern Libraries & Galleries](#PatternLibraries)
 
 <!-- vscode-markdown-toc-config
 	numbering=false
@@ -46,5 +48,26 @@ Design Systems
 - [Design Systems](https://www.smashingmagazine.com/design-systems-book/) - Alla Kholmatova
 
 Research
+
 - [The Mom Test](http://momtestbook.com/de/) - Rob Fitzpatrick
 - [The Lean Product Playbook](https://leanproductplaybook.com/) Dan Olsen
+
+## <a name='Tools'></a>Tools
+
+- [Abtract](https://www.abstract.com/versions) - Version control for design files
+- [Zeplin](https://zeplin.io/) - Design <-> Dev collaboration
+- [Marvel](https://marvelapp.com/) - Rapid prototyping, handoff sharing
+- [InVision](https://www.invisionapp.com/) - The digital product design platform
+- [Mural](https://www.mural.co/) - Digital workspace for visual collaboration
+
+## <a name='PatternLibraries'></a>Pattern Libraries & Galleries
+
+- [Land Book](https://land-book.com/) - Website gallery
+- [mobbin](https://mobbin.design/) - iOS UI design patterns
+
+## <a name='Accessibility'></a>Accessibility
+
+- [a11yresources](https://a11yresources.webflow.io/category/guides) - A List of accessibility tools and resources
+- [Acessibility basics](http://www.usability.gov/what-and-why/accessibility.html)
+- [Lost and Found – Mapping Page](http://www.digitalgov.gov/about/lost-and-found-mapping-page/)
+- [7 things every designer needs to know about accessibility](https://medium.com/salesforce-ux/7-things-every-designer-needs-to-know-about-accessibility-64f105f0881b#.tdvecuoag)
