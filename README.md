@@ -44,3 +44,6 @@ IA
 Design Systems
 
 - [Design Systems](https://www.smashingmagazine.com/design-systems-book/) - Alla Kholmatova
+
+Reasearch
+- [The Mom Test](http://momtestbook.com/de/) - Rob Fitzpatrick
