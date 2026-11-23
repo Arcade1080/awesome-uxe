@@ -1,6 +1,6 @@
 # Design-System-Integration
 
-**Vertiefung zu [Kapitel 5.3](README.md#53-design-system-als-fundament): Wie Wireflow Studio ein bestehendes Design System anbindet – am Beispiel von Primer, dem Design System von GitHub.**
+**Vertiefung zu [Kapitel 5.3](README.md#53-design-system-für-die-umsetzung): Wie Wireflow Studio ein bestehendes Design System anbindet – am Beispiel von Primer, dem Design System von GitHub.**
 
 > Stand: 23.11.2026 · Angaben zu Primer beruhen auf der öffentlichen Doku (primer.style) und den npm-Paketen; Details können sich mit neuen Versionen ändern.
 
