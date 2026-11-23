@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireflow Studio Prototyp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE work tool: calm, precise, product-grade
+   IDEA a shipped Figma-like design tool, mid-session on a real wireflow inside Claude Code
+   PICTURE the live canvas: hi-fi screens wired by arrows, two decisions, a pending Claude proposal
+   COLOUR neutral chrome, selection blue, Claude violet; Acme teal lives only inside the frames
+   TYPE Inter for the tool chrome, Figtree as the Acme UI typeface inside screens
+   LAYOUT top bar, layers left, canvas centre, inspector right, Claude bar below; side panels become drawers under 900px */
+:root{color-scheme:light dark;
+--bg:light-dark(#ececf0,#151519);--dot:light-dark(#cfcfd6,#2d2d34);
+--panel:light-dark(#ffffff,#212126);--panel2:light-dark(#f5f5f7,#2a2a30);--line:light-dark(#e2e2e8,#37373e);
+--ink:light-dark(#1b1b1f,#ececf1);--muted:light-dark(#5f5f69,#a3a3ad);
+--sel:light-dark(#2f6bff,#6f97ff);--sel-soft:light-dark(#e8efff,#25314c);--on-sel:light-dark(#ffffff,#0b1020);
+--ai:light-dark(#6a4cf5,#a48fff);--ai-soft:light-dark(#f1edff,#2c2640);--on-ai:light-dark(#ffffff,#120c26);
+--warn:light-dark(#b54708,#f3a35b);--warn-soft:light-dark(#fff4e5,#3a2c1c);
+--ok:light-dark(#1f7a4d,#62cf96);--ok-soft:light-dark(#e7f5ee,#1c3328);
+--bad:light-dark(#b42318,#ff8a7a);--bad-soft:light-dark(#fdecea,#3d2220);
+--shadow:0 1px 2px rgb(0 0 0/.08),0 6px 20px rgb(0 0 0/.10)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:13px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+.top{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:6px 10px;min-height:50px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.brand b{font-weight:600}
+.crumb{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+.modes{display:flex;gap:2px;padding:3px;margin:0 auto;background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+.modes button{display:flex;align-items:center;gap:6px;border:0;background:none;padding:5px 12px;min-height:32px;border-radius:7px;color:var(--muted);font-weight:500;white-space:nowrap}
+.modes button[aria-pressed=true]{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+.modes kbd{font:inherit;color:var(--muted);opacity:.8}
+.tr{display:flex;align-items:center;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--ok-soft);color:var(--ok);font-weight:500;white-space:nowrap}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:5px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-weight:500;white-space:nowrap}
+.btn:hover{background:var(--panel2)}
+.btn.pri{background:var(--sel);border-color:var(--sel);color:var(--on-sel)}
+.btn.ai{background:var(--ai);border-color:var(--ai);color:var(--on-ai)}
+.btn.sm{min-height:28px;padding:3px 10px}
+.ib{display:inline-grid;place-items:center;width:34px;height:34px;border:0;border-radius:8px;background:none;color:var(--ink)}
+.ib:hover{background:var(--panel2)}
+.ptg{display:none}
+.menu{position:absolute;right:10px;top:48px;z-index:40;min-width:220px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
+.menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 10px;border-radius:6px}
+.menu button:hover{background:var(--panel2)}
+.menu small{display:block;color:var(--muted)}
+.work{display:grid;grid-template-columns:248px minmax(0,1fr) 300px;min-height:0;position:relative}
+.side{display:flex;flex-direction:column;min-height:0;background:var(--panel);border-right:1px solid var(--line)}
+.side.r{border-right:0;border-left:1px solid var(--line)}
+.tabs{display:flex;gap:2px;padding:6px 8px 0;border-bottom:1px solid var(--line)}
+.tabs button{border:0;background:none;padding:8px 9px;margin-bottom:-1px;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--ink);border-color:var(--ink)}
+.pane{flex:1;min-height:0;overflow:auto;padding:8px 12px 16px}
+.hint{color:var(--muted);margin:6px 0}
+.grp{margin:14px 0 6px;color:var(--muted);font-weight:600}
+.grp:first-child{margin-top:6px}
+.tree{list-style:none;margin:0;padding:0}
+.tree button{display:flex;align-items:center;gap:7px;width:100%;padding:5px 6px;border:0;border-radius:6px;background:none;text-align:left;white-space:nowrap;overflow:hidden}
+.tree button span{overflow:hidden;text-overflow:ellipsis}
+.tree button:hover{background:var(--panel2)}
+.tree button[aria-current=true]{background:var(--sel-soft);color:var(--sel)}
+.tree button.dim{color:var(--muted)}
+.tree .l1{padding-left:20px}.tree .l2{padding-left:38px}
+.tree em{margin-left:auto;font-style:normal;color:var(--muted)}
+.tree .aiTxt{color:var(--ai)}
+.comp{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:6px 8px;border:1px solid transparent;border-radius:7px;background:none;text-align:left}
+.comp:hover{background:var(--panel2)}
+.comp[aria-pressed=true]{border-color:var(--sel);background:var(--sel-soft)}
+.comp em{font-style:normal;color:var(--muted)}
+.gapc{padding:8px 10px;margin-top:6px;border:1px dashed var(--warn);border-radius:8px;color:var(--warn);background:var(--warn-soft)}
+.search{width:100%;height:34px;margin:4px 0 2px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:16px}
+.tokrow{display:flex;align-items:center;gap:10px;padding:4px 0}
+.tokrow .sw{width:24px;height:24px}
+.tk code{display:block;font:inherit;overflow-wrap:anywhere}
+.tk small{display:block;font-size:13px;color:var(--muted)}
+.sw.bx{display:grid;place-items:center;border:0;background:var(--panel2);font-size:13px;font-style:normal;color:var(--muted);width:24px;height:24px}
+.sw{width:18px;height:18px;border-radius:5px;border:1px solid rgb(0 0 0/.15);flex:none}
+.bar{display:block;height:8px;border-radius:2px;background:var(--sel);opacity:.55}
+.stage{position:relative;overflow:hidden;background-color:var(--bg);background-image:radial-gradient(var(--dot) 1.1px,transparent 1.3px);background-size:20px 20px;touch-action:none;user-select:none;-webkit-user-select:none}
+.stage.hand,.stage.space{cursor:grab}.stage.grabbing{cursor:grabbing}
+.world{position:absolute;left:0;top:0;transform-origin:0 0;--iz:1}
+.node{position:absolute}
+.frame{position:relative;width:360px;height:740px;background:#fff;border-radius:3px;box-shadow:0 1px 3px rgb(0 0 0/.14),0 10px 30px rgb(0 0 0/.07)}
+.ftitle{position:absolute;left:0;right:0;overflow:hidden;bottom:100%;margin-bottom:calc(7px*var(--iz));display:flex;align-items:center;gap:calc(6px*var(--iz));font-size:calc(13px*var(--iz));color:var(--muted);white-space:nowrap;cursor:move}
+.ftitle b{font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+.ftitle span{flex:none}
+.world.narrow .ftitle span{display:none}
+.ftitle .t{padding:0 calc(6px*var(--iz));border-radius:calc(4px*var(--iz));background:var(--ok-soft);color:var(--ok)}
+.ftitle .t.w{background:var(--warn-soft);color:var(--warn)}
+.ftitle .t.a{background:var(--ai-soft);color:var(--ai)}
+.node.sel .frame{outline:calc(2px*var(--iz)) solid var(--sel)}
+.node.sel .ftitle b{color:var(--sel)}
+.node.hl .frame{outline:calc(3px*var(--iz)) solid var(--ai);animation:pulse 1.2s ease 2}
+@keyframes pulse{50%{outline-offset:calc(10px*var(--iz))}}
+.node.ghost .frame{outline:calc(2px*var(--iz)) dashed var(--ai);outline-offset:calc(5px*var(--iz))}
+.node.ghost.sel .frame{outline-style:solid}
+.gbar{position:absolute;left:0;top:100%;margin-top:calc(12px*var(--iz));display:flex;gap:calc(6px*var(--iz))}
+.gbar button{padding:calc(5px*var(--iz)) calc(12px*var(--iz));border-radius:calc(8px*var(--iz));font-size:calc(13px*var(--iz));font-weight:500;border:calc(1px*var(--iz)) solid var(--ai);background:var(--panel);color:var(--ai)}
+.gbar button.y{background:var(--ai);color:var(--on-ai)}
+.el{position:relative}
+.node.sel .el:hover{outline:calc(1px*var(--iz)) solid var(--sel);outline-offset:2px}
+.el.esel{outline:calc(2px*var(--iz)) solid var(--sel)!important;outline-offset:2px}
+.el.mark{outline:calc(2px*var(--iz)) dashed var(--sel);outline-offset:3px}
+.el.flag::after{content:"!";position:absolute;right:-8px;top:-8px;width:calc(18px*var(--iz));height:calc(18px*var(--iz));border-radius:50%;background:var(--warn);color:#fff;font:700 calc(12px*var(--iz))/calc(18px*var(--iz)) Inter,sans-serif;text-align:center}
+.dec{width:120px;height:120px;display:grid;place-items:center;text-align:center;cursor:move}
+.dec svg{position:absolute;inset:0;overflow:visible}
+.dec polygon{fill:var(--panel);stroke:var(--muted);stroke-width:1.5}
+.node.sel .dec polygon{stroke:var(--sel);stroke-width:calc(2.5px*var(--iz))}
+.dec span{position:relative;max-width:80px;font:600 14px/1.2 Inter,sans-serif}
+.wb{position:absolute;left:50%;bottom:100%;margin-bottom:calc(8px*var(--iz));transform:translateX(-50%);display:flex;align-items:center;gap:calc(5px*var(--iz));padding:calc(3px*var(--iz)) calc(9px*var(--iz));border-radius:999px;background:var(--warn-soft);color:var(--warn);border:calc(1px*var(--iz)) solid var(--warn);font-size:calc(13px*var(--iz));font-weight:500;white-space:nowrap}
+.wb{z-index:3}
+.wb svg{width:calc(14px*var(--iz));height:calc(14px*var(--iz))}
+svg.edges{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none}
+.edges path{fill:none;stroke:var(--muted);stroke-width:calc(1.6px*var(--iz))}
+.edges path.g{stroke:var(--ai);stroke-dasharray:6 5}
+.edges path.on{stroke:var(--sel);stroke-width:calc(2.4px*var(--iz))}
+.edges circle{fill:var(--muted)}.edges circle.g{fill:var(--ai)}.edges circle.on{fill:var(--sel)}
+.elabel{position:absolute;transform:translate(-50%,-50%);padding:calc(2px*var(--iz)) calc(8px*var(--iz));border-radius:999px;border:calc(1px*var(--iz)) solid var(--line);background:var(--panel);color:var(--muted);font-size:calc(13px*var(--iz));white-space:nowrap;pointer-events:none}
+.elabel.g{color:var(--ai);border-color:var(--ai)}
+.elabel.minor{display:none}
+.world.near .elabel.minor,.elabel.minor.on{display:block}
+.elabel.on{color:var(--sel);border-color:var(--sel)}
+.world.lowz .elabel{display:none}
+.toolbar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:2px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:5}
+.toolbar button{display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:8px;background:none}
+.toolbar button:hover{background:var(--panel2)}
+.toolbar button[aria-pressed=true]{background:var(--sel);color:var(--on-sel)}
+.toolbar .sep{width:1px;margin:6px 3px;background:var(--line)}
+.zoom{position:absolute;right:12px;bottom:14px;display:flex;align-items:center;gap:2px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);z-index:5}
+.zoom output{min-width:48px;text-align:center;font-variant-numeric:tabular-nums}
+.scr{position:relative;width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;text-align:left}
+.scr .body{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:6px 16px 18px}
+.scr .grow{flex:1}
+.scr h2{margin:2px 0 0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.hifi{font:15px/1.45 Figtree,Inter,system-ui,sans-serif;color:#0f1a1c;background:#fff}
+.hifi .sb{display:flex;justify-content:space-between;align-items:center;padding:12px 22px 6px;font-weight:600;font-size:14px}
+.hifi .sb span{display:flex;gap:5px;align-items:center}
+.hifi .ab{display:flex;align-items:center;gap:6px;padding:4px 12px 10px}
+.hifi .ab svg{width:22px;height:22px;color:#0b6e79}
+.hifi .ab b{font-size:17px;font-weight:600}
+.hifi .ab small{display:block;font-size:13px;color:#5b6b70}
+.hifi h2{font-size:22px;line-height:1.25;font-weight:700}
+.hifi .tx{display:flex;gap:8px;align-items:flex-start;font-size:14px;color:#5b6b70}
+.hifi .tx svg{color:#0b6e79;margin-top:2px}
+.hifi label{display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:#5b6b70}
+.hifi .inp{display:flex;align-items:center;gap:8px;height:46px;padding:0 12px;border:1px solid #c9d4d6;border-radius:10px;background:#fff}
+.hifi .inp svg{color:#5b6b70}
+.hifi .chip{display:inline-flex;align-items:center;height:34px;padding:0 14px;border:1px solid #c9d4d6;border-radius:999px;font-size:14px;font-weight:500}
+.hifi .chip.on{background:#0b6e79;border-color:#0b6e79;color:#fff}
+.hifi .bt{display:flex;align-items:center;justify-content:center;height:48px;border-radius:12px;font-size:15px;font-weight:600}
+.hifi .bt.primary{background:#0b6e79;color:#fff}
+.hifi .bt.secondary{background:#e6f2f3;color:#0b6e79}
+.hifi .bt.ghost{color:#0b6e79}
+.hifi .card{display:flex;gap:12px;align-items:flex-start;padding:12px;border:1px solid #e1e8ea;border-radius:14px}
+.hifi .av{display:grid;place-items:center;width:42px;height:42px;flex:none;border-radius:50%;background:#e6f2f3;color:#0b6e79;font-weight:700;font-size:14px}
+.hifi .card b{display:block;font-size:15px;line-height:1.3}
+.hifi .sub{font-size:13px;color:#5b6b70}
+.hifi .meta{font-size:13px;color:var(--meta,#7c8a8e)}
+.hifi .badge{display:inline-block;margin-top:6px;padding:2px 8px;border-radius:999px;background:#e7f5ee;color:#1f7a4d;font-size:13px;font-weight:600}
+.hifi .alert{display:flex;gap:10px;padding:12px;border:1px solid #f3c1bb;border-radius:12px;background:#fdecea;font-size:14px;color:#5b2a25}
+.hifi .alert svg{color:#b42318;margin-top:2px}
+.hifi .alert b{display:block;color:#8f1d12}
+.hifi .sum{padding:2px 12px;border:1px solid #e1e8ea;border-radius:14px}
+.hifi .sum div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #edf1f2;font-size:14px}
+.hifi .sum div:last-child{border:0}
+.hifi .sum span{color:#5b6b70}
+.hifi .cb{display:flex;align-items:center;gap:10px;font-size:14px}
+.hifi .cb i{display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:#0b6e79;color:#fff}
+.hifi .okx{display:grid;justify-items:center;gap:8px;padding:28px 6px 6px;text-align:center}
+.hifi .okx i{display:grid;place-items:center;width:76px;height:76px;border-radius:50%;background:#e7f5ee;color:#1f7a4d}
+.hifi .okx svg{width:36px;height:36px;stroke-width:2.4}
+.hifi .okx .tx{justify-content:center}
+.lofi{font:14px/1.4 Inter,system-ui,sans-serif;color:#52525b;background:#fff}
+.lofi svg.ic{display:none}
+.lofi .sb{height:22px;margin:10px 16px 2px;border-bottom:1.5px dashed #d4d4d8;font-size:0}
+.lofi .ab{display:flex;gap:8px;padding:10px 16px;border-bottom:1.5px solid #e4e4e7}
+.lofi .ab::before{content:"‹";font-weight:700}
+.lofi .ab.nb::before{content:none}
+.lofi .ab small{margin-left:8px;color:#a1a1aa}
+.lofi h2{font-size:19px;color:#3f3f46}
+.lofi .tx{color:#71717a}
+.lofi label{display:block;margin-bottom:4px;font-size:13px;color:#71717a}
+.lofi .inp{display:flex;align-items:center;height:42px;padding:0 10px;border:1.5px solid #a1a1aa;border-radius:4px;color:#71717a}
+.lofi .chip{display:inline-flex;align-items:center;height:32px;padding:0 12px;border:1.5px solid #a1a1aa;border-radius:16px}
+.lofi .chip.on{background:#d4d4d8;color:#27272a}
+.lofi .bt{display:flex;align-items:center;justify-content:center;height:44px;border:1.5px solid #52525b;border-radius:4px;font-weight:600;color:#3f3f46}
+.lofi .bt.primary{background:#52525b;color:#fff}
+.lofi .bt.ghost{border-style:dashed}
+.lofi .card,.lofi .sum,.lofi .alert{display:flex;gap:10px;padding:10px;border:1.5px solid #a1a1aa;border-radius:4px}
+.lofi .sum{display:block}.lofi .sum div{display:flex;justify-content:space-between;padding:6px 0}
+.lofi .av{width:42px;height:42px;flex:none;border:1.5px solid #a1a1aa;color:transparent;background:linear-gradient(to top right,transparent 49%,#a1a1aa 49.5% 50.5%,transparent 51%),linear-gradient(to bottom right,transparent 49%,#a1a1aa 49.5% 50.5%,transparent 51%)}
+.lofi .card b{display:block}.lofi .sub,.lofi .meta{color:#a1a1aa;font-size:13px}
+.lofi .badge{display:inline-block;margin-top:4px;padding:0 6px;border:1.5px solid #a1a1aa;border-radius:10px;font-size:13px}
+.lofi .alert b{display:block}
+.lofi .cb{display:flex;gap:8px;align-items:center}.lofi .cb i{width:20px;height:20px;border:1.5px solid #52525b;border-radius:3px}
+.lofi .okx{display:grid;justify-items:center;gap:6px;padding:24px 0 6px;text-align:center}
+.lofi .okx i{width:72px;height:72px;border:1.5px solid #a1a1aa;border-radius:50%}
+.anim .scr{animation:fade .22s ease}
+@keyframes fade{from{opacity:.25}}
+.jl{position:absolute;left:0;width:140px;padding-top:4px;font-size:14px;font-weight:600;color:var(--muted)}
+.jbox{position:absolute;display:flex;flex-direction:column;gap:8px}
+.jhead{display:flex;align-items:center;gap:8px;height:48px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:16px;font-weight:600}
+.jhead i{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--panel2);font-style:normal;font-size:13px;color:var(--muted)}
+.jc{padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:14px;line-height:1.4;cursor:pointer}
+.jc:hover{border-color:var(--sel)}
+.jc.th{font-style:italic;color:var(--muted)}
+.jc.pain{background:var(--bad-soft);border-color:color-mix(in srgb,var(--bad) 30%,transparent)}
+.jc.opp{background:var(--ok-soft);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}
+.jc small{display:block;margin-top:4px;color:var(--muted);font-style:normal}
+.jc.sel{outline:2px solid var(--sel);outline-offset:1px}
+.jchips{display:flex;flex-wrap:wrap;gap:6px}
+.jchip{padding:3px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:13px;white-space:nowrap}
+button.jchip:hover{border-color:var(--sel);color:var(--sel)}
+.persona{position:absolute;display:flex;align-items:center;gap:14px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);font-size:14px}
+.persona .av2{display:grid;place-items:center;width:40px;height:40px;flex:none;border-radius:50%;background:var(--sel-soft);color:var(--sel);font-weight:600}
+.persona b{font-size:16px}
+svg.emo{position:absolute;overflow:visible}
+.emo path{fill:none;stroke:var(--sel);stroke-width:2.5}
+.emo line{stroke:var(--line);stroke-dasharray:4 5}
+.emo circle{fill:var(--panel);stroke:var(--sel);stroke-width:2.5}
+.emo circle.low{stroke:var(--bad);fill:var(--bad)}
+.emo text{font:500 13px Inter,sans-serif;fill:var(--ink);paint-order:stroke;stroke:var(--bg);stroke-width:4px}
+.emo text.low{fill:var(--bad)}
+.emo text.ax{fill:var(--muted)}
+.proto{position:absolute;inset:0;display:none;overflow:auto;padding:20px 16px}
+.app[data-mode=proto] .proto{display:flex;align-items:center;justify-content:center;gap:28px}
+.proto.col{flex-direction:column;justify-content:flex-start;gap:14px}
+.app[data-mode=proto] .world,.app[data-mode=proto] .toolbar,.app[data-mode=proto] .zoom{display:none}
+.devbox{position:relative;flex:none}
+.proto.col .ptask{width:min(384px,100%)}
+.device{position:absolute;left:0;top:0;width:384px;height:764px;padding:12px;border-radius:46px;background:#16161a;box-shadow:0 0 0 2px #3a3a42,0 24px 60px rgb(0 0 0/.25);transform-origin:0 0}
+.device .scr{border-radius:34px;background:#fff}
+.device .hot{cursor:pointer}
+.device.flash .hot{box-shadow:0 0 0 3px rgb(47 107 255/.55);background-color:rgb(47 107 255/.10);border-radius:12px}
+.device.showhot .hot{box-shadow:0 0 0 2px rgb(47 107 255/.45)}
+.slide .scr{animation:slide .26s ease}
+@keyframes slide{from{transform:translateX(28px);opacity:0}}
+.ptask{flex:none;width:250px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:var(--shadow)}
+.ptask b{display:block}
+.sec{padding:12px 0;border-bottom:1px solid var(--line)}
+.sec:last-child{border-bottom:0}
+.sec h3{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:13px;font-weight:600}
+.sec h3 .tag{margin-left:auto}
+.row{display:grid;grid-template-columns:104px minmax(0,1fr);gap:8px;align-items:center;padding:3px 0}
+.row>span:first-child{color:var(--muted)}
+.tok{display:inline-block;max-width:100%;vertical-align:middle;padding:1px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tok .sw{display:inline-block;width:12px;height:12px;margin-right:6px;border-radius:3px;vertical-align:-1px}
+.row.st{grid-template-columns:minmax(0,1fr);gap:2px}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-weight:500;white-space:nowrap;background:var(--panel2);color:var(--muted)}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}.tag.warn{background:var(--warn-soft);color:var(--warn)}.tag.ai{background:var(--ai-soft);color:var(--ai)}.tag.bad{background:var(--bad-soft);color:var(--bad)}
+.meter{height:6px;margin-top:6px;border-radius:3px;background:var(--panel2);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--ok)}
+.issue{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}
+.issue:first-of-type{border-top:0}
+.issue svg{margin-top:1px}
+.issue div{flex:1}
+.lnk{border:0;background:none;padding:0;color:var(--sel);font-weight:500;text-decoration:underline;text-underline-offset:2px}
+pre.code{margin:0;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);overflow:auto;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
+.code .k{color:var(--ai)}.code .s{color:var(--ok)}.code .c{color:var(--muted)}
+blockquote{margin:6px 0;padding:6px 10px;border-left:2px solid var(--line);color:var(--muted);font-style:italic}
+blockquote small{display:block;font-style:normal}
+.sw2{position:relative;width:38px;height:22px;flex:none;border:0;border-radius:999px;background:var(--line)}
+.sw2::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgb(0 0 0/.25);transition:transform .15s}
+.sw2[aria-checked=true]{background:var(--sel)}
+.sw2[aria-checked=true]::after{transform:translateX(16px)}
+.varrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0}
+.varrow code{font:13px ui-monospace,Menlo,monospace}
+.path{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.claude{display:grid;gap:8px;padding:8px 12px 10px;background:var(--panel);border-top:1px solid var(--line)}
+.cmsg{display:none;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid color-mix(in srgb,var(--ai) 30%,transparent);border-radius:10px;background:var(--ai-soft);max-height:34vh;overflow:auto}
+.cmsg.on{display:flex}
+.cmsg>svg{color:var(--ai);margin-top:2px}
+.cmsg .grow{flex:1}
+.cmsg ol{margin:4px 0 0;padding-left:18px}
+.cmsg li{color:var(--muted)}
+.cmsg li.done{color:var(--ink)}
+.cmsg li.now::marker{color:var(--ai)}
+.cmsg .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.cbar{display:flex;align-items:center;gap:8px}
+.cbar>svg{color:var(--ai)}
+.cbar input{flex:1;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);font-size:16px}
+.ctx{padding:3px 9px;border-radius:999px;background:var(--sel-soft);color:var(--sel);font-weight:500;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.sugs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.sug{flex:none;padding:5px 12px;border:1px solid color-mix(in srgb,var(--ai) 35%,transparent);border-radius:999px;background:var(--ai-soft);color:var(--ai);font-weight:500;white-space:nowrap}
+.sug:hover{border-color:var(--ai)}
+.sample{margin-left:auto;color:var(--muted);white-space:nowrap}
+.toast{position:fixed;left:50%;top:62px;z-index:60;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));padding:10px 14px;border-radius:10px;background:var(--ink);color:var(--panel);box-shadow:var(--shadow)}
+.dlgw{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:16px;background:rgb(0 0 0/.35)}
+.dlg{width:min(640px,100%);max-height:86vh;display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:12px;background:var(--panel);box-shadow:var(--shadow)}
+.dlg h2{margin:0;font-size:17px}
+.dlg pre{flex:1;min-height:0}
+.dlg .acts{display:flex;justify-content:flex-end;gap:8px}
+.edges circle{r:calc(4px*var(--iz))}
+.sug{display:inline-flex;align-items:center;gap:6px}
+.sug:disabled{opacity:.55;cursor:default}
+.cmsg details{margin-top:6px}
+.cmsg summary{cursor:pointer;color:var(--ai);font-weight:500}
+.cmsg ul{margin:4px 0 0;padding-left:18px}
+.cmsg code,.hint code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace}
+.toast{display:flex;align-items:center;gap:12px}
+.toast button{flex:none;padding:4px 10px;border:1px solid currentColor;border-radius:6px;background:none;color:inherit;font-weight:500}
+.issue>span{flex:none}
+.ptask .pdesc{display:block}
+.btn .ic,.sug .ic{width:15px;height:15px}
+[hidden]{display:none!important}
+@media (max-width:1180px){.work{grid-template-columns:220px minmax(0,1fr) 272px}.crumb{display:none}}
+@media (max-width:900px){
+.work{grid-template-columns:minmax(0,1fr)}
+.side{position:absolute;top:0;bottom:0;z-index:20;width:min(300px,88vw);box-shadow:var(--shadow);display:none}
+.side.l{left:0}.side.r{right:0}
+.side.open{display:flex}
+.ptg{display:inline-grid}
+.pill span,.modes kbd,.share{display:none}}
+@media (max-width:600px){
+.top{gap:6px}
+.brand b{display:none}
+.modes{order:5;width:100%;margin:0}
+.modes button{flex:1;justify-content:center;padding:5px 4px}
+.toolbar{left:10px;transform:none}
+.toolbar .opt{display:none}
+.zoom{right:10px}
+.ctx,.sample{display:none}
+.tr{margin-left:auto}
+.cmsg.on+.sugs{display:none}
+.ptask .pdesc{display:none}
+}
+@media (pointer:coarse){.btn,.modes button,.tabs button,.sug,.tree button{min-height:44px}.toolbar button,.ib{width:44px;height:44px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app" id="app" data-mode="design">
+  <header class="top">
+    <button class="ib ptg" id="tgL" aria-label="Ebenen-Panel ein- oder ausblenden" aria-expanded="false"><i data-ic="panelL"></i></button>
+    <div class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="var(--ink)"/><rect x="5" y="7" width="5" height="10" rx="1.5" fill="var(--panel)"/><path d="M10 12h3.5" stroke="var(--panel)" stroke-width="1.6"/><path d="M16.5 8.5l3 3.5-3 3.5-3-3.5z" fill="var(--panel)"/></svg>
+      <b>Wireflow Studio</b>
+    </div>
+    <span class="crumb" title=".wireflow/flows/buchung.flow.json">acme-health › Termin buchen</span>
+    <nav class="modes" aria-label="Modus">
+      <button data-mode="journey" aria-pressed="false">Journey <kbd>1</kbd></button>
+      <button data-mode="wire" aria-pressed="false">Wireflow <kbd>2</kbd></button>
+      <button data-mode="design" aria-pressed="true">Design <kbd>3</kbd></button>
+      <button data-mode="proto" aria-pressed="false">Prototyp <kbd>4</kbd></button>
+    </nav>
+    <div class="tr">
+      <span class="pill" title="Live verbunden mit der laufenden Claude-Code-Sitzung"><i></i><span>Claude Code verbunden</span></span>
+      <button class="btn share" id="share" type="button">Teilen</button>
+      <button class="btn pri" id="exp" type="button" aria-haspopup="menu" aria-expanded="false">Export</button>
+      <button class="ib ptg" id="tgR" aria-label="Inspector ein- oder ausblenden" aria-expanded="false"><i data-ic="panelR"></i></button>
+    </div>
+    <div class="menu" id="expMenu" role="menu" hidden>
+      <button role="menuitem" data-exp="mermaid">Mermaid-Flowchart<small>aus dem Flow erzeugen und kopieren</small></button>
+      <button role="menuitem" data-exp="react">React + Storybook<small>Routen-Gerüste und Stories pro Zustand</small></button>
+      <button role="menuitem" data-exp="e2e">Playwright-Tests<small>ein Testfall pro Pfad</small></button>
+      <button role="menuitem" data-exp="figma">Figma-Frames<small>über den Figma-MCP-Server</small></button>
+      <button role="menuitem" data-exp="spec">Markdown-Spec<small>Screens, Zustände, Akzeptanzkriterien</small></button>
+    </div>
+  </header>
+
+  <main class="work">
+    <aside class="side l" id="left" aria-label="Ebenen, Komponenten und Tokens">
+      <div class="tabs" role="tablist" id="ltabs">
+        <button role="tab" data-tab="layers" aria-selected="true">Ebenen</button>
+        <button role="tab" data-tab="comps" aria-selected="false">Komponenten</button>
+        <button role="tab" data-tab="tokens" aria-selected="false">Tokens</button>
+      </div>
+      <div class="pane" id="lpane"></div>
+    </aside>
+
+    <section class="stage" id="stage" aria-label="Canvas">
+      <div class="world" id="world"></div>
+      <div class="proto" id="proto">
+        <div class="ptask" id="ptask"></div>
+        <div class="devbox" id="devbox"><div class="device" id="device"></div></div>
+      </div>
+      <div class="toolbar" role="toolbar" aria-label="Werkzeuge">
+        <button data-tool="move" aria-pressed="true" title="Auswählen (V)" aria-label="Auswählen"><i data-ic="cursor"></i></button>
+        <button data-tool="hand" aria-pressed="false" title="Hand (H)" aria-label="Hand"><i data-ic="hand"></i></button>
+        <span class="sep"></span>
+        <button data-tool="frame" aria-pressed="false" title="Screen (F)" aria-label="Screen"><i data-ic="phone"></i></button>
+        <button data-tool="link" aria-pressed="false" title="Verbindung (C)" aria-label="Verbindung"><i data-ic="link"></i></button>
+        <button data-tool="decision" aria-pressed="false" title="Entscheidung (D)" aria-label="Entscheidung"><i data-ic="diamond"></i></button>
+        <button class="opt" data-tool="text" aria-pressed="false" title="Text (T)" aria-label="Text"><i data-ic="text"></i></button>
+        <button class="opt" data-tool="comment" aria-pressed="false" title="Kommentar (K)" aria-label="Kommentar"><i data-ic="comment"></i></button>
+      </div>
+      <div class="zoom">
+        <button class="ib" id="zOut" aria-label="Verkleinern" title="Verkleinern (−)"><i data-ic="minus"></i></button>
+        <output id="zVal">100 %</output>
+        <button class="ib" id="zIn" aria-label="Vergrößern" title="Vergrößern (+)"><i data-ic="plus"></i></button>
+        <button class="ib" id="zFit" aria-label="Alles zeigen" title="Alles zeigen (Umschalt + 1)"><i data-ic="fit"></i></button>
+      </div>
+    </section>
+
+    <aside class="side r" id="right" aria-label="Inspector">
+      <div class="tabs" role="tablist" id="rtabs"></div>
+      <div class="pane" id="rpane"></div>
+    </aside>
+  </main>
+
+  <footer class="claude" aria-label="Claude">
+    <div class="cmsg" id="cmsg" aria-live="polite"></div>
+    <div class="sugs" id="sugs"></div>
+    <form class="cbar" id="cform">
+      <i data-ic="spark"></i>
+      <span class="ctx" id="ctx">Keine Auswahl</span>
+      <input id="cin" type="text" autocomplete="off" placeholder="Claude fragen … (Strg/⌘ + K)" aria-label="Claude fragen">
+      <button class="btn ai" type="submit">Senden</button>
+    </form>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<div class="dlgw" id="dlgw" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT">
+    <h2 id="dlgT">Export</h2>
+    <pre class="code" id="dlgPre"></pre>
+    <div class="acts"><button class="btn" id="dlgCopy" type="button">Kopieren</button><button class="btn pri" id="dlgClose" type="button">Schließen</button></div>
+  </div>
+</div>
+<script>
+{
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const app = $('#app'), stage = $('#stage'), world = $('#world');
+
+const PATHS = {
+  cursor: '<path d="M5 3l10.5 5.6-4.6 1.4L8.9 15z"/>',
+  hand: '<path d="M7 10V5a1.2 1.2 0 0 1 2.4 0v4M9.4 9V3.8a1.2 1.2 0 0 1 2.4 0V9M11.8 9V5a1.2 1.2 0 0 1 2.4 0v6.5A5.5 5.5 0 0 1 8.7 17h-.4a5 5 0 0 1-4.1-2.1L2.8 12.8a1.2 1.2 0 0 1 1.9-1.4L7 13.2V10"/>',
+  phone: '<rect x="5.5" y="2.5" width="9" height="15" rx="2"/><path d="M9 15h2"/>',
+  link: '<path d="M3 15.5c7 0 3.5-10 11-10"/><path d="M11.5 3.5l3 2-2 3"/>',
+  diamond: '<path d="M10 2.5l7.5 7.5-7.5 7.5L2.5 10z"/>',
+  text: '<path d="M4 5.5V3.5h12v2M10 3.5v13M7.5 16.5h5"/>',
+  comment: '<path d="M3.5 4h13v9.5H9l-4 3v-3H3.5z"/>',
+  minus: '<path d="M5 10h10"/>',
+  plus: '<path d="M10 5v10M5 10h10"/>',
+  fit: '<path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/>',
+  spark: '<path d="M10 2.5l1.9 4.8 4.8 1.9-4.8 1.9L10 15.9l-1.9-4.8L3.3 9.2l4.8-1.9z" fill="currentColor" stroke="none"/><path d="M15.6 13.4l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" fill="currentColor" stroke="none"/>',
+  panelL: '<rect x="2.5" y="3.5" width="15" height="13" rx="2"/><path d="M7.5 3.5v13"/>',
+  panelR: '<rect x="2.5" y="3.5" width="15" height="13" rx="2"/><path d="M12.5 3.5v13"/>',
+  warn: '<path d="M10 3l7.5 13.5h-15z"/><path d="M10 8.5v3.5M10 14.3v.2"/>',
+  check: '<path d="M4.5 10.5l3.5 3.5 7.5-8"/>',
+  back: '<path d="M12.5 4l-6 6 6 6"/>',
+  chev: '<path d="M5.5 8l4.5 4.5L14.5 8"/>',
+  search: '<circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/>',
+  pin: '<path d="M10 17.5s5.5-5 5.5-9a5.5 5.5 0 0 0-11 0c0 4 5.5 9 5.5 9z"/><circle cx="10" cy="8.5" r="2"/>',
+  clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.8 1.8"/>',
+  restart: '<path d="M4 10a6 6 0 1 0 1.8-4.3"/><path d="M4 3.5V7h3.5"/>',
+  flow: '<rect x="2.5" y="4" width="5" height="5" rx="1"/><rect x="12.5" y="11" width="5" height="5" rx="1"/><path d="M7.5 6.5h3a2 2 0 0 1 2 2v2.5"/>',
+  journey: '<path d="M2.5 14c3 0 3-8 7.5-8s4.5 8 7.5 8"/>',
+  comp: '<path d="M10 2.5l2.8 2.8L10 8.1 7.2 5.3zM10 11.9l2.8 2.8-2.8 2.8-2.8-2.8zM5.3 7.2l2.8 2.8-2.8 2.8L2.5 10zM14.7 7.2l2.8 2.8-2.8 2.8-2.8-2.8z"/>',
+  layer: '<path d="M3 6.5h14M3 10h14M3 13.5h9"/>',
+};
+const ic = n => `<svg class="ic" viewBox="0 0 20 20" aria-hidden="true">${PATHS[n] || ''}</svg>`;
+const SBI = '<svg width="17" height="11" viewBox="0 0 17 11" aria-hidden="true"><rect y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" width="3" height="11" rx="1" fill="currentColor"/></svg><svg width="15" height="11" viewBox="0 0 15 11" aria-hidden="true"><path d="M7.5 10.6l2-2.3a3 3 0 0 0-4 0z" fill="currentColor"/><path d="M3.6 6.3a5.6 5.6 0 0 1 7.8 0M1.3 3.8a9 9 0 0 1 12.4 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><svg width="25" height="12" viewBox="0 0 25 12" aria-hidden="true"><rect x=".5" y=".5" width="21" height="11" rx="3" fill="none" stroke="currentColor" opacity=".45"/><rect x="2" y="2" width="16" height="8" rx="2" fill="currentColor"/><rect x="22.5" y="4" width="1.8" height="4" rx=".9" fill="currentColor" opacity=".45"/></svg>';
+
+/* Design System „Acme UI“ – Auszug aus dem DS-Manifest (fiktiv) */
+const TOK = {
+  color: [['color.action.primary', '#0B6E79'], ['color.action.primary-subtle', '#E6F2F3'], ['color.text.default', '#0F1A1C'], ['color.text.muted', '#5B6B70'], ['color.text.subtle', '#7C8A8E'], ['color.surface.default', '#FFFFFF'], ['color.border.default', '#C9D4D6'], ['color.border.subtle', '#E1E8EA'], ['color.feedback.success', '#1F7A4D'], ['color.feedback.success-subtle', '#E7F5EE'], ['color.feedback.danger', '#B42318'], ['color.feedback.danger-subtle', '#FDECEA']],
+  space: [['space.1', 4], ['space.2', 8], ['space.3', 12], ['space.4', 16], ['space.6', 24]],
+  radius: [['radius.sm', 10], ['radius.md', 12], ['radius.lg', 14], ['radius.full', 999]],
+  type: [['text.title', '22/28 · 700'], ['text.heading', '17/22 · 600'], ['text.body', '15/22 · 400'], ['text.label', '13/18 · 600']],
+};
+const HEX = Object.fromEntries(TOK.color);
+const COMPS = [['Aktionen', ['Button', 'Link']], ['Eingaben', ['TextField', 'Select', 'ChipGroup', 'Checkbox']], ['Anzeige', ['Card', 'SummaryList', 'Alert', 'Heading', 'Text']], ['Navigation', ['AppBar', 'Tabs']]];
+
+const SCR = {
+  scr_suche: { title: 'Suche', phase: 'ph_finden', step: 'Praxen suchen', states: ['Standard', 'Laden'], els: [
+    { id: 'ab', t: 'ab', c: 'AppBar', intent: 'navigation.top', title: 'Termin finden', nb: true },
+    { id: 'h', t: 'h', c: 'Heading', intent: 'content.title', text: 'Wobei brauchen Sie Hilfe?' },
+    { id: 'f_fach', t: 'field', c: 'TextField', intent: 'input.search', label: 'Fachrichtung oder Beschwerde', value: 'Dermatologie', icon: 'search' },
+    { id: 'f_ort', t: 'field', c: 'TextField', intent: 'input.location', label: 'Ort oder PLZ', value: '10437 Berlin', icon: 'pin' },
+    { id: 's_vers', t: 'select', c: 'Select', intent: 'input.choice', label: 'Versicherung', value: 'Gesetzlich versichert' },
+    { id: 'ch_zeit', t: 'chips', c: 'ChipGroup', intent: 'input.choice.single', label: 'Zeitraum', options: ['Diese Woche', 'Nächste Woche', 'Egal'], value: 'Diese Woche' },
+    { t: 'grow' },
+    { id: 'btn_suchen', t: 'bt', c: 'Button', intent: 'action.primary', label: 'Ärzt:innen finden', variant: 'primary' }] },
+  scr_ergebnisse: { title: 'Ergebnisse', phase: 'ph_finden', step: 'Praxen vergleichen', states: ['Standard', 'Laden', 'Leer'], els: [
+    { id: 'ab', t: 'ab', c: 'AppBar', intent: 'navigation.back', title: 'Dermatologie', sub: '10437 Berlin · diese Woche' },
+    { id: 'ch_sort', t: 'chips', c: 'ChipGroup', intent: 'input.sort', options: ['Nächster Termin', 'Entfernung', 'Bewertung'], value: 'Nächster Termin' },
+    { id: 'tx_n', t: 'tx', c: 'Text', intent: 'content.meta', text: '12 Praxen mit freien Terminen' },
+    { id: 'card_klein', t: 'card', c: 'Card', intent: 'entity.summary', initials: 'SK', title: 'Dr. Sara Klein', sub: 'Dermatologie · 1,2 km', meta: '4,8 von 5 · 212 Bewertungen', badge: 'Heute 16:40', a11y: true },
+    { id: 'card_park', t: 'card', c: 'Card', intent: 'entity.summary', initials: 'HP', title: 'Hautarztpraxis am Park', sub: 'Dermatologie · 2,0 km', meta: '4,6 von 5 · 98 Bewertungen', badge: 'Mi 09:15', a11y: true },
+    { id: 'card_weber', t: 'card', c: 'Card', intent: 'entity.summary', initials: 'JW', title: 'Dr. Jonas Weber', sub: 'Dermatologie · 3,4 km', meta: '4,9 von 5 · 301 Bewertungen', badge: 'Do 11:00', a11y: true }] },
+  scr_profil: { title: 'Profil & Termine', phase: 'ph_buchen', step: 'Slot wählen', states: ['Standard', 'Laden', 'Keine Termine'], els: [
+    { id: 'ab', t: 'ab', c: 'AppBar', intent: 'navigation.back', title: 'Termin wählen' },
+    { id: 'card_arzt', t: 'card', c: 'Card', intent: 'entity.summary', initials: 'SK', title: 'Dr. Sara Klein', sub: 'Dermatologie · Lindenweg 12', meta: 'Kassenpatient:innen willkommen' },
+    { id: 'ch_tag', t: 'chips', c: 'ChipGroup', intent: 'input.choice.date', label: 'Tag', options: ['Mo 23.', 'Di 24.', 'Mi 25.', 'Do 26.'], value: 'Mi 25.' },
+    { id: 'ch_uhr', t: 'chips', c: 'ChipGroup', intent: 'input.choice.time', label: 'Uhrzeit', options: ['08:30', '09:15', '11:00', '14:20'], value: '09:15', gap: 'Kein Zeit-Slot-Picker im DS – aus ChipGroup komponiert' },
+    { id: 'tx_res', t: 'tx', c: 'Text', intent: 'content.reassurance', text: 'Wir halten den Termin 5 Minuten für Sie frei.', icon: 'clock' },
+    { t: 'grow' },
+    { id: 'btn_weiter', t: 'bt', c: 'Button', intent: 'action.primary', label: 'Weiter', variant: 'primary' }] },
+  scr_login: { title: 'Anmelden', phase: 'ph_buchen', step: 'Daten eingeben', states: ['Standard', 'Fehler'], els: [
+    { id: 'ab', t: 'ab', c: 'AppBar', intent: 'navigation.back', title: 'Anmelden' },
+    { id: 'h', t: 'h', c: 'Heading', intent: 'content.title', text: 'Fast geschafft' },
+    { id: 'tx', t: 'tx', c: 'Text', intent: 'content.explain', text: 'Melden Sie sich an, damit die Praxis Ihnen den Termin zuordnen kann.' },
+    { id: 'f_mail', t: 'field', c: 'TextField', intent: 'input.email', label: 'E-Mail', value: 'mara.k@example.org' },
+    { id: 'f_pw', t: 'field', c: 'TextField', intent: 'input.password', label: 'Passwort', value: '••••••••••' },
+    { t: 'grow' },
+    { id: 'btn_login', t: 'bt', c: 'Button', intent: 'action.primary', label: 'Anmelden und weiter', variant: 'primary' },
+    { id: 'btn_gast', t: 'bt', c: 'Button', intent: 'action.secondary', label: 'Als Gast fortfahren', variant: 'ghost' }] },
+  scr_pruefen: { title: 'Angaben prüfen', phase: 'ph_buchen', step: 'Daten eingeben', states: ['Standard', 'Senden'], els: [
+    { id: 'ab', t: 'ab', c: 'AppBar', intent: 'navigation.back', title: 'Angaben prüfen' },
+    { id: 'sum', t: 'sum', c: 'SummaryList', intent: 'content.summary', rows: [['Praxis', 'Dr. Sara Klein'], ['Termin', 'Mi, 25.11. · 09:15'], ['Versicherung', 'Gesetzlich']] },
+    { id: 's_grund', t: 'select', c: 'Select', intent: 'input.choice', label: 'Grund des Besuchs', value: 'Hautausschlag' },
+    { id: 'cb', t: 'cb', c: 'Checkbox', intent: 'input.toggle', label: 'Erinnerung 24 Stunden vorher' },
+    { t: 'grow' },
+    { id: 'btn_buchen', t: 'bt', c: 'Button', intent: 'action.primary', label: 'Verbindlich buchen', variant: 'primary' }] },
+  scr_bestaetigung: { title: 'Bestätigung', phase: 'ph_vorbereiten', step: 'Bestätigung lesen', states: ['Standard'], els: [
+    { id: 'ok', t: 'ok', c: null, free: true, intent: 'feedback.success', title: 'Termin gebucht', text: 'Mi, 25.11. um 09:15 bei Dr. Sara Klein', gap: 'Freie Illustration – das DS hat keine Erfolgs-Komponente' },
+    { id: 'sum', t: 'sum', c: 'SummaryList', intent: 'content.summary', rows: [['Adresse', 'Lindenweg 12'], ['Mitbringen', 'Versichertenkarte'], ['Erinnerung', 'Di, 24.11. · 09:15']] },
+    { t: 'grow' },
+    { id: 'btn_kal', t: 'bt', c: 'Button', intent: 'action.secondary', label: 'In Kalender eintragen', variant: 'secondary' },
+    { id: 'btn_fertig', t: 'bt', c: 'Button', intent: 'action.primary', label: 'Fertig', variant: 'primary' }] },
+  scr_slot_vergeben: { title: 'Slot vergeben', phase: 'ph_buchen', step: 'Slot wählen', states: ['Fehler'], els: [
+    { id: 'ab', t: 'ab', c: 'AppBar', intent: 'navigation.back', title: 'Angaben prüfen' },
+    { id: 'al', t: 'alert', c: 'Alert', intent: 'feedback.error', title: 'Dieser Termin wurde gerade vergeben', text: 'Ihre Angaben bleiben gespeichert.' },
+    { id: 'tx', t: 'tx', c: 'Text', intent: 'content.explain', text: 'Nächste freie Termine bei Dr. Sara Klein:' },
+    { id: 'ch_alt', t: 'chips', c: 'ChipGroup', intent: 'input.choice.time', options: ['Mi 11:00', 'Do 08:30', 'Do 10:45'], value: 'Mi 11:00', gap: 'Kein Zeit-Slot-Picker im DS – aus ChipGroup komponiert' },
+    { t: 'grow' },
+    { id: 'btn_neu', t: 'bt', c: 'Button', intent: 'action.primary', label: 'Mi 11:00 übernehmen', variant: 'primary' },
+    { id: 'btn_anders', t: 'bt', c: 'Button', intent: 'action.secondary', label: 'Anderen Tag wählen', variant: 'ghost' }] },
+};
+
+const NODES = [
+  { id: 'scr_suche', type: 'screen', x: 0, y: 0, start: true },
+  { id: 'scr_ergebnisse', type: 'screen', x: 480, y: 0 },
+  { id: 'scr_profil', type: 'screen', x: 960, y: 0 },
+  { id: 'dec_login', type: 'dec', x: 1380, y: 310, label: 'Angemeldet?', v: 'angemeldet' },
+  { id: 'scr_login', type: 'screen', x: 1260, y: 920 },
+  { id: 'scr_pruefen', type: 'screen', x: 1600, y: 0 },
+  { id: 'dec_slot', type: 'dec', x: 2030, y: 310, label: 'Slot noch frei?', v: 'slotFrei' },
+  { id: 'scr_bestaetigung', type: 'screen', x: 2260, y: 0, end: true },
+  { id: 'scr_slot_vergeben', type: 'screen', x: 1910, y: 920, ghost: true },
+];
+const NODE = Object.fromEntries(NODES.map(n => [n.id, n]));
+const EDGES = [
+  { f: 'scr_suche', el: 'btn_suchen', t: 'scr_ergebnisse', label: 'Tippen', k: [70, 50] },
+  { f: 'scr_ergebnisse', el: 'card_klein', t: 'scr_profil', label: 'Praxis tippen', k: [70, 50] },
+  { f: 'scr_profil', el: 'btn_weiter', t: 'dec_login', label: 'Weiter', k: [60, 40] },
+  { f: 'dec_login', fs: 'r', t: 'scr_pruefen', label: 'Ja', when: 'angemeldet' },
+  { f: 'dec_login', fs: 'b', t: 'scr_login', ts: 't', label: 'Nein', when: 'else' },
+  { f: 'scr_login', el: 'btn_login', t: 'scr_pruefen', ts: 'b', tx: 90, label: 'Anmelden', k: [60, 220], set: { angemeldet: true } },
+  { f: 'scr_pruefen', el: 'btn_buchen', t: 'dec_slot', label: 'Buchen', k: [60, 40] },
+  { f: 'dec_slot', fs: 'r', t: 'scr_bestaetigung', label: 'Ja', when: 'slotFrei' },
+  { f: 'dec_slot', fs: 'b', t: 'scr_slot_vergeben', ts: 't', label: 'Nein', when: 'else', ghost: true },
+  { f: 'scr_slot_vergeben', el: 'btn_neu', fs: 'l', t: 'scr_pruefen', ts: 'b', tx: 270, label: 'Übernehmen', k: [40, 220], lt: .62, ghost: true },
+];
+const EXTRA = {
+  scr_login: { btn_gast: { to: 'scr_pruefen', label: 'Als Gast fortfahren' } },
+  scr_slot_vergeben: { btn_anders: { to: 'scr_profil', label: 'Anderen Tag wählen' } },
+  scr_bestaetigung: { btn_fertig: { restart: true, label: 'Fertig' }, btn_kal: { toast: 'Im Plugin entstünde hier eine .ics-Datei.', label: 'In Kalender eintragen' } },
+};
+
+const JR = {
+  title: 'Arzttermin online buchen', variant: 'Ist-Journey', persona: 'Berufstätig, wenig Zeit',
+  scenario: 'Hautausschlag seit einer Woche – möchte noch diese Woche einen Termin.', sources: '12 Interviews · research/interviews/*.md',
+  phases: [
+    { id: 'ph_bedarf', title: 'Bedarf bemerken', actions: ['Ausschlag bemerkt', 'Dringlichkeit einschätzen'], touch: ['Suchmaschine', 'Freund:innen'], thought: 'Muss ich damit überhaupt zum Arzt?', emo: -1, emoL: 'unsicher', pains: [{ id: 'pp_fach', text: 'Unklar, welche Fachrichtung zuständig ist', sev: 'mittel', ev: [['P02', '12–14', 'Ich wusste nicht, ob Hausarzt oder Hautarzt.'], ['P09', '7', 'Ich habe erst mal gesucht, wer überhaupt zuständig ist.']] }], opps: ['Symptom-Check schlägt die passende Fachrichtung vor'], screens: [] },
+    { id: 'ph_finden', title: 'Praxis finden', actions: ['Praxen suchen', 'Bewertungen vergleichen', 'Kassenzulassung prüfen'], touch: ['App', 'Praxis-Website'], thought: 'Nimmt die überhaupt neue Patient:innen?', emo: -1, emoL: 'genervt', pains: [{ id: 'pp_frei', text: 'Freie Termine und Kassenzulassung nicht auf einen Blick', sev: 'mittel', ev: [['P04', '22–25', 'Ich musste jede Praxis einzeln anklicken.'], ['P07', '9', 'Am Ende stand da: nur privat.']] }], opps: ['Ergebnisliste zeigt den nächsten freien Termin'], screens: ['scr_suche', 'scr_ergebnisse'] },
+    { id: 'ph_buchen', title: 'Termin buchen', actions: ['Slot wählen', 'Daten eingeben', 'Absenden'], touch: ['App'], thought: 'Jetzt ist der Termin weg – alles noch mal?', emo: -2, emoL: 'frustriert', pains: [{ id: 'pp_slot_weg', text: 'Slot beim Absenden vergeben, Eingaben weg', sev: 'hoch', ev: [['P03', '41–44', 'Ich hatte alles ausgefüllt, dann hieß es, der Termin ist weg. Also von vorne.'], ['P07', '18', 'Beim zweiten Versuch war der Slot wieder vergeben.'], ['P11', '63–65', 'Ich habe dann doch angerufen.']] }], opps: ['Slot 5 Minuten reservieren, Eingaben behalten'], screens: ['scr_profil', 'scr_login', 'scr_pruefen', 'scr_slot_vergeben'] },
+    { id: 'ph_vorbereiten', title: 'Vorbereiten', actions: ['Bestätigung lesen', 'Termin eintragen', 'Unterlagen bereitlegen'], touch: ['E-Mail', 'Push', 'Kalender'], thought: 'Gut, dass ich erinnert werde.', emo: 1, emoL: 'erleichtert', pains: [{ id: 'pp_erinn', text: 'Erinnerung kommt erst am Morgen des Termins', sev: 'niedrig', ev: [['P05', '30', 'Die SMS kam, als ich schon im Büro war.']] }], opps: ['Erinnerung 24 h vorher und Kalender-Export'], screens: ['scr_bestaetigung'] },
+    { id: 'ph_besuch', title: 'Besuch & Nachsorge', actions: ['Einchecken', 'Behandlung', 'Folgetermin vereinbaren'], touch: ['Praxis', 'Telefon'], thought: 'Den Folgetermin wieder per Telefon?', emo: 0, emoL: 'neutral', pains: [{ id: 'pp_folge', text: 'Folgetermin nur telefonisch möglich', sev: 'mittel', ev: [['P08', '51', 'Für den Folgetermin hing ich 20 Minuten in der Warteschleife.']] }], opps: ['Folgetermin direkt in der App buchen'], screens: [] },
+  ],
+};
+const PAIN = {};
+JR.phases.forEach(p => p.pains.forEach(pp => { PAIN[pp.id] = Object.assign({ phase: p }, pp); }));
+
+const state = {
+  mode: 'design', sel: { k: 'node', id: 'scr_profil' }, s7: 'none', a11y: 'open', tool: 'move', ltab: 'layers', rtab: 'design', comp: null, filter: '',
+  views: { journey: null, board: null }, vars: { angemeldet: false, slotFrei: true },
+  proto: { cur: 'scr_suche', hist: ['scr_suche'], steps: 0, done: false, hot: false, expected: 5 },
+};
+
+/* ---------- Hilfsfunktionen ---------- */
+const flowIds = () => NODES.filter(n => n.type === 'screen' && (!n.ghost || state.s7 !== 'none')).map(n => n.id);
+const visibleEdges = () => EDGES.filter(e => !e.ghost || state.s7 !== 'none');
+const elOf = (sid, eid) => SCR[sid].els.find(e => e.id === eid);
+const elName = e => e.title || e.label || e.text || e.value || (e.rows ? e.rows.length + ' Zeilen' : '');
+function dsScore(ids) {
+  let n = 0, d = 0;
+  for (const id of ids) for (const e of SCR[id].els) { if (e.t === 'grow') continue; n++; if (e.c && !e.free) d++; }
+  return { n, d, pct: n ? Math.round(d / n * 100) : 100 };
+}
+function lum(hex) {
+  const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => (v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4));
+  return .2126 * c[0] + .7152 * c[1] + .0722 * c[2];
+}
+function ratio(a, b = '#FFFFFF') { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); }
+const fmt = n => n.toFixed(1).replace('.', ',');
+const metaTok = () => (state.a11y === 'fixed' ? 'color.text.muted' : 'color.text.subtle');
+const fileOf = id => id.replace('scr_', '').replace(/_/g, '-') + '.screen.json';
+const pascal = s => s.replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').split(/[^A-Za-z0-9]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join('');
+function painsFor(sid) { const p = JR.phases.find(x => x.id === SCR[sid].phase); return p ? p.pains.filter(pp => pp.id === 'pp_slot_weg' ? ['scr_profil', 'scr_slot_vergeben', 'scr_pruefen'].includes(sid) : true) : []; }
+function tok(name) { const h = HEX[name]; return `<span class="tok">${h ? `<i class="sw" style="background:${h}"></i>` : ''}${esc(name)}</span>`; }
+
+/* ---------- Screens rendern (Lo-Fi und Hi-Fi aus denselben Daten) ---------- */
+function elHTML(e, sid, o) {
+  if (e.t === 'grow') return '<div class="grow"></div>';
+  let h = '';
+  switch (e.t) {
+    case 'ab': h = `<div class="ab${e.nb ? ' nb' : ''}">${e.nb ? '' : ic('back')}<div><b>${esc(e.title)}</b>${e.sub ? `<small>${esc(e.sub)}</small>` : ''}</div></div>`; break;
+    case 'h': h = `<h2>${esc(e.text)}</h2>`; break;
+    case 'tx': h = `<div class="tx">${e.icon ? ic(e.icon) : ''}<span>${esc(e.text)}</span></div>`; break;
+    case 'field': h = `<label>${esc(e.label)}</label><div class="inp">${e.icon ? ic(e.icon) : ''}<span>${esc(e.value)}</span></div>`; break;
+    case 'select': h = `<label>${esc(e.label)}</label><div class="inp"><span class="grow">${esc(e.value)}</span>${ic('chev')}</div>`; break;
+    case 'chips': h = `${e.label ? `<label>${esc(e.label)}</label>` : ''}<div class="chips">${e.options.map(x => `<span class="chip${x === e.value ? ' on' : ''}">${esc(x)}</span>`).join('')}</div>`; break;
+    case 'bt': h = `<div class="bt ${e.variant}">${esc(e.label)}</div>`; break;
+    case 'card': h = `<div class="card"><div class="av">${esc(e.initials)}</div><div class="grow"><b>${esc(e.title)}</b><div class="sub">${esc(e.sub)}</div>${e.meta ? `<div class="meta">${esc(e.meta)}</div>` : ''}${e.badge ? `<span class="badge">${esc(e.badge)}</span>` : ''}</div></div>`; break;
+    case 'alert': h = `<div class="alert">${ic('warn')}<div><b>${esc(e.title)}</b>${esc(e.text)}</div></div>`; break;
+    case 'sum': h = `<div class="sum">${e.rows.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>`; break;
+    case 'cb': h = `<div class="cb"><i>${ic('check')}</i><span>${esc(e.label)}</span></div>`; break;
+    case 'ok': h = `<div class="okx"><i>${ic('check')}</i><h2>${esc(e.title)}</h2><div class="tx"><span>${esc(e.text)}</span></div></div>`; break;
+  }
+  const hot = o.acts && o.acts[e.id] ? ' hot' : '';
+  const flag = state.a11y === 'flagged' && e.a11y ? ' flag' : '';
+  return `<div class="el${hot}${flag}" data-el="${e.id}" data-c="${e.c || ''}">${h}</div>`;
+}
+function screenHTML(sid, fid, o = {}) {
+  let head = '', body = '';
+  for (const e of SCR[sid].els) { const h = elHTML(e, sid, o); if (e.t === 'ab') head += h; else body += h; }
+  const sb = fid === 'hifi' ? `<div class="sb"><span>9:41</span><span>${SBI}</span></div>` : '<div class="sb"></div>';
+  const st = state.a11y === 'fixed' ? ' style="--meta:#5b6b70"' : '';
+  return `<div class="scr ${fid}" data-scr="${sid}"${st}>${sb}${head}<div class="body">${body}</div></div>`;
+}
+
+/* ---------- Board (Wireflow / Design) ---------- */
+const DIR = { r: [1, 0], l: [-1, 0], t: [0, -1], b: [0, 1] };
+const MARK = c => `<marker id="ar${c}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(${c === 'g' ? '--ai' : c === 'on' ? '--sel' : '--muted'})"/></marker>`;
+const DEFS = `<defs>${MARK('')}${MARK('g')}${MARK('on')}</defs>`;
+function renderBoard() {
+  const fid = state.mode === 'wire' ? 'lofi' : 'hifi';
+  let h = `<svg class="edges" id="edges">${DEFS}</svg>`;
+  for (const n of NODES) {
+    if (n.ghost && state.s7 === 'none') continue;
+    if (n.type === 'dec') {
+      const miss = n.id === 'dec_slot' && state.s7 === 'none';
+      h += `<div class="node" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px"><div class="dec"><svg viewBox="0 0 120 120" width="120" height="120" aria-hidden="true"><polygon points="60,2 118,60 60,118 2,60"/></svg><span>${esc(n.label)}</span></div>${miss ? `<div class="wb">${ic('warn')}Nein-Pfad fehlt</div>` : ''}</div>`;
+      continue;
+    }
+    const s = SCR[n.id], g = n.ghost && state.s7 === 'proposed', ds = dsScore([n.id]).pct;
+    const tag = g ? '<span class="t a">Vorschlag von Claude</span>' : fid === 'hifi' ? `<span class="t${ds < 100 ? ' w' : ''}">DS ${ds} %</span>` : `<span>${s.states.length} Zustände</span>`;
+    h += `<div class="node${g ? ' ghost' : ''}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px"><div class="ftitle">${n.start ? '<span>Start ·</span>' : ''}<b>${esc(s.title)}</b>${tag}</div><div class="frame">${screenHTML(n.id, fid)}</div>${g ? '<div class="gbar"><button class="y" data-act="accept">Annehmen</button><button data-act="reject">Verwerfen</button></div>' : ''}</div>`;
+  }
+  world.innerHTML = h;
+  markComp();
+}
+function offIn(el, root) { let x = 0, y = 0, e = el; while (e && e !== root) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; } return { x, y, w: el.offsetWidth, h: el.offsetHeight }; }
+function anchor(id, elId, side, tx) {
+  const n = NODE[id];
+  if (n.type === 'dec') return { x: n.x + 60 + DIR[side][0] * 58, y: n.y + 60 + DIR[side][1] * 58 };
+  if (elId) {
+    const fr = world.querySelector(`.node[data-id="${id}"] .frame`), el = fr && fr.querySelector(`[data-el="${elId}"]`);
+    if (el) {
+      const o = offIn(el, fr);
+      if (side === 'b') return { x: n.x + o.x + o.w / 2, y: n.y + o.y + o.h };
+      return { x: n.x + (side === 'l' ? o.x : o.x + o.w), y: n.y + o.y + o.h / 2 };
+    }
+  }
+  const ox = tx == null ? 180 : tx;
+  return side === 'l' ? { x: n.x, y: n.y + 370 } : side === 'r' ? { x: n.x + 360, y: n.y + 370 } : side === 't' ? { x: n.x + ox, y: n.y } : { x: n.x + ox, y: n.y + 740 };
+}
+function bez(a, c1, c2, b, t) { const u = 1 - t; return { x: u * u * u * a.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * b.x, y: u * u * u * a.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * b.y }; }
+function drawEdges() {
+  const svg = $('#edges', world);
+  if (!svg || state.mode === 'journey') return;
+  $$('.elabel', world).forEach(x => x.remove());
+  const sel = state.sel && state.sel.k !== 'card' ? state.sel.id : null;
+  let p = '', l = '';
+  for (const e of visibleEdges()) {
+    const fs = e.fs || 'r', ts = e.ts || 'l';
+    const a = anchor(e.f, e.el, fs), b = anchor(e.t, null, ts, e.tx);
+    const d = Math.hypot(b.x - a.x, b.y - a.y), kk = e.k || [clamp(d * .4, 40, 220), clamp(d * .4, 40, 220)];
+    const c1 = { x: a.x + DIR[fs][0] * kk[0], y: a.y + DIR[fs][1] * kk[0] }, c2 = { x: b.x + DIR[ts][0] * kk[1], y: b.y + DIR[ts][1] * kk[1] };
+    const g = e.ghost && state.s7 === 'proposed', on = !g && sel && (e.f === sel || e.t === sel);
+    const cls = g ? 'g' : on ? 'on' : '';
+    p += `<path class="${cls}" d="M${a.x} ${a.y}C${c1.x} ${c1.y} ${c2.x} ${c2.y} ${b.x} ${b.y}" marker-end="url(#ar${cls})"/>`;
+    if (e.el) p += `<circle class="${cls}" cx="${a.x}" cy="${a.y}"/>`;
+    const m = bez(a, c1, c2, b, e.lt || .5);
+    l += `<div class="elabel${g ? ' g' : ''}${e.el ? ' minor' : ''}${on ? ' on' : ''}" style="left:${m.x}px;top:${m.y}px">${esc(e.label)}</div>`;
+  }
+  svg.innerHTML = DEFS + p;
+  world.insertAdjacentHTML('beforeend', l);
+}
+function markComp() { $$('.el', world).forEach(x => x.classList.toggle('mark', !!state.comp && x.dataset.c === state.comp)); }
+
+/* ---------- Journey-Board ---------- */
+const JX = 160, JW = 280, JG = 16, jx = i => JX + i * (JW + JG);
+const JROWS = [['Aktionen', 150], ['Touchpoints', 296], ['Gedanken', 360], ['Emotion', 452], ['Pain Points', 628], ['Chancen', 790], ['Screens', 892]];
+function jcard(id, cls, text, small) { return `<div class="jc ${cls}" data-card="${id}">${esc(text)}${small ? `<small>${esc(small)}</small>` : ''}</div>`; }
+function renderJourney() {
+  const full = 5 * JW + 4 * JG;
+  let h = `<div class="persona" style="left:${JX}px;top:0;width:${full}px"><span class="av2">BW</span><div><b>${esc(JR.title)} · ${esc(JR.variant)}</b><div>Persona: ${esc(JR.persona)} · ${esc(JR.scenario)}</div></div><span class="tag" style="margin-left:auto">${esc(JR.sources)}</span></div>`;
+  JROWS.forEach(([t, y]) => { h += `<div class="jl" style="top:${y}px">${t}</div>`; });
+  JR.phases.forEach((p, i) => {
+    const x = jx(i), box = (y, inner) => `<div class="jbox" style="left:${x}px;top:${y}px;width:${JW}px">${inner}</div>`;
+    h += box(84, `<div class="jhead"><i>${i + 1}</i>${esc(p.title)}</div>`);
+    h += box(150, p.actions.map((a, j) => jcard(`${p.id}_a${j}`, '', a)).join(''));
+    h += box(296, `<div class="jchips">${p.touch.map(t => `<span class="jchip">${esc(t)}</span>`).join('')}</div>`);
+    h += box(360, jcard(`${p.id}_th`, 'th', `„${p.thought}“`));
+    h += box(628, p.pains.map(pp => jcard(pp.id, 'pain', pp.text, `${pp.ev.length} ${pp.ev.length > 1 ? 'Belege' : 'Beleg'} · ${pp.sev}`)).join(''));
+    h += box(790, p.opps.map((o, j) => jcard(`${p.id}_o${j}`, 'opp', o)).join(''));
+    const sc = p.screens.filter(s => s !== 'scr_slot_vergeben' || state.s7 !== 'none');
+    h += box(892, sc.length ? `<div class="jchips">${sc.map(s => `<button class="jchip" data-goto="${s}">${esc(SCR[s].title)}</button>`).join('')}</div>` : '<span class="hint">Noch keine Screens</span>');
+  });
+  const pts = JR.phases.map((p, i) => ({ x: i * (JW + JG) + JW / 2, y: 75 - p.emo * 30, p }));
+  let d = `M${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    d += `C${p1.x + (p2.x - p0.x) / 6} ${p1.y + (p2.y - p0.y) / 6} ${p2.x - (p3.x - p1.x) / 6} ${p2.y - (p3.y - p1.y) / 6} ${p2.x} ${p2.y}`;
+  }
+  const low = Math.min(...JR.phases.map(p => p.emo));
+  h += `<svg class="emo" style="left:${JX}px;top:452px" width="${full}" height="150" viewBox="0 0 ${full} 150" aria-label="Emotionskurve"><line x1="0" y1="75" x2="${full}" y2="75"/><text class="ax" x="4" y="70">neutral</text><path d="${d}"/>${pts.map(q => { const lo = q.p.emo === low; return `<circle class="${lo ? 'low' : ''}" cx="${q.x}" cy="${q.y}" r="7"/><text class="${lo ? 'low' : ''}" x="${q.x + 14}" y="${q.y + (q.p.emo < 0 ? 22 : -12)}">${esc(q.p.emoL)}${lo ? ' · Tiefpunkt' : ''}</text>`; }).join('')}</svg>`;
+  world.innerHTML = h;
+}
+
+/* ---------- Linkes Panel ---------- */
+function renderLeft() {
+  const tabs = state.mode === 'proto' ? [['flow', 'Ablauf']] : [['layers', 'Ebenen'], ['comps', 'Komponenten'], ['tokens', 'Tokens']];
+  if (!tabs.some(t => t[0] === state.ltab)) state.ltab = tabs[0][0];
+  $('#ltabs').innerHTML = tabs.map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="${k === state.ltab}">${l}</button>`).join('');
+  const pane = $('#lpane');
+  if (state.mode === 'proto') pane.innerHTML = protoLeft();
+  else if (state.ltab === 'layers') pane.innerHTML = state.mode === 'journey' ? journeyLayers() : flowLayers();
+  else if (state.ltab === 'comps') pane.innerHTML = compsPanel();
+  else pane.innerHTML = tokensPanel();
+}
+function flowLayers() {
+  const s = state.sel, ids = flowIds();
+  let h = `<div class="grp">Flows</div><ul class="tree"><li><button data-node="" aria-current="${!s}">${ic('flow')}<span>Termin buchen</span><em>${ids.length} Screens</em></button></li>`;
+  for (const n of NODES) {
+    if (n.ghost && state.s7 === 'none') continue;
+    const cur = !!s && s.k !== 'card' && s.id === n.id;
+    if (n.type === 'dec') {
+      h += `<li><button class="l1" data-node="${n.id}" aria-current="${cur}">${ic('diamond')}<span>${esc(n.label)}</span>${n.id === 'dec_slot' && state.s7 === 'none' ? '<em style="color:var(--warn)">1 Warnung</em>' : ''}</button></li>`;
+      continue;
+    }
+    const sc = SCR[n.id], g = n.ghost && state.s7 === 'proposed';
+    h += `<li><button class="l1" data-node="${n.id}" aria-current="${cur && s.k === 'node'}">${ic('phone')}<span>${esc(sc.title)}</span>${g ? '<em class="aiTxt">Vorschlag</em>' : n.start ? '<em>Start</em>' : ''}</button></li>`;
+    if (cur) for (const e of sc.els) {
+      if (e.t === 'grow') continue;
+      h += `<li><button class="l2" data-node="${n.id}" data-el="${e.id}" aria-current="${s.k === 'el' && s.el === e.id}">${ic(e.c ? 'comp' : 'warn')}<span>${esc(e.c || 'Frei')} · ${esc(elName(e))}</span>${e.gap ? '<em>Lücke</em>' : ''}</button></li>`;
+    }
+  }
+  h += `<li><button class="dim" data-todo="1">${ic('flow')}<span>Folgetermin buchen</span><em>Entwurf</em></button></li></ul>`;
+  h += `<div class="grp">Journeys</div><ul class="tree"><li><button data-gomode="journey">${ic('journey')}<span>${esc(JR.title)}</span><em>Ist</em></button></li></ul>`;
+  return h + '<p class="hint">Klick wählt einen Screen, ein zweiter Klick oder Doppelklick ein Element. Frames lassen sich ziehen.</p>';
+}
+function journeyLayers() {
+  const s = state.sel;
+  let h = `<div class="grp">${esc(JR.title)}</div><ul class="tree">`;
+  JR.phases.forEach((p, i) => {
+    const n = p.screens.filter(x => x !== 'scr_slot_vergeben' || state.s7 !== 'none').length;
+    h += `<li><button data-jfocus="${i}">${ic('layer')}<span>${i + 1}. ${esc(p.title)}</span><em>${n ? n + ' Screens' : '–'}</em></button></li>`;
+    p.pains.forEach(pp => { h += `<li><button class="l1" data-card="${pp.id}" aria-current="${!!s && s.k === 'card' && s.id === pp.id}">${ic('warn')}<span>${esc(pp.text)}</span></button></li>`; });
+  });
+  h += `</ul><div class="grp">Flows</div><ul class="tree"><li><button data-gomode="design">${ic('flow')}<span>Termin buchen</span><em>${flowIds().length} Screens</em></button></li></ul>`;
+  return h + '<p class="hint">Pain Points sind mit Belegen aus den Interviews verknüpft.</p>';
+}
+function compCounts() { const m = {}; for (const id of flowIds()) for (const e of SCR[id].els) if (e.c && !e.free) m[e.c] = (m[e.c] || 0) + 1; return m; }
+function compsList() {
+  const m = compCounts(), f = state.filter.trim().toLowerCase();
+  let h = '';
+  for (const [g, list] of COMPS) {
+    const items = list.filter(c => !f || c.toLowerCase().includes(f));
+    if (items.length) h += `<div class="grp">${g}</div>` + items.map(c => `<button class="comp" data-comp="${c}" aria-pressed="${state.comp === c}"><span>${c}</span><em>${m[c] ? m[c] + '×' : 'ungenutzt'}</em></button>`).join('');
+  }
+  if (!h) h = '<p class="hint">Keine Komponente gefunden.</p>';
+  const gaps = {};
+  for (const id of flowIds()) for (const e of SCR[id].els) if (e.gap) { const k = e.free ? 'Erfolgs-Illustration (freies Element)' : 'Zeit-Slot-Auswahl (aus ChipGroup)'; gaps[k] = (gaps[k] || 0) + 1; }
+  return h + '<div class="grp">DS-Lücken</div>' + Object.entries(gaps).map(([k, v]) => `<div class="gapc">${esc(k)} · ${v}×</div>`).join('');
+}
+function compsPanel() {
+  return `<p class="hint">Acme UI (Auszug aus 48 Komponenten) – gelesen aus Code, Storybook und Tokens.</p><input class="search" id="cfilter" type="search" placeholder="Komponente suchen" value="${esc(state.filter)}" aria-label="Komponente suchen"><div id="clist">${compsList()}</div><p class="hint">Klick markiert alle Instanzen auf dem Canvas.</p>`;
+}
+function tokensPanel() {
+  const row = (lead, n, v) => `<div class="tokrow">${lead}<div class="tk"><code>${n}</code><small>${v}</small></div></div>`;
+  let h = '<div class="grp">Farben</div>' + TOK.color.map(([n, v]) => row(`<i class="sw" style="background:${v}"></i>`, n, v)).join('');
+  h += '<div class="grp">Abstände</div>' + TOK.space.map(([n, v]) => row(`<i class="sw bx"><i class="bar" style="width:${Math.min(18, v)}px"></i></i>`, n, v + ' px')).join('');
+  h += '<div class="grp">Radien</div>' + TOK.radius.map(([n, v]) => row(`<i class="sw" style="border-radius:${Math.min(v, 9)}px;background:var(--panel2)"></i>`, n, v + ' px')).join('');
+  h += '<div class="grp">Typografie</div>' + TOK.type.map(([n, v]) => row('<i class="sw bx">Aa</i>', n, v)).join('');
+  return h + '<p class="hint">Format: DTCG 2025.10 · Light/Dark über den Resolver.</p>';
+}
+function protoLeft() {
+  const p = state.proto;
+  let h = `<div class="grp">Pfad dieser Sitzung</div><div class="path">${p.hist.map((s, i) => `${i ? '<span class="hint">›</span>' : ''}<span class="jchip">${esc(SCR[s].title)}</span>`).join('')}</div>`;
+  h += `<div class="grp">Screens</div><ul class="tree">${flowIds().map(id => `<li><button data-pgo="${id}" aria-current="${id === p.cur}">${ic('phone')}<span>${esc(SCR[id].title)}</span>${NODE[id].start ? '<em>Start</em>' : ''}</button></li>`).join('')}</ul>`;
+  return h + '<p class="hint">Ein Klick neben einen Hotspot zeigt alle klickbaren Stellen.</p>';
+}
+
+/* ---------- Rechtes Panel (Inspector) ---------- */
+const TV = Object.fromEntries([...TOK.space, ...TOK.radius].map(([n, v]) => [n, v + ' px']));
+function tok(name) { const h = HEX[name]; return `<span class="tok">${h ? `<i class="sw" style="background:${h}"></i>` : ''}${esc(name)}${TV[name] ? ' · ' + TV[name] : ''}</span>`; }
+const nodeTitle = id => (NODE[id].type === 'dec' ? NODE[id].label : SCR[id].title);
+function rTabsFor() {
+  if (state.mode === 'proto') return [['pmode', 'Prototyp']];
+  if (state.mode === 'journey') return [['info', 'Details']];
+  const s = state.sel;
+  if (!s) return [['flow', 'Flow']];
+  if (NODE[s.id].type === 'dec') return [['dec', 'Entscheidung']];
+  return [['design', 'Design'], ['proto', 'Prototyp'], ['code', 'Code'], ['qa', 'Qualität']];
+}
+function renderRight() {
+  const tabs = rTabsFor();
+  if (!tabs.some(t => t[0] === state.rtab)) state.rtab = tabs[0][0];
+  $('#rtabs').innerHTML = tabs.map(([k, l]) => `<button role="tab" data-rtab="${k}" aria-selected="${k === state.rtab}">${l}</button>`).join('');
+  const s = state.sel, t = state.rtab;
+  let h;
+  if (state.mode === 'proto') h = protoRight();
+  else if (state.mode === 'journey') h = s && s.k === 'card' ? cardRight(s.id) : journeyOverview();
+  else if (!s) h = flowOverview();
+  else if (NODE[s.id].type === 'dec') h = decRight(NODE[s.id]);
+  else {
+    const e = s.k === 'el' ? elOf(s.id, s.el) : null;
+    h = t === 'design' ? (e ? elDesign(s.id, e) : screenDesign(s.id)) : t === 'proto' ? protoTab(s.id, e) : t === 'code' ? codeTab(s.id, e) : qaHTML([s.id], false);
+  }
+  $('#rpane').innerHTML = h;
+}
+function flowOverview() {
+  const ids = flowIds(), decs = NODES.filter(n => n.type === 'dec').length;
+  let h = `<div class="sec"><h3>${ic('flow')}Flow „Termin buchen“</h3><div class="row st"><span>Datei</span><span class="tok">flows/buchung.flow.json</span></div><div class="row"><span>Journey</span><button class="lnk" data-gomode="journey">${esc(JR.title)}</button></div><div class="row"><span>Umfang</span><span>${ids.length} Screens · ${decs} Entscheidungen · ${visibleEdges().length} Verbindungen</span></div><div class="row"><span>Fidelity</span><span>${state.mode === 'wire' ? 'Lo-Fi (Wireframe)' : 'Hi-Fi aus Acme UI'}</span></div></div>`;
+  h += qaHTML(ids, true);
+  h += `<div class="sec"><h3>Abdeckung der Journey</h3>${JR.phases.map(p => { const n = p.screens.filter(x => x !== 'scr_slot_vergeben' || state.s7 !== 'none').length; return `<div class="row"><span>${esc(p.title)}</span><span>${n ? `<span class="tag ok">${n} Screens</span>` : '<span class="tag">keine</span>'}</span></div>`; }).join('')}</div>`;
+  return h;
+}
+function qaHTML(ids, flowLevel) {
+  const ds = dsScore(ids), issues = [], sub = fmt(ratio(HEX['color.text.subtle']));
+  if (flowLevel && state.s7 === 'none') issues.push(['warn', 'Flow-Integrität', '„Slot noch frei?“ hat keinen Nein-Pfad.', '<button class="lnk" data-focus="dec_slot">Zeigen</button> · <button class="lnk" data-run="s7">Claude ergänzen lassen</button>']);
+  const hasA = ids.some(id => SCR[id].els.some(x => x.a11y));
+  if (hasA && state.a11y === 'flagged') issues.push(['warn', 'Kontrast', `Metatext in Karten: ${sub}:1, nötig sind 4,5:1.`, '<button class="lnk" data-cact="fix">Fix übernehmen</button>']);
+  ids.forEach(id => SCR[id].els.filter(x => x.gap).forEach(x => issues.push([x.free ? 'warn' : 'info', 'DS-Lücke', `${esc(SCR[id].title)}: ${esc(x.gap)}`, ''])));
+  let h = `<div class="sec"><h3>DS-Konformität <span class="tag ${ds.pct >= 95 ? 'ok' : 'warn'}">${ds.pct} %</span></h3><div class="meter"><i style="width:${ds.pct}%"></i></div><p class="hint">${ds.d} von ${ds.n} Elementen sind Komponenten aus Acme UI.</p></div>`;
+  const at = { fixed: '<span class="tag ok">bestanden</span>', flagged: '<span class="tag warn">1 Befund</span>', ignored: '<span class="tag warn">1 ignoriert</span>', open: '<span class="tag">nicht geprüft</span>' }[state.a11y];
+  h += `<div class="sec"><h3>Barrierefreiheit ${at}</h3>${state.a11y === 'open' ? `<p class="hint">WCAG 2.2 AA: Kontrast, Zielgrößen, Fokus, Labels.</p><button class="btn sm ai" data-run="a11y">${ic('spark')}Prüfen lassen</button>` : `<div class="row"><span>Kontrast</span><span>${state.a11y === 'fixed' ? 'ok' : sub + ':1 bei Metatext'}</span></div><div class="row"><span>Zielgrößen</span><span>ok (mind. 24 px)</span></div><div class="row"><span>Fokus</span><span>ok</span></div>`}</div>`;
+  h += `<div class="sec"><h3>Befunde <span class="tag ${issues.length ? 'warn' : 'ok'}">${issues.length}</span></h3>${issues.length ? issues.map(([k, t, d, a]) => `<div class="issue"><span style="color:var(${k === 'warn' ? '--warn' : '--muted'})">${ic(k === 'warn' ? 'warn' : 'comp')}</span><div><b>${t}</b><div>${d}</div>${a ? `<div>${a}</div>` : ''}</div></div>`).join('') : '<p class="hint">Keine offenen Befunde.</p>'}</div>`;
+  return h;
+}
+function screenDesign(sid) {
+  const sc = SCR[sid], g = NODE[sid].ghost && state.s7 === 'proposed', ph = JR.phases.find(p => p.id === sc.phase);
+  let h = `<div class="sec"><h3>${ic('phone')}${esc(sc.title)}${g ? '<span class="tag ai">Vorschlag</span>' : ''}</h3><div class="row"><span>Viewport</span><span>Mobil · 360 × 740</span></div><div class="row"><span>Fidelity</span><span>${state.mode === 'wire' ? 'Lo-Fi' : 'Hi-Fi · Acme UI'}</span></div><div class="row st"><span>Datei</span><span class="tok">screens/${fileOf(sid)}</span></div></div>`;
+  h += `<div class="sec"><h3>Auto-Layout</h3><div class="row"><span>Richtung</span><span>vertikal</span></div><div class="row"><span>Abstand</span>${tok('space.3')}</div><div class="row"><span>Innenabstand</span>${tok('space.4')}</div><div class="row"><span>Hintergrund</span>${tok('color.surface.default')}</div></div>`;
+  h += `<div class="sec"><h3>Zustände</h3><div class="jchips">${sc.states.map(x => `<span class="jchip">${esc(x)}</span>`).join('')}</div></div>`;
+  h += `<div class="sec"><h3>${ic('journey')}Journey</h3><div>${esc(ph ? ph.title : '')} › ${esc(sc.step)}</div>${painsFor(sid).map(pp => `<div style="margin-top:6px"><button class="lnk" data-card="${pp.id}">Pain Point: ${esc(pp.text)}</button></div>`).join('')}</div>`;
+  if (g) h += `<div class="sec"><h3>${ic('spark')}Von Claude vorgeschlagen</h3><p class="hint">Begründung: Pain Point „Slot beim Absenden vergeben“ mit 3 Belegen. Komponenten: Alert, ChipGroup, Button.</p><div style="display:flex;gap:6px"><button class="btn sm ai" data-cact="accept">Annehmen</button><button class="btn sm" data-cact="reject">Verwerfen</button></div></div>`;
+  return h;
+}
+const ETOK = { ab: ['text.heading', 'color.text.default', 'color.action.primary'], h: ['text.title', 'color.text.default'], tx: ['text.body', 'color.text.muted'], field: ['text.label', 'color.border.default', 'radius.sm'], select: ['text.label', 'color.border.default', 'radius.sm'], chips: ['color.action.primary', 'color.border.default', 'radius.full'], card: ['color.border.subtle', 'radius.lg', 'space.3', 'color.feedback.success-subtle'], alert: ['color.feedback.danger-subtle', 'color.feedback.danger', 'radius.md'], sum: ['color.border.subtle', 'radius.lg', 'color.text.muted'], cb: ['color.action.primary', 'radius.sm'] };
+function etoks(e) {
+  if (e.t === 'bt') return e.variant === 'primary' ? ['color.action.primary', 'radius.md', 'text.body'] : e.variant === 'secondary' ? ['color.action.primary-subtle', 'color.action.primary', 'radius.md'] : ['color.action.primary', 'text.body'];
+  if (e.t === 'card' && e.meta) return ETOK.card.concat(metaTok());
+  return ETOK[e.t] || [];
+}
+function propsOf(e) {
+  const r = [];
+  if (e.t === 'bt') r.push(['variant', e.variant], ['size', 'lg'], ['label', e.label]);
+  if (e.t === 'ab') { r.push(['title', e.title]); if (e.sub) r.push(['subtitle', e.sub]); r.push(['back', e.nb ? 'false' : 'true']); }
+  if (e.t === 'h') r.push(['level', '1'], ['children', e.text]);
+  if (e.t === 'tx') { r.push(['tone', 'muted'], ['children', e.text]); if (e.icon) r.push(['icon', e.icon]); }
+  if (e.t === 'field' || e.t === 'select') { r.push(['label', e.label], ['value', e.value]); if (e.icon) r.push(['icon', e.icon]); }
+  if (e.t === 'chips') { if (e.label) r.push(['label', e.label]); r.push(['options', e.options.join(', ')], ['value', e.value]); }
+  if (e.t === 'card') { r.push(['title', e.title], ['subtitle', e.sub]); if (e.meta) r.push(['meta', e.meta]); if (e.badge) r.push(['badge', e.badge]); r.push(['media', `Avatar ${e.initials}`]); }
+  if (e.t === 'alert') r.push(['tone', 'danger'], ['title', e.title]);
+  if (e.t === 'sum') r.push(['items', e.rows.map(x => x[0]).join(', ')]);
+  if (e.t === 'cb') r.push(['label', e.label], ['checked', 'true']);
+  if (e.t === 'ok') r.push(['title', e.title], ['text', e.text]);
+  return r;
+}
+function elDesign(sid, e) {
+  const inDS = e.c && !e.free, ts = etoks(e);
+  let h = `<div class="sec"><h3>${ic(inDS ? 'comp' : 'warn')}${esc(e.c || 'Freies Element')}<span class="tag ${inDS ? 'ok' : 'warn'}">${inDS ? 'Acme UI' : 'nicht im DS'}</span></h3><div class="row"><span>Screen</span><button class="lnk" data-node="${sid}">${esc(SCR[sid].title)}</button></div><div class="row"><span>Intent</span><span class="tok">${esc(e.intent)}</span></div>${propsOf(e).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}</div>`;
+  h += `<div class="sec"><h3>Tokens</h3>${ts.length ? ts.map(t => `<div style="margin:4px 0">${tok(t)}</div>`).join('') : '<p class="hint">Freie Werte, keine Tokens.</p>'}</div>`;
+  if (e.gap) h += `<div class="sec"><h3>DS-Lücke</h3><div class="gapc">${esc(e.gap)}</div><p class="hint">Landet im Lücken-Report für das DS-Team.</p></div>`;
+  if (e.a11y && state.a11y === 'flagged') h += `<div class="sec"><h3><span style="color:var(--warn)">${ic('warn')}</span>Kontrast</h3><p style="margin:0 0 8px">Metatext ${fmt(ratio(HEX['color.text.subtle']))}:1 auf Weiß, nötig sind 4,5:1.</p><button class="btn sm ai" data-cact="fix">Token tauschen: color.text.muted (${fmt(ratio(HEX['color.text.muted']))}:1)</button></div>`;
+  return h;
+}
+function interactions(sid) {
+  const list = [];
+  for (const ed of visibleEdges()) if (ed.f === sid && ed.el) list.push({ el: ed.el, act: `Navigieren zu „${nodeTitle(ed.t)}“ · Schieben`, set: ed.set });
+  Object.entries(EXTRA[sid] || {}).forEach(([el, a]) => list.push({ el, act: a.to ? `Navigieren zu „${nodeTitle(a.to)}“ · Schieben` : a.restart ? 'Prototyp neu starten' : 'Systemaktion', only: true }));
+  const ab = SCR[sid].els.find(x => x.t === 'ab' && !x.nb);
+  if (ab) list.push({ el: ab.id, act: 'Zurück · Schieben' });
+  return list;
+}
+function protoTab(sid, e) {
+  const all = interactions(sid), list = e ? all.filter(x => x.el === e.id) : all, inc = visibleEdges().filter(x => x.t === sid);
+  let h = `<div class="sec"><h3>${ic('link')}Interaktionen</h3>${list.length ? list.map(x => `<div class="issue">${ic('link')}<div><b>Tippen auf „${esc(elName(elOf(sid, x.el)))}“</b><div>${esc(x.act)}</div>${x.set ? `<div class="hint">setzt ${Object.keys(x.set).map(k => k + ' = true').join(', ')}</div>` : ''}${x.only ? '<div class="hint">nur im Prototyp, keine Kante im Flow</div>' : ''}</div></div>`).join('') : '<p class="hint">Keine Interaktionen.</p>'}</div>`;
+  if (!e) h += `<div class="sec"><h3>Erreichbar von</h3>${inc.length ? inc.map(x => `<div class="row"><span>${esc(x.label)}</span><button class="lnk" data-node="${x.f}">${esc(nodeTitle(x.f))}</button></div>`).join('') : '<p class="hint">Einstieg des Flows.</p>'}</div>`;
+  return h + `<div class="sec"><button class="btn sm" data-playfrom="${sid}">Prototyp ab hier abspielen</button></div>`;
+}
+function jsx(e, ind, acts) {
+  const a = (k, v) => ` ${k}="${v}"`;
+  switch (e.t) {
+    case 'ab': return `${ind}<AppBar${a('title', e.title)}${e.sub ? a('subtitle', e.sub) : ''}${e.nb ? '' : ' onBack={goBack}'} />`;
+    case 'h': return `${ind}<Heading level={1}>${e.text}</Heading>`;
+    case 'tx': return `${ind}<Text tone="muted"${e.icon ? a('icon', e.icon) : ''}>${e.text}</Text>`;
+    case 'field': return `${ind}<TextField${a('label', e.label)}${a('defaultValue', e.value)}${e.icon ? a('icon', e.icon) : ''} />`;
+    case 'select': return `${ind}<Select${a('label', e.label)}${a('value', e.value)} />`;
+    case 'chips': return `${ind}<ChipGroup${e.label ? a('label', e.label) : ''}${a('value', e.value)}\n${ind}  options={[${e.options.map(o => `'${o}'`).join(', ')}]} />`;
+    case 'bt': return `${ind}<Button${a('variant', e.variant)} size="lg"${acts && acts[e.id] ? ' onPress={next}' : ''}>${e.label}</Button>`;
+    case 'card': return `${ind}<Card${a('title', e.title)}${a('subtitle', e.sub)}${e.meta ? a('meta', e.meta) : ''}${e.badge ? a('badge', e.badge) : ''}\n${ind}  media={<Avatar initials="${e.initials}" />} />`;
+    case 'alert': return `${ind}<Alert tone="danger"${a('title', e.title)}>${e.text}</Alert>`;
+    case 'sum': return `${ind}<SummaryList items={[\n${e.rows.map(([k, v]) => `${ind}  ['${k}', '${v}'],`).join('\n')}\n${ind}]} />`;
+    case 'cb': return `${ind}<Checkbox${a('label', e.label)} defaultChecked />`;
+    case 'ok': return `${ind}{/* Freies Element – DS-Lücke */}\n${ind}<SuccessIllustration${a('title', e.title)} />`;
+    case 'grow': return `${ind}<Spacer />`;
+  }
+  return '';
+}
+function hl(src) {
+  return esc(src).replace(/(&quot;.*?&quot;|'[^'\n]*')/g, '<span class="s">$1</span>').replace(/(\{\/\*.*?\*\/\})/g, '<span class="c">$1</span>').replace(/(&lt;\/?)([A-Z][A-Za-z]*)/g, '$1<span class="k">$2</span>');
+}
+function codeTab(sid, e) {
+  const acts = Object.fromEntries(interactions(sid).map(x => [x.el, 1]));
+  let src;
+  if (e) src = `import { ${e.c || 'SuccessIllustration'} } from '@acme/ui';\n\n${jsx(e, '', acts)}`;
+  else {
+    const sc = SCR[sid], used = [...new Set(['Page'].concat(sc.els.filter(x => x.c).map(x => x.c), sc.els.some(x => x.t === 'card') ? ['Avatar'] : [], sc.els.some(x => x.t === 'grow') ? ['Spacer'] : []))];
+    src = `import { ${used.join(', ')} } from '@acme/ui';\n\nexport function ${pascal(sc.title)}Screen({ next, goBack }) {\n  return (\n    <Page padding="space.4" gap="space.3">\n${sc.els.map(x => jsx(x, '      ', acts)).join('\n')}\n    </Page>\n  );\n}`;
+  }
+  return `<div class="sec"><h3>${ic('text')}JSX · React</h3><pre class="code" id="codeOut">${hl(src)}</pre><p class="hint">Aus der Screen-IR erzeugt; Props und Tokens sind gegen das DS-Manifest validiert.</p><button class="btn sm" data-copycode="1">Kopieren</button></div>`;
+}
+function decRight(n) {
+  const outs = visibleEdges().filter(e => e.f === n.id), yes = outs.find(e => e.when === n.v), no = outs.find(e => e.when === 'else');
+  let h = `<div class="sec"><h3>${ic('diamond')}${esc(n.label)}</h3><div class="row"><span>Variable</span><span class="tok">${n.v}</span></div><div class="row st"><span>Datei</span><span class="tok">flows/buchung.flow.json</span></div></div>`;
+  h += `<div class="sec"><h3>Pfade</h3><div class="row"><span>Ja</span>${yes ? `<button class="lnk" data-node="${yes.t}">${esc(nodeTitle(yes.t))}</button>` : '–'}</div><div class="row"><span>Nein</span><span>${no ? `<button class="lnk" data-node="${no.t}">${esc(nodeTitle(no.t))}</button>${no.ghost && state.s7 === 'proposed' ? ' <span class="tag ai">Vorschlag</span>' : ''}` : '<span class="tag warn">fehlt</span>'}</span></div></div>`;
+  if (!no) h += `<div class="sec"><div class="gapc">Ohne Nein-Pfad endet der Flow, sobald der Slot vergeben ist – genau am Tiefpunkt der Journey.</div><div style="margin-top:8px"><button class="btn sm ai" data-run="s7">${ic('spark')}Claude: Fehlerzustand ergänzen</button></div></div>`;
+  return h + `<div class="sec"><p class="hint">Im Prototyp entscheidet die Variable <b>${n.v}</b> über den Pfad.</p></div>`;
+}
+function journeyOverview() {
+  const pains = JR.phases.flatMap(p => p.pains), cov = JR.phases.filter(p => p.screens.length).length;
+  return `<div class="sec"><h3>${ic('journey')}${esc(JR.title)}</h3><div class="row"><span>Typ</span><span>${esc(JR.variant)}</span></div><div class="row"><span>Persona</span><span>${esc(JR.persona)}</span></div><div class="row"><span>Quellen</span><span>${esc(JR.sources)}</span></div><div class="row st"><span>Datei</span><span class="tok">journeys/termin-buchen.journey.json</span></div></div>`
+    + `<div class="sec"><h3>Pain Points <span class="tag">${pains.length}</span></h3>${pains.map(pp => `<div class="issue"><span style="color:var(${pp.sev === 'hoch' ? '--bad' : '--warn'})">${ic('warn')}</span><div><button class="lnk" data-card="${pp.id}">${esc(pp.text)}</button><div class="hint">${pp.ev.length} ${pp.ev.length > 1 ? 'Belege' : 'Beleg'} · ${pp.sev}</div></div></div>`).join('')}</div>`
+    + `<div class="sec"><h3>Abdeckung <span class="tag ${cov === JR.phases.length ? 'ok' : 'warn'}">${cov} von ${JR.phases.length} Phasen</span></h3><p class="hint">Ohne Screens: ${JR.phases.filter(p => !p.screens.length).map(p => esc(p.title)).join(', ')}</p></div>`;
+}
+function cardRight(id) {
+  const pp = PAIN[id];
+  if (pp) {
+    const sc = pp.id === 'pp_slot_weg' ? ['scr_profil'].concat(state.s7 !== 'none' ? ['scr_slot_vergeben'] : []) : pp.phase.screens;
+    return `<div class="sec"><h3><span style="color:var(--bad)">${ic('warn')}</span>Pain Point <span class="tag ${pp.sev === 'hoch' ? 'bad' : 'warn'}">${pp.sev}</span></h3><p style="margin:0 0 6px;font-size:14px"><b>${esc(pp.text)}</b></p><div class="row"><span>Phase</span><span>${esc(pp.phase.title)}</span></div></div>`
+      + `<div class="sec"><h3>Belege <span class="tag">${pp.ev.length}</span></h3>${pp.ev.map(([who, ln, q]) => `<blockquote>„${esc(q)}“<small>research/interviews/${who.toLowerCase()}.md · Z. ${ln}</small></blockquote>`).join('')}</div>`
+      + `<div class="sec"><h3>Adressiert durch</h3>${sc.length ? `<div class="jchips">${sc.map(s => `<button class="jchip" data-goto="${s}">${esc(SCR[s].title)}</button>`).join('')}</div><div style="margin-top:8px"><button class="btn sm pri" data-gotoall="${sc.join(',')}">Im Wireflow zeigen</button></div>` : '<p class="hint">Noch kein Screen adressiert diesen Pain Point.</p>'}${pp.id === 'pp_slot_weg' && state.s7 === 'none' ? '<p class="hint">Der Fehlerzustand „Slot vergeben“ fehlt noch im Flow.</p>' : ''}</div>`;
+  }
+  const el = world.querySelector(`[data-card="${id}"]`), ph = JR.phases.find(p => id.startsWith(p.id + '_'));
+  const type = id.endsWith('_th') ? 'Gedanke' : /_o\d$/.test(id) ? 'Chance' : 'Aktion';
+  return `<div class="sec"><h3>${type}</h3><p style="margin:0 0 6px;font-size:14px">${esc(el ? el.textContent : '')}</p><div class="row"><span>Phase</span><span>${esc(ph ? ph.title : '')}</span></div></div>${type === 'Chance' ? `<div class="sec"><button class="btn sm ai" data-run="cov">${ic('spark')}Claude: Lücken der Journey prüfen</button></div>` : ''}`;
+}
+function protoRight() {
+  const p = state.proto, v = state.vars, acts = interactions(p.cur);
+  return `<div class="sec"><h3>Testaufgabe ${p.done ? '<span class="tag ok">erledigt</span>' : '<span class="tag">läuft</span>'}</h3><p style="margin:0 0 4px">Buchen Sie einen Hautarzttermin für diese Woche.</p><div class="row"><span>Schritte</span><span>${p.steps} (erwartet: ${p.expected})</span></div></div>`
+    + `<div class="sec"><h3>Variablen</h3>${Object.keys(v).map(k => `<div class="varrow"><code>${k}</code><button class="sw2" role="switch" aria-checked="${v[k]}" data-var="${k}" aria-label="${k}"></button></div>`).join('')}<p class="hint">Die Entscheidungen im Flow lesen diese Werte.</p></div>`
+    + `<div class="sec"><h3>Auf diesem Screen</h3>${acts.map(x => `<div class="issue">${ic('link')}<div><b>${esc(elName(elOf(p.cur, x.el)))}</b><div class="hint">${esc(x.act)}</div></div></div>`).join('') || '<p class="hint">Keine Interaktionen.</p>'}</div>`
+    + `<div class="sec"><div class="varrow"><span>Hotspots anzeigen</span><button class="sw2" role="switch" aria-checked="${p.hot}" data-hot="1" aria-label="Hotspots anzeigen"></button></div><button class="btn sm" data-restart="1">${ic('restart')}Neu starten</button></div>`;
+}
+function taskHTML() {
+  const p = state.proto;
+  return `<b>Testaufgabe</b><span class="pdesc">Buchen Sie einen Hautarzttermin für diese Woche.</span><div style="margin-top:6px">${p.done ? `<span class="tag ok">Erledigt in ${p.steps} Schritten</span>` : `<span class="tag">Schritt ${p.steps} · erwartet ${p.expected}</span>`}</div>`;
+}
+
+/* ---------- Ansicht: Zoom und Pan ---------- */
+const curView = () => (state.mode === 'journey' ? state.views.journey : state.views.board);
+function setView(v) { if (state.mode === 'journey') state.views.journey = v; else state.views.board = v; applyView(); }
+function applyView() {
+  const v = curView();
+  if (!v) return;
+  world.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.z})`;
+  world.style.setProperty('--iz', (1 / Math.max(v.z, .18)).toFixed(3));
+  world.classList.toggle('lowz', v.z < .22);
+  world.classList.toggle('narrow', v.z < .5);
+  world.classList.toggle('near', v.z >= .5);
+  let g = 20 * v.z;
+  while (g < 10) g *= 2;
+  stage.style.backgroundSize = `${g}px ${g}px`;
+  stage.style.backgroundPosition = `${v.x}px ${v.y}px`;
+  $('#zVal').textContent = Math.round(v.z * 100) + ' %';
+}
+function boundsOf(ids) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const id of ids) {
+    const n = NODE[id], w = n.type === 'dec' ? 120 : 360, h = n.type === 'dec' ? 150 : 740;
+    x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y - 40); x1 = Math.max(x1, n.x + w); y1 = Math.max(y1, n.y + h + (n.ghost && state.s7 === 'proposed' ? 70 : 10));
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+const allBounds = () => (state.mode === 'journey' ? { x: 0, y: 0, w: JX + 5 * JW + 4 * JG, h: 930 } : boundsOf(NODES.filter(n => !n.ghost || state.s7 !== 'none').map(n => n.id)));
+function fitTo(b, pad = 40, maxZ = 1) {
+  const W = stage.clientWidth, H = stage.clientHeight - 60;
+  if (W < 10 || H < 10) return;
+  const z = clamp(Math.min((W - pad * 2) / b.w, (H - pad * 2) / b.h), .08, maxZ);
+  setView({ z, x: (W - b.w * z) / 2 - b.x * z, y: (H - b.h * z) / 2 - b.y * z + 4 });
+}
+const fitAll = () => fitTo(allBounds());
+function initView() { if (state.mode !== 'journey' && stage.clientWidth < 760) fitTo(boundsOf(['scr_profil']), 24); else fitAll(); }
+function zoomAt(f, cx, cy) {
+  const v = curView();
+  if (!v) return;
+  const z = clamp(v.z * f, .08, 3), wx = (cx - v.x) / v.z, wy = (cy - v.y) / v.z;
+  setView({ z, x: cx - wx * z, y: cy - wy * z });
+}
+const zoomC = f => zoomAt(f, stage.clientWidth / 2, (stage.clientHeight - 60) / 2);
+function zoomSel() { const s = state.sel; if (state.mode === 'journey' || !s) fitAll(); else fitTo(boundsOf([s.id]), 40, 1.5); }
+function revealNode(id) {
+  const v = curView();
+  if (!v || state.mode === 'journey' || state.mode === 'proto') return;
+  const b = boundsOf([id]), W = stage.clientWidth, H = stage.clientHeight - 60, sx = b.x * v.z + v.x, sy = b.y * v.z + v.y;
+  if (sx >= 0 && sy >= 0 && sx + b.w * v.z <= W && sy + b.h * v.z <= H) return;
+  setView({ z: v.z, x: W / 2 - (b.x + b.w / 2) * v.z, y: H / 2 - (b.y + b.h / 2) * v.z });
+}
+function revealCard(id) {
+  const el = world.querySelector(`[data-card="${id}"]`), v = curView();
+  if (!el || !v) return;
+  const box = el.closest('.jbox'), x = parseFloat(box.style.left), y = parseFloat(box.style.top), W = stage.clientWidth, H = stage.clientHeight - 60, sx = x * v.z + v.x, sy = y * v.z + v.y;
+  if (sx >= 0 && sy >= 0 && sx + JW * v.z <= W && sy + 90 * v.z <= H) return;
+  setView({ z: v.z, x: W / 2 - (x + JW / 2) * v.z, y: H / 2 - (y + 45) * v.z });
+}
+
+/* ---------- Rendern, Auswahl, Modi ---------- */
+function renderWorld(anim) {
+  if (state.mode === 'journey') renderJourney(); else renderBoard();
+  if (anim && !RM) { world.classList.add('anim'); setTimeout(() => world.classList.remove('anim'), 400); }
+  if (!curView()) initView(); else applyView();
+  refreshSel();
+}
+function select(s) { state.sel = s; refreshSel(); }
+function refreshSel() {
+  const s = state.sel;
+  $$('.node', world).forEach(n => n.classList.toggle('sel', !!s && s.k !== 'card' && s.id === n.dataset.id));
+  $$('.esel', world).forEach(x => x.classList.remove('esel'));
+  if (s && s.k === 'el') { const x = world.querySelector(`.node[data-id="${s.id}"] [data-el="${s.el}"]`); if (x) x.classList.add('esel'); }
+  $$('.jc.sel', world).forEach(x => x.classList.remove('sel'));
+  if (s && s.k === 'card') { const x = world.querySelector(`[data-card="${s.id}"]`); if (x) x.classList.add('sel'); }
+  drawEdges(); renderLeft(); renderRight(); renderCtx(); renderSugs();
+}
+function setMode(m) {
+  if (state.mode === m) return;
+  state.mode = m; app.dataset.mode = m;
+  $$('.modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
+  const s = state.sel;
+  if (s && (m === 'journey') !== (s.k === 'card')) state.sel = null;
+  if (msgKind === 'intro' && (m === 'proto' || m === 'journey')) closeMsg();
+  if (m === 'proto') { renderProto(); renderLeft(); renderRight(); renderSugs(); } else renderWorld(true);
+  closeDrawers();
+}
+function showInFlow(ids) {
+  ids = ids.filter(id => SCR[id] && (id !== 'scr_slot_vergeben' || state.s7 !== 'none'));
+  if (!ids.length) return;
+  setMode('design');
+  state.sel = { k: 'node', id: ids[0] };
+  refreshSel();
+  fitTo(boundsOf(ids), 40, 1);
+  ids.forEach(id => { const n = world.querySelector(`.node[data-id="${id}"]`); if (n) { n.classList.add('hl'); setTimeout(() => n.classList.remove('hl'), 2600); } });
+}
+
+/* ---------- Zeiger, Rad, Pinch ---------- */
+let drag = null, pinch = null, spaceDown = false, raf = 0;
+const pts = new Map();
+const schedEdges = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; drawEdges(); }); };
+stage.addEventListener('pointerdown', e => {
+  if (state.mode === 'proto' || e.target.closest('.toolbar,.zoom,button,input')) return;
+  try { stage.setPointerCapture(e.pointerId); } catch (_) { /* nicht nötig */ }
+  pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pts.size === 2) {
+    const [a, b] = [...pts.values()];
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, m: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, v: Object.assign({}, curView()) };
+    drag = null;
+    return;
+  }
+  const v = curView(), nodeEl = e.target.closest('.node');
+  if (!v) return;
+  const pan = state.tool === 'hand' || spaceDown || e.button === 1 || state.mode === 'journey' || !nodeEl;
+  drag = { sx: e.clientX, sy: e.clientY, vx: v.x, vy: v.y, moved: false, pan, node: pan ? null : nodeEl.dataset.id, target: e.target };
+  if (drag.node) { drag.nx = NODE[drag.node].x; drag.ny = NODE[drag.node].y; }
+});
+stage.addEventListener('pointermove', e => {
+  if (!pts.has(e.pointerId)) return;
+  pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pts.size === 2) {
+    const [a, b] = [...pts.values()], r = stage.getBoundingClientRect(), d = Math.hypot(a.x - b.x, a.y - b.y), m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const z = clamp(pinch.v.z * d / pinch.d, .08, 3), wx = (pinch.m.x - r.left - pinch.v.x) / pinch.v.z, wy = (pinch.m.y - r.top - pinch.v.y) / pinch.v.z;
+    setView({ z, x: m.x - r.left - wx * z, y: m.y - r.top - wy * z });
+    return;
+  }
+  if (!drag) return;
+  const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+  if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+  drag.moved = true;
+  if (drag.pan) { stage.classList.add('grabbing'); setView({ z: curView().z, x: drag.vx + dx, y: drag.vy + dy }); }
+  else if (drag.node) {
+    const z = curView().z, n = NODE[drag.node], el = world.querySelector(`.node[data-id="${n.id}"]`);
+    n.x = Math.round(drag.nx + dx / z); n.y = Math.round(drag.ny + dy / z);
+    if (el) { el.style.left = n.x + 'px'; el.style.top = n.y + 'px'; }
+    schedEdges();
+  }
+});
+function endPtr(e) {
+  if (!pts.has(e.pointerId)) return;
+  pts.delete(e.pointerId);
+  if (pinch) { if (pts.size < 2) pinch = null; drag = null; return; }
+  stage.classList.remove('grabbing');
+  const d = drag;
+  drag = null;
+  if (d && !d.moved) clickAt(d.target);
+}
+stage.addEventListener('pointerup', endPtr);
+stage.addEventListener('pointercancel', e => { pts.delete(e.pointerId); drag = null; pinch = null; stage.classList.remove('grabbing'); });
+stage.addEventListener('wheel', e => {
+  if (state.mode === 'proto') return;
+  e.preventDefault();
+  const r = stage.getBoundingClientRect(), v = curView();
+  if (!v) return;
+  if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * .0025), e.clientX - r.left, e.clientY - r.top);
+  else setView({ z: v.z, x: v.x - e.deltaX, y: v.y - e.deltaY });
+}, { passive: false });
+stage.addEventListener('dblclick', e => {
+  if (state.mode !== 'wire' && state.mode !== 'design') return;
+  const n = e.target.closest('.node'), el = e.target.closest('[data-el]');
+  if (n && el) select({ k: 'el', id: n.dataset.id, el: el.dataset.el });
+});
+function clickAt(t) {
+  if (state.mode === 'journey') { const c = t.closest('[data-card]'); select(c ? { k: 'card', id: c.dataset.card } : null); return; }
+  const n = t.closest('.node');
+  if (!n) { select(null); return; }
+  const id = n.dataset.id, el = t.closest('[data-el]'), s = state.sel;
+  if (el && s && s.id === id) select({ k: 'el', id, el: el.dataset.el });
+  else select({ k: 'node', id });
+}
+
+/* ---------- Prototyp ---------- */
+function protoActs(sid) {
+  const m = {};
+  for (const ed of visibleEdges()) if (ed.f === sid && ed.el) m[ed.el] = { to: ed.t, set: ed.set };
+  Object.assign(m, EXTRA[sid] || {});
+  const ab = SCR[sid].els.find(x => x.t === 'ab' && !x.nb);
+  if (ab) m[ab.id] = { back: true };
+  return m;
+}
+function renderProto(dir) {
+  const p = state.proto, dev = $('#device');
+  dev.innerHTML = screenHTML(p.cur, 'hifi', { acts: protoActs(p.cur) });
+  dev.classList.toggle('showhot', p.hot);
+  if (dir && !RM) { dev.classList.remove('slide'); void dev.offsetWidth; dev.classList.add('slide'); }
+  $('#ptask').innerHTML = taskHTML();
+  fitDevice();
+  renderCtx();
+}
+function fitDevice() {
+  const pr = $('#proto'), task = $('#ptask'), box = $('#devbox'), dev = $('#device');
+  const col = pr.clientWidth < 700;
+  pr.classList.toggle('col', col);
+  const W = pr.clientWidth - 32 - (col ? 0 : task.offsetWidth + 28), H = pr.clientHeight - 40 - (col ? task.offsetHeight + 14 : 0);
+  const sc = clamp(Math.min(W / 384, H / 764), .3, 1);
+  dev.style.transform = `scale(${sc})`;
+  box.style.width = 384 * sc + 'px';
+  box.style.height = 764 * sc + 'px';
+}
+function flashHot() { const d = $('#device'); d.classList.add('flash'); clearTimeout(flashHot.t); flashHot.t = setTimeout(() => d.classList.remove('flash'), 650); }
+function protoAct(elId) {
+  const p = state.proto, a = protoActs(p.cur)[elId];
+  if (!a) return;
+  if (a.toast) { toast(a.toast); return; }
+  if (a.restart) { restartProto(); toast('Testlauf abgeschlossen – neuer Durchlauf gestartet.'); return; }
+  if (a.back) { if (p.hist.length > 1) { p.hist.pop(); p.cur = p.hist[p.hist.length - 1]; renderProto('back'); renderLeft(); renderRight(); } return; }
+  if (a.set) Object.assign(state.vars, a.set);
+  protoGo(a.to);
+}
+function protoGo(to) {
+  let t = to, guard = 0;
+  while (NODE[t].type === 'dec' && guard++ < 4) {
+    const n = NODE[t], val = !!state.vars[n.v];
+    const ed = visibleEdges().find(x => x.f === t && (val ? x.when === n.v : x.when === 'else'));
+    if (!ed) { toast(`„${n.label}“ ist hier „nein“ – dafür gibt es im Flow noch keinen Pfad.`, ['Claude ergänzen lassen', () => { setMode('design'); runClaude('s7'); }]); return; }
+    t = ed.t;
+  }
+  const p = state.proto;
+  p.cur = t; p.hist.push(t); p.steps++;
+  if (t === 'scr_bestaetigung') p.done = true;
+  renderProto('fwd'); renderLeft(); renderRight();
+}
+function restartProto(from) {
+  state.vars.angemeldet = false;
+  const f = from || 'scr_suche';
+  Object.assign(state.proto, { cur: f, hist: [f], steps: 0, done: false, expected: f === 'scr_suche' ? 5 : '–' });
+  renderProto(); renderLeft(); renderRight();
+}
+$('#device').addEventListener('click', e => { const hot = e.target.closest('.hot'); if (hot) protoAct(hot.dataset.el); else flashHot(); });
+
+/* ---------- Claude (simuliert) ---------- */
+let busy = false, msgKind = '';
+const CL = {
+  s7: {
+    title: 'Fehlerzustand „Slot vergeben“ ergänzen', ok: () => state.s7 === 'none',
+    steps: ['Auswahl gelesen: „Slot noch frei?“ hat keinen Nein-Pfad', 'Journey: Pain Point „Slot beim Absenden vergeben“ mit 3 Belegen', 'DS-Manifest durchsucht: Alert (danger), ChipGroup, Button', 'Screen-IR komponiert und gegen das Manifest validiert', 'Gerendert und geprüft: Kontraste ok, keine freien Werte'],
+    done() {
+      if (state.mode !== 'wire' && state.mode !== 'design') setMode('design');
+      state.s7 = 'proposed'; state.sel = { k: 'node', id: 'scr_slot_vergeben' };
+      renderWorld(true);
+      fitTo(boundsOf(['scr_pruefen', 'dec_slot', 'scr_slot_vergeben', 'scr_bestaetigung']), 40);
+      return { html: '<b>Vorschlag: Screen „Slot vergeben“ und 2 Verbindungen</b><div>Behält die Eingaben, bietet die nächsten freien Termine an und führt zurück zu „Angaben prüfen“.</div><details><summary>Warum?</summary><ul><li>Pain Point „Slot beim Absenden vergeben, Eingaben weg“ (P03, P07, P11)</li><li>Acme UI: Alert mit tone=danger statt eigener Fehlerbox; Zeit-Auswahl als ChipGroup (bekannte DS-Lücke)</li><li>Heuristik: Fehler verständlich erklären und einen Ausweg anbieten</li></ul></details>', acts: [['Annehmen', 'accept', 'ai'], ['Verwerfen', 'reject', '']] };
+    },
+  },
+  a11y: {
+    title: 'Barrierefreiheit prüfen', ok: () => state.a11y === 'open' || state.a11y === 'ignored',
+    steps: () => [`${flowIds().length} Screens gerendert (Playwright)`, 'axe-core: 0 kritische Verstöße', 'Kontraste aus den Tokens berechnet', 'Zielgrößen und Fokusreihenfolge geprüft'],
+    done() {
+      if (state.mode !== 'design') setMode('design');
+      state.a11y = 'flagged'; state.sel = { k: 'el', id: 'scr_ergebnisse', el: 'card_klein' }; state.rtab = 'design';
+      renderWorld();
+      fitTo(boundsOf(['scr_ergebnisse']), 30, 1.2);
+      return { html: `<b>1 Befund, 0 kritisch</b><div>Metatext in den Karten von „Ergebnisse“ („212 Bewertungen“): Kontrast ${fmt(ratio(HEX['color.text.subtle']))}:1 mit <code>color.text.subtle</code>, nötig sind 4,5:1.</div><div>Vorschlag: <code>color.text.muted</code> mit ${fmt(ratio(HEX['color.text.muted']))}:1 – ein Token-Tausch, keine neue Farbe.</div>`, acts: [['Fix übernehmen', 'fix', 'ai'], ['Ignorieren', 'ignore', '']] };
+    },
+  },
+  cov: {
+    title: 'Lücken der Journey prüfen', ok: () => true,
+    steps: ['5 Phasen und 5 Pain Points gelesen', 'Verknüpfungen zu Screens geprüft', 'Offene Pain Points nach Schweregrad sortiert'],
+    done: () => ({ html: '<b>2 Phasen ohne Screens: „Bedarf bemerken“ und „Besuch & Nachsorge“</b><div>Größter offener Pain Point mit Produktbezug: „Folgetermin nur telefonisch möglich“ (mittel, 1 Beleg). Vorschlag: neuer Flow „Folgetermin buchen“ mit 3 Screens, der die Praxisdaten aus „Termin buchen“ wiederverwendet.</div>', acts: [['Als Aufgabe merken', 'task', 'ai']] }),
+  },
+  walk: {
+    title: 'Walkthrough als Persona', ok: () => true,
+    steps: ['Persona: berufstätig, wenig Zeit', 'Aufgabe: Hautarzttermin für diese Woche', 'Pfad gespielt: Suche › Ergebnisse › Profil › Anmelden › Prüfen › Bestätigung', 'Reibung bewertet'],
+    done: () => ({ html: '<b>Ziel erreicht in 5 Schritten</b><div>Reibung: Die Anmeldung unterbricht den Ablauf direkt vor dem Prüfen. Hypothese: Gastbuchung als Standard spart einen Schritt – mit echten Tests prüfen.</div>', acts: [] }),
+  },
+};
+function msgHTML(html, acts) { return `${ic('spark')}<div class="grow">${html}<div class="acts">${acts.map(([l, a, cl]) => `<button class="btn sm ${cl}" type="button" data-cact="${a}">${esc(l)}</button>`).join('')}<button class="btn sm" type="button" data-cact="close">Schließen</button></div></div>`; }
+function showMsg(html, acts = [], kind = '') { const b = $('#cmsg'); msgKind = kind; b.classList.add('on'); b.innerHTML = msgHTML(html, acts); }
+function closeMsg() { const b = $('#cmsg'); msgKind = ''; b.classList.remove('on'); b.innerHTML = ''; }
+async function runClaude(kind) {
+  const c = CL[kind];
+  if (busy || !c) return;
+  busy = true; msgKind = 'run'; renderSugs();
+  const box = $('#cmsg'), steps = typeof c.steps === 'function' ? c.steps() : c.steps;
+  box.classList.add('on');
+  for (let i = 0; i <= steps.length; i++) {
+    box.innerHTML = `${ic('spark')}<div class="grow"><b>Claude · ${esc(c.title)}</b><ol>${steps.map((s, j) => `<li class="${j < i ? 'done' : j === i ? 'now' : ''}">${esc(s)}</li>`).join('')}</ol></div>`;
+    if (i < steps.length) await sleep(RM ? 80 : 480);
+  }
+  const r = c.done();
+  busy = false;
+  showMsg(r.html, r.acts);
+  renderSugs();
+}
+function cact(a) {
+  if (a === 'accept') { if (state.s7 !== 'proposed') return; state.s7 = 'accepted'; renderWorld(); closeMsg(); toast('Übernommen: flows/buchung.flow.json und screens/slot-vergeben.screen.json geschrieben.'); }
+  else if (a === 'reject') { if (state.s7 !== 'proposed') return; state.s7 = 'none'; if (state.sel && state.sel.id === 'scr_slot_vergeben') state.sel = null; renderWorld(); closeMsg(); toast('Vorschlag verworfen.'); }
+  else if (a === 'fix') { state.a11y = 'fixed'; if (state.mode !== 'proto') renderWorld(); closeMsg(); toast('Token getauscht: Card › meta nutzt jetzt color.text.muted (3 Instanzen).'); }
+  else if (a === 'ignore') { state.a11y = 'ignored'; if (state.mode !== 'proto') renderWorld(); closeMsg(); }
+  else if (a === 'task') { closeMsg(); toast('Aufgabe angelegt: Flow „Folgetermin buchen“ entwerfen.'); }
+  else if (a === 'run-s7') runClaude('s7');
+  else closeMsg();
+}
+function renderSugs() {
+  const m = state.mode, s = [];
+  if (m === 'journey') s.push(['cov', 'Lücken der Journey prüfen'], ['go-design', 'Flow „Termin buchen“ öffnen']);
+  else if (m === 'proto') s.push(['walk', 'Walkthrough als Persona spielen']);
+  else {
+    if (state.s7 === 'none') s.push(['s7', 'Fehlerzustand „Slot vergeben“ ergänzen']);
+    if (state.a11y === 'open' || state.a11y === 'ignored') s.push(['a11y', 'Barrierefreiheit prüfen']);
+    s.push(m === 'wire' ? ['go-design', 'Hi-Fi aus Acme UI zeigen'] : ['go-wire', 'Als Wireframe zeigen']);
+  }
+  $('#sugs').innerHTML = s.map(([k, l]) => `<button class="sug" type="button" data-sug="${k}"${busy ? ' disabled' : ''}>${ic('spark')}${esc(l)}</button>`).join('') + '<span class="sample">Fiktive Beispieldaten · Click-Dummy</span>';
+}
+function ctxText() {
+  const s = state.sel;
+  if (state.mode === 'proto') return 'Prototyp: ' + SCR[state.proto.cur].title;
+  if (!s) return state.mode === 'journey' ? 'Journey' : 'Flow „Termin buchen“';
+  if (s.k === 'card') return PAIN[s.id] ? 'Pain Point' : 'Journey-Karte';
+  if (s.k === 'node') return 'Auswahl: ' + nodeTitle(s.id);
+  const e = elOf(s.id, s.el);
+  return `Auswahl: ${SCR[s.id].title} › ${e ? e.c || 'Element' : ''}`;
+}
+function renderCtx() { $('#ctx').textContent = ctxText(); }
+
+/* ---------- Toast, Dialog, Export ---------- */
+function toast(msg, action) {
+  const t = $('#toast');
+  t.innerHTML = `<span>${esc(msg)}</span>${action ? `<button type="button">${esc(action[0])}</button>` : ''}`;
+  t.hidden = false;
+  if (action) t.querySelector('button').onclick = () => { t.hidden = true; action[1](); };
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => { t.hidden = true; }, action ? 7000 : 3800);
+}
+async function copyText(txt) { try { await navigator.clipboard.writeText(txt); toast('In die Zwischenablage kopiert.'); } catch (_) { toast('Kopieren wurde blockiert – bitte den Text markieren.'); } }
+const expBtn = $('#exp'), menu = $('#expMenu');
+function closeMenu() { menu.hidden = true; expBtn.setAttribute('aria-expanded', 'false'); }
+function openDlg(title, text) { $('#dlgT').textContent = title; $('#dlgPre').textContent = text; $('#dlgw').hidden = false; $('#dlgClose').focus(); }
+function closeDlg() { $('#dlgw').hidden = true; expBtn.focus(); }
+function mermaid() {
+  const L = ['flowchart LR'];
+  for (const n of NODES) { if (n.ghost && state.s7 === 'none') continue; L.push(n.type === 'dec' ? `  ${n.id}{"${n.label}"}` : `  ${n.id}["${SCR[n.id].title}"]`); }
+  for (const e of visibleEdges()) L.push(`  ${e.f} -->|${e.label}| ${e.t}`);
+  return L.join('\n');
+}
+function pathsCount() {
+  const out = {};
+  visibleEdges().forEach(e => { (out[e.f] = out[e.f] || []).push(e.t); });
+  let n = 0;
+  const walk = (id, seen) => { const nx = (out[id] || []).filter(x => !seen.has(x)); if (!nx.length) { n++; return; } nx.forEach(x => walk(x, new Set(seen).add(x))); };
+  walk('scr_suche', new Set(['scr_suche']));
+  return n;
+}
+expBtn.addEventListener('click', e => { e.stopPropagation(); const open = menu.hidden; menu.hidden = !open; expBtn.setAttribute('aria-expanded', String(open)); });
+document.addEventListener('click', e => { if (!menu.hidden && !e.target.closest('#expMenu,#exp')) closeMenu(); });
+menu.addEventListener('click', e => {
+  const b = e.target.closest('[data-exp]');
+  if (!b) return;
+  closeMenu();
+  const k = b.dataset.exp;
+  if (k === 'mermaid') { openDlg('Mermaid-Flowchart', mermaid()); return; }
+  toast({ react: `Im Plugin: ${flowIds().length} Routen-Gerüste und Stories pro Zustand.`, e2e: `Im Plugin: ${pathsCount()} Playwright-Testfälle, einer pro Pfad durch den Flow.`, figma: 'Im Plugin: Frames mit Acme-UI-Instanzen über den Figma-MCP-Server.', spec: 'Im Plugin: Markdown-Spec mit Screens, Zuständen und Akzeptanzkriterien.' }[k]);
+});
+$('#dlgClose').addEventListener('click', closeDlg);
+$('#dlgw').addEventListener('click', e => { if (e.target.id === 'dlgw') closeDlg(); });
+$('#dlgCopy').addEventListener('click', () => copyText($('#dlgPre').textContent));
+$('#share').addEventListener('click', () => toast('Teilen: Im Plugin entsteht ein statischer Export des Prototyps als Link.'));
+
+/* ---------- Panels, Werkzeuge, Tastatur ---------- */
+function panelClick(e) {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const d = b.dataset;
+  if ('node' in d) { if (!d.node) select(null); else { if (state.mode !== 'wire' && state.mode !== 'design') setMode('design'); select(d.el ? { k: 'el', id: d.node, el: d.el } : { k: 'node', id: d.node }); revealNode(d.node); } return; }
+  if (d.gomode) { setMode(d.gomode); return; }
+  if (d.todo) { toast('„Folgetermin buchen“ ist ein Entwurf – im Plugin öffnet er sich als eigener Flow.'); return; }
+  if (d.jfocus != null) { const i = +d.jfocus; fitTo({ x: jx(i) - 20, y: 70, w: JW + 40, h: 860 }, 30, 1.2); return; }
+  if (d.card) { if (state.mode !== 'journey') setMode('journey'); select({ k: 'card', id: d.card }); revealCard(d.card); return; }
+  if (d.comp) { state.comp = state.comp === d.comp ? null : d.comp; if (state.mode === 'journey' || state.mode === 'proto') setMode('design'); markComp(); renderLeft(); return; }
+  if (d.pgo) { const p = state.proto; p.cur = d.pgo; p.hist.push(d.pgo); renderProto('fwd'); renderLeft(); renderRight(); return; }
+  if (d.focus) { select({ k: 'node', id: d.focus }); fitTo(boundsOf([d.focus, 'scr_pruefen', 'scr_bestaetigung']), 40); return; }
+  if (d.run) { runClaude(d.run); return; }
+  if (d.cact) { cact(d.cact); return; }
+  if (d.goto) { showInFlow([d.goto]); return; }
+  if (d.gotoall) { showInFlow(d.gotoall.split(',')); return; }
+  if (d.var) { state.vars[d.var] = !state.vars[d.var]; renderRight(); return; }
+  if (d.hot) { state.proto.hot = !state.proto.hot; renderProto(); renderRight(); return; }
+  if (d.restart) { restartProto(); return; }
+  if (d.playfrom) { restartProto(d.playfrom); setMode('proto'); return; }
+  if (d.copycode) copyText($('#codeOut').textContent);
+}
+$('#lpane').addEventListener('click', panelClick);
+$('#rpane').addEventListener('click', panelClick);
+$('#lpane').addEventListener('input', e => { if (e.target.id === 'cfilter') { state.filter = e.target.value; $('#clist').innerHTML = compsList(); } });
+$('#ltabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { state.ltab = b.dataset.tab; renderLeft(); } });
+$('#rtabs').addEventListener('click', e => { const b = e.target.closest('[data-rtab]'); if (b) { state.rtab = b.dataset.rtab; renderRight(); } });
+$('#cmsg').addEventListener('click', e => { const b = e.target.closest('[data-cact]'); if (b) cact(b.dataset.cact); });
+world.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act) cact(b.dataset.act); else if (b.dataset.goto) showInFlow([b.dataset.goto]); });
+$('#sugs').addEventListener('click', e => {
+  const b = e.target.closest('[data-sug]');
+  if (!b) return;
+  const k = b.dataset.sug;
+  if (k === 'go-design') setMode('design'); else if (k === 'go-wire') setMode('wire'); else runClaude(k);
+});
+$('#cform').addEventListener('submit', e => {
+  e.preventDefault();
+  const inp = $('#cin'), q = inp.value.trim();
+  if (!q) return;
+  inp.value = '';
+  const k = /fehler|vergeben|nein-?pfad/i.test(q) ? 's7' : /kontrast|a11y|barriere|wcag/i.test(q) ? 'a11y' : /walkthrough|persona/i.test(q) ? 'walk' : /lücke|chance|phase/i.test(q) ? 'cov' : '';
+  if (k && CL[k].ok()) { runClaude(k); return; }
+  showMsg(`<b>Claude</b><div>„${esc(q)}“ – im Plugin geht dieser Prompt mit dem Kontext „${esc(ctxText())}“ als Channel-Ereignis an die laufende Claude-Code-Sitzung. Im Click-Dummy sind nur die Vorschläge über der Eingabe simuliert.</div>`);
+});
+const TOOLN = { frame: 'Screen', link: 'Verbindung', decision: 'Entscheidung', text: 'Text', comment: 'Kommentar' };
+function setTool(t) {
+  if (TOOLN[t]) { toast(`Werkzeug „${TOOLN[t]}“ ist im Click-Dummy nur angedeutet – im Plugin legt es Knoten im Flow an.`); return; }
+  state.tool = t;
+  $$('.toolbar [data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+  stage.classList.toggle('hand', t === 'hand');
+}
+$('.toolbar').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool); });
+$('#zIn').addEventListener('click', () => zoomC(1.25));
+$('#zOut').addEventListener('click', () => zoomC(1 / 1.25));
+$('#zFit').addEventListener('click', fitAll);
+$$('.modes button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+function closeDrawers() { $('#left').classList.remove('open'); $('#right').classList.remove('open'); $('#tgL').setAttribute('aria-expanded', 'false'); $('#tgR').setAttribute('aria-expanded', 'false'); }
+function toggleDrawer(side) {
+  const el = $(side === 'l' ? '#left' : '#right'), other = $(side === 'l' ? '#right' : '#left'), open = !el.classList.contains('open');
+  other.classList.remove('open'); el.classList.toggle('open', open);
+  $('#tgL').setAttribute('aria-expanded', String(side === 'l' && open)); $('#tgR').setAttribute('aria-expanded', String(side === 'r' && open));
+}
+$('#tgL').addEventListener('click', () => toggleDrawer('l'));
+$('#tgR').addEventListener('click', () => toggleDrawer('r'));
+document.addEventListener('keydown', e => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('#cin').focus(); return; }
+  if (e.key === 'Escape') {
+    if (!$('#dlgw').hidden) { closeDlg(); return; }
+    if (!menu.hidden) { closeMenu(); return; }
+    if (typing) { e.target.blur(); return; }
+    closeDrawers();
+    if (state.sel && state.mode !== 'proto') select(null);
+    return;
+  }
+  if (typing || e.metaKey || e.ctrlKey || e.altKey || !$('#dlgw').hidden) return;
+  if (e.key === ' ') { if (!e.repeat) { spaceDown = true; stage.classList.add('space'); } if (e.target === document.body) e.preventDefault(); return; }
+  if (e.shiftKey && e.code === 'Digit1') { e.preventDefault(); if (state.mode !== 'proto') fitAll(); return; }
+  if (e.shiftKey && e.code === 'Digit2') { e.preventDefault(); if (state.mode !== 'proto') zoomSel(); return; }
+  const k = e.key;
+  if (k.length === 1 && '1234'.includes(k)) { setMode(['journey', 'wire', 'design', 'proto'][+k - 1]); return; }
+  if (state.mode === 'proto') return;
+  if (k === '+' || k === '=') zoomC(1.25);
+  else if (k === '-') zoomC(1 / 1.25);
+  else { const t = { v: 'move', h: 'hand', f: 'frame', c: 'link', d: 'decision', t: 'text', k: 'comment' }[k.toLowerCase()]; if (t) setTool(t); }
+});
+document.addEventListener('keyup', e => { if (e.key === ' ') { spaceDown = false; stage.classList.remove('space'); } });
+const stageRO = new ResizeObserver(() => {
+  if (state.mode === 'proto') fitDevice();
+  else if (!curView()) { initView(); drawEdges(); }
+  else applyView();
+});
+stageRO.observe(stage);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (state.mode === 'wire' || state.mode === 'design') drawEdges(); });
+
+/* ---------- Start ---------- */
+const HOT = window.claude && window.claude.hot;
+function start(d) {
+  d = d || {};
+  if (d.mode) state.mode = d.mode;
+  if (d.s7) state.s7 = d.s7;
+  if (d.a11y) state.a11y = d.a11y;
+  if ('sel' in d) state.sel = d.sel;
+  $$('i[data-ic]').forEach(i => { i.outerHTML = ic(i.dataset.ic); });
+  app.dataset.mode = state.mode;
+  $$('.modes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode)));
+  if (state.mode === 'proto') { renderProto(); renderLeft(); renderRight(); renderSugs(); } else renderWorld(false);
+  if (state.s7 === 'none' && state.mode !== 'journey') showMsg('<b>Integritäts-Check nach der letzten Änderung</b><div>Die Entscheidung „Slot noch frei?“ hat keinen Nein-Pfad. Genau dort liegt der Tiefpunkt der Journey (3 Belege). Soll ich einen Fehlerzustand aus Acme UI ergänzen?</div>', [['Ja, ergänzen', 'run-s7', 'ai']], 'intro');
+}
+try { if (HOT && HOT.snapshot) HOT.snapshot(() => ({ mode: state.mode, s7: state.s7, a11y: state.a11y, sel: state.sel })); } catch (_) { /* optional */ }
+if (HOT && HOT.ready) HOT.ready(start); else start(HOT && HOT.data ? HOT.data : {});
+}
+</script>
+</body>
+</html>
