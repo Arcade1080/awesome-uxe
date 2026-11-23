@@ -19,13 +19,14 @@
 8. [Architektur](#8-architektur)
 9. [Datenmodell](#9-datenmodell)
 10. [Claude als Co-Designer](#10-claude-als-co-designer)
-11. [Sicherheit und Datenschutz](#11-sicherheit-und-datenschutz)
-12. [Positionierung](#12-positionierung)
-13. [MVP und Roadmap](#13-mvp-und-roadmap)
-14. [Erfolgsmessung](#14-erfolgsmessung)
-15. [Risiken](#15-risiken)
-16. [Offene Entscheidungen](#16-offene-entscheidungen)
-17. [Anhang: Befehle, Glossar, Quellen](#17-anhang)
+11. [Zusammenarbeit im Team](#11-zusammenarbeit-im-team)
+12. [Sicherheit und Datenschutz](#12-sicherheit-und-datenschutz)
+13. [Positionierung](#13-positionierung)
+14. [MVP und Roadmap](#14-mvp-und-roadmap)
+15. [Erfolgsmessung](#15-erfolgsmessung)
+16. [Risiken](#16-risiken)
+17. [Offene Entscheidungen](#17-offene-entscheidungen)
+18. [Anhang: Befehle, Glossar, Quellen](#18-anhang)
 
 ---
 
@@ -56,7 +57,8 @@ Claude arbeitet zu, Menschen entscheiden: Jede KI-Änderung erscheint als markie
 | Oberfläche | lokale Canvas-Web-App (React), live per WebSocket; zusätzlich ein schlankes Companion-Pane in Claude Code |
 | Hi-Fi-Rendering | echte DS-Komponenten im Sandbox-iframe (React zuerst); Fallback: Token-Renderer oder Figma |
 | Design-Treue | Screens sind validierte Komponentenbäume (*Screen-IR*): nur Komponenten, Props und Tokens aus dem DS-Manifest |
-| MVP-Fokus | React-Design-Systeme, Mobile- und Desktop-Viewports, ein:e Nutzer:in pro Canvas |
+| Zusammenarbeit | zuerst über Git (Branches, visuelle Diffs im Pull Request, Kommentare an IDs), dann gemeinsame Claude-Vorschläge und Live-Räume mit CRDT-Sync |
+| MVP-Fokus | React-Design-Systeme, Mobile- und Desktop-Viewports; live bearbeitet eine Person, das Team arbeitet über Git zusammen |
 
 ---
 
@@ -460,7 +462,7 @@ wireflow/
 - **Claude → Canvas:** Tool-Aufruf → Patch → Datei und WebSocket-Broadcast → der Canvas aktualisiert sich live. Vorschläge landen auf der Geister-Ebene.
 - **Canvas → Claude:** Auswahl und Ausschnitt stehen als MCP-Resource bereit; Claude liest sie bei Bedarf. Prompts aus der Claude-Leiste gelangen als Channel-Ereignis in die laufende Sitzung. Fallback ohne Channels: Der Prompt landet in einer Inbox, die das Companion-Pane anzeigt und als nächsten Prompt einreiht.
 - **Dateien ↔ Menschen und Git:** Ein File-Watcher übernimmt manuelle Änderungen, Branch-Wechsel und Merges. Weil jede Entität eine eigene Datei ist, bleiben Konflikte klein und lesbar.
-- **Später Multiplayer:** Das In-Memory-Dokument wird ein CRDT (z. B. Yjs); die Dateien bleiben das Persistenzformat.
+- **Später Multiplayer:** Das In-Memory-Dokument wird ein CRDT (z. B. Yjs); die Dateien bleiben das Persistenzformat. Details in [Kapitel 11](#11-zusammenarbeit-im-team).
 
 ```mermaid
 sequenceDiagram
@@ -675,7 +677,102 @@ Weil IDs und Intents über alle Stufen stabil bleiben, überleben Verbindungen, 
 
 ---
 
-## 11. Sicherheit und Datenschutz
+## 11. Zusammenarbeit im Team
+
+Zusammenarbeit läuft auf drei Ebenen, die aufeinander aufbauen. Alle nutzen dasselbe Modell und dieselben stabilen IDs – deshalb braucht keine Ebene eine eigene Datenhaltung.
+
+| Ebene | Wofür | Technik | Ausbaustufe |
+|---|---|---|---|
+| **Asynchron über Git** | Varianten, Reviews, Freigaben, Handoff | Branches, Pull Requests, visuelle Diffs, Kommentare im Modell, CODEOWNERS | MVP |
+| **Claude im Team** | mehrere Claude-Sitzungen, `@claude` in Kommentaren und PRs | gemeinsame Vorschlags-Queue, Entscheidungs-Log, Claude Code GitHub Action | Phase 2 |
+| **Live im selben Canvas** | Critiques, Workshops, Pairing | Räume mit CRDT-Sync, Präsenz, Cursor, Soft-Locks | Phase 3 |
+
+```mermaid
+flowchart LR
+  subgraph Team
+    A["Designer:in + eigenes Claude"]
+    B["Entwickler:in + eigenes Claude"]
+    C["PM / Stakeholder im Browser"]
+  end
+  R["Raum: Live-Sync (CRDT)"]
+  G[(".wireflow/ auf einem Branch")]
+  PR["Pull Request: visueller Diff, Preview-Link, Gates"]
+  GA["Claude Code GitHub Action"]
+  A <--> R
+  B <--> R
+  C <--> R
+  R -- "Version sichern = Commit" --> G
+  G --> PR
+  PR -- "@claude im Review" --> GA
+  GA -- "Commit auf den PR-Branch" --> G
+```
+
+### 11.1 Gemeinsame Basis
+
+- **Dasselbe Plugin für alle:** Marketplace und Plugin stehen in der `.claude/settings.json` des Repos (`extraKnownMarketplaces`, `enabledPlugins`). Wer dem Ordner vertraut, arbeitet mit derselben Plugin-Version, denselben Skills und denselben Quality Gates. (Laut Doku werden Teammitglieder dann zur Installation aufgefordert; ein offenes Issue meldet, dass die Aufforderung nicht immer erscheint – im Onboarding also einmal `/plugin install` nennen.)
+- **Ein Manifest, ein Entscheidungs-Log:** Neben dem DS-Manifest liegt `.wireflow/decisions/` mit kurzen Designentscheidungen (Kontext, Entscheidung, Datum, Beteiligte). Jede Claude-Sitzung liest sie als Kontext. So folgen die Claudes aller Teammitglieder denselben Regeln, statt Entscheidungen wieder aufzurollen.
+- **Stabile IDs als Anker:** Kommentare, Freigaben und Diffs hängen an Knoten- und Element-IDs, nicht an Pixelpositionen. Ein Kommentar am Lo-Fi-Element „primäre Aktion“ bleibt am Hi-Fi-Button hängen.
+- **Autorschaft:** Jede Änderung trägt Autor (Mensch oder `claude@<person>`), Zeitpunkt und eine Kurzbegründung. Das ergibt den Verlauf pro Element („Wer hat das geändert – und warum?“) und Filter wie „nur Claude-Änderungen“.
+
+### 11.2 Asynchron über Git (MVP)
+
+- **Branch = Exploration:** Varianten entstehen als Branches (`buchung-variante-b`). Der Canvas zeigt den aktiven Branch und vergleicht zwei Stände nebeneinander oder überlagert.
+- **Visueller Diff im Pull Request:** Ein CI-Job (`wireflow diff --base main`) rendert geänderte Screens vorher und nachher und markiert neue, entfernte und geänderte Knoten im Flow. Das Ergebnis erscheint als Check oder Kommentar im PR. Reviewer:innen brauchen dafür weder Claude Code noch das Plugin.
+- **Preview-Prototyp pro PR:** Der statische Prototyp-Export hängt als Link am PR. Stakeholder testen den Stand, ohne etwas zu installieren.
+- **Kommentare im Modell:** Threads liegen in `.wireflow/comments/<flow>.json`, verankert an IDs, mit Status (offen, gelöst). In einem offenen PR werden sie zusätzlich als Review-Kommentare gespiegelt.
+- **Freigaben über CODEOWNERS:** zum Beispiel `.wireflow/ds/**` für das DS-Team und `.wireflow/journeys/**` für Research. Änderungen am Manifest oder an Journeys brauchen die Freigabe der zuständigen Rolle; die Quality Gates laufen als Pflicht-Checks.
+- **Semantisches Mergen:** Ein Merge-Driver für `.wireflow/**/*.json` führt Änderungen pro ID zusammen. Übrig bleiben nur echte Konflikte (dasselbe Element, verschiedene Werte); der Canvas löst sie pro Knoten auf: meins, deins oder beide als Variante. Merge-Driver wirken nur lokal – `/wireflow:init` richtet sie ein, Merges direkt auf GitHub nutzen sie nicht.
+
+### 11.3 Claude im Team (Phase 2)
+
+- **Eigenes Claude, gemeinsame Queue:** Jede:r arbeitet mit der eigenen Claude-Sitzung, aber alle Vorschläge landen in einer gemeinsamen Vorschlags-Queue – sichtbar für alle, mit Begründung und Herkunft („Claude für Tom“). Annehmen dürfen die auslösende Person und die Owner des betroffenen Bereichs.
+- **`@claude` im Canvas:** Ein Kommentar mit `@claude` geht als Aufgabe an die Claude-Sitzung der kommentierenden Person (über den Channel). Ist niemand online, übernimmt die GitHub Action beim nächsten Push oder Review.
+- **`@claude` im Pull Request:** Die Claude Code GitHub Action reagiert auf Erwähnungen im Review. Mit installiertem Plugin (Inputs `plugin_marketplaces` und `plugins`) ruft sie zum Beispiel `/wireflow:hifi` auf und committet den Vorschlag auf den PR-Branch. Review-Feedback wird so direkt umgesetzt und landet wieder im visuellen Diff.
+- **Keine Kollisionen zwischen Claudes:** Claude-Sitzungen respektieren Soft-Locks, schreiben Patches mit Basisversion (nie blind überschreiben) und lösen Konflikte nicht selbst auf, sondern legen einen Vorschlag an.
+- **Zusammenfassen und Nachhalten:** Nach einer Critique fasst Claude offene Kommentare zu Aufgaben zusammen, schlägt Einträge für das Entscheidungs-Log vor und informiert die Owner betroffener Screens.
+
+### 11.4 Live im selben Canvas (Phase 3)
+
+- **Räume:** Ein Raum gehört zu einem Flow auf einem Branch. Alle Teilnehmenden – mit Claude Code oder nur im Browser – sehen denselben Stand in Echtzeit.
+- **Technik:** Das Modell liegt im Raum als CRDT-Dokument (z. B. Yjs). Ein kleiner Sync-Dienst verteilt die Änderungen – selbst gehostet (z. B. auf Basis von Hocuspocus) oder als Managed-Dienst. Die lokalen wireflow-Server verbinden sich als Clients.
+- **Persistenz bleibt Git:** „Version sichern“ schreibt den Raumstand als Commit auf den Branch, mit `Co-authored-by`-Zeilen aller Beteiligten (Claude eingeschlossen). Dazwischen sichert der Dienst automatisch; benannte Versionen sind Commits.
+- **Präsenz:** Avatare in der Kopfzeile, Live-Cursor mit Namen, Auswahl in Personenfarben, ein Claude-Cursor pro aktiver Sitzung und ein „Folgen“-Modus für Präsentationen.
+- **Soft-Locks:** Wer einen Screen bearbeitet, markiert ihn („Lisa bearbeitet ‚Angaben prüfen‘“). Andere – auch Claude-Sitzungen – ändern ihn dann nicht direkt, sondern legen Vorschläge an.
+- **Kommentarmodus (`K`):** Pins auf Elementen, Threads, Erwähnungen, Auflösen; Filter „offen“, „meine“, „an Claude“.
+
+### 11.5 Rollen und Rechte
+
+| Rolle | Darf | Quelle der Rechte |
+|---|---|---|
+| Betrachter:in (z. B. Stakeholder) | ansehen, Prototyp testen, kommentieren | Preview-Link oder Lesezugriff aufs Repo |
+| Editor:in | Journeys, Flows und Screens bearbeiten, Claude nutzen | Schreibzugriff aufs Repo |
+| Owner (DS-Team, Research) | Manifest bzw. Journeys freigeben | CODEOWNERS |
+| Freigabe (Design-Lead, PM) | Flow auf „bereit für Umsetzung“ setzen | PR-Review |
+
+Die Rechte am Repo sind die Quelle der Wahrheit: Wer das Repo lesen darf, darf einen Raum betreten; angemeldet wird über GitHub. Ein eigenes Rechtesystem entfällt.
+
+### 11.6 Benachrichtigungen und Wirkungsanalyse
+
+- **Aktivitäts-Feed** im Canvas: Änderungen, Erwähnungen, Review-Anfragen, nicht bestandene Gates.
+- **Impact-Hinweise über den Graphen:** Bekommt eine Journey einen neuen Beleg oder Pain Point, erfahren die Owner der verknüpften Screens davon. Ändert das DS-Team eine Komponente, zeigen alle betroffenen Screens „DS-Update verfügbar“ – Claude kann die Aktualisierung als Vorschlag vorbereiten.
+- **Bestehende Tools:** optional Nachrichten bei Review-Anfragen (z. B. Slack) und Tickets aus Kommentaren und DS-Lücken (z. B. Linear, Jira) über vorhandene Connectoren.
+
+### 11.7 Typische Abläufe
+
+1. **Design-Critique, live:** Raum öffnen, Präsentation im „Folgen“-Modus, das Team setzt Kommentar-Pins. Am Ende fasst Claude die Kommentare zu Aufgaben und Entscheidungen zusammen.
+2. **Async-Review:** PR mit visuellem Diff und Preview-Link. Das DS-Team gibt Manifest-Änderungen frei, PM den Flow. Der Kommentar „@claude Leerzustand für die Ergebnisliste ergänzen“ wird von der GitHub Action umgesetzt.
+3. **Stakeholder-Test:** Preview-Link mit Testaufgabe; die Ergebnisse fließen als Belege in die Journey zurück.
+4. **Handoff:** Nach dem Merge entstehen Tickets je Screen. Die Entwicklung arbeitet im selben Repo mit denselben IDs weiter.
+
+### 11.8 Datenschutz im Team
+
+- Der Sync-Dienst ist selbst hostbar; optional werden Raum-Updates Ende-zu-Ende mit einem Raumschlüssel verschlüsselt.
+- Research-Rohdaten werden nicht in Räume synchronisiert, nur pseudonymisierte Belege mit Verweis.
+- Persönliche Chatverläufe bleiben privat. Im Modell landen nur Änderungen und ihre Kurzbegründung.
+
+---
+
+## 12. Sicherheit und Datenschutz
 
 - **Local-first:** Alle Daten liegen im Repo. Es gibt kein eigenes Cloud-Backend.
 - **Server nur lokal:** Bindung an `127.0.0.1`, zufälliges Sitzungstoken, keine fremden Origins.
@@ -686,7 +783,7 @@ Weil IDs und Intents über alle Stufen stabil bleiben, überleben Verbindungen, 
 
 ---
 
-## 12. Positionierung
+## 13. Positionierung
 
 | Werkzeugklasse | Stark in | Was fehlt | Wireflow Studio |
 |---|---|---|---|
@@ -700,20 +797,20 @@ Weil IDs und Intents über alle Stufen stabil bleiben, überleben Verbindungen, 
 
 ---
 
-## 13. MVP und Roadmap
+## 14. MVP und Roadmap
 
 | Phase | Umfang | Abschlusskriterium |
 |---|---|---|
 | **0 – Spike** | Schemas, MCP-Server mit Flow- und Screen-Tools, Canvas zeigt Flows aus Dateien (nur lesend), React-Renderer für ein Referenz-DS, Screenshot-Schleife | Claude erzeugt einen Flow mit fünf Screens in Hi-Fi mit mindestens 90 % DS-Konformität |
-| **1 – MVP** | Journey, Wireflow, Hi-Fi für React-DS; Canvas mit Auswahl, Verschieben, Props-Inspector, Vorschlägen; Prototyp mit Navigation, Overlays, Variablen; Gates für DS, A11y, Flow; Export als Markdown-Spec, Mermaid, Stories | Designteam baut einen echten Flow in unter einem Tag von Research bis zum getesteten Prototyp |
-| **2 – Brücken** | Figma-Import und -Export, Varianten, Responsive, Testmodus, Ist-Flow aus Code, Companion-Pane, Playwright-Export | Ein bestehendes Produkt-Redesign läuft vollständig über das Plugin |
-| **3 – Team** | Multiplayer (CRDT), Kommentare mit `@claude`, teilbare Prototypen, weitere Renderer (Vue, Web Components), CI-Check `wireflow validate` im Pull Request | Mehrere Teams nutzen dasselbe Manifest; Gates laufen in CI |
+| **1 – MVP** | Journey, Wireflow, Hi-Fi für React-DS; Canvas mit Auswahl, Verschieben, Props-Inspector, Vorschlägen; Prototyp mit Navigation, Overlays, Variablen; Gates für DS, A11y, Flow; Export als Markdown-Spec, Mermaid, Stories; Kommentare an IDs, visueller Diff und Preview-Link im Pull Request | Designteam baut einen echten Flow in unter einem Tag von Research bis zum getesteten Prototyp |
+| **2 – Brücken** | Figma-Import und -Export, Varianten, Responsive, Testmodus, Ist-Flow aus Code, Companion-Pane, Playwright-Export; `@claude` im Pull Request über die GitHub Action, Merge-Driver, Entscheidungs-Log | Ein bestehendes Produkt-Redesign läuft vollständig über das Plugin |
+| **3 – Team** | Live-Räume mit Präsenz, Soft-Locks und „Folgen“-Modus, gemeinsame Vorschlags-Queue, Browser-Zugang für Stakeholder, weitere Renderer (Vue, Web Components) – siehe [Kapitel 11](#11-zusammenarbeit-im-team) | Mehrere Teams nutzen dasselbe Manifest; Gates laufen in CI |
 
 **Bewusst nicht im Umfang:** Vektor-Illustration, freies Pixel-Design, Marketing- und Markengestaltung, Hosting. Dafür gibt es gute Werkzeuge – das Plugin verbindet sich mit ihnen, statt sie nachzubauen.
 
 ---
 
-## 14. Erfolgsmessung
+## 15. Erfolgsmessung
 
 | Kennzahl | Ziel im MVP | Messung |
 |---|---|---|
@@ -726,7 +823,7 @@ Weil IDs und Intents über alle Stufen stabil bleiben, überleben Verbindungen, 
 
 ---
 
-## 15. Risiken
+## 16. Risiken
 
 | Risiko | Auswirkung | Gegenmaßnahme |
 |---|---|---|
@@ -736,25 +833,27 @@ Weil IDs und Intents über alle Stufen stabil bleiben, überleben Verbindungen, 
 | Qualität, Kosten, Latenz der Generierung | Frust, Budget | validierte IR, inkrementelle Updates, Caching, Budget pro Aktion |
 | Scope Creep („wir bauen Figma nach“) | Verzettelung | strukturierte Gestaltung, Figma-Brücke statt Konkurrenz |
 | Plugin-UI-API ist Early Access | Companion-Pane bricht | Pane optional; Kern über MCP und Browser |
+| Mehrere Claude-Sitzungen ändern gleichzeitig | Änderungen überschreiben sich | Soft-Locks, Patches mit Basisversion, Vorschläge statt direkter Änderungen |
+| Designdaten liegen im Sync-Dienst | Datenschutz, Abhängigkeit | selbst hostbar, Ende-zu-Ende-Verschlüsselung, keine Research-Rohdaten in Räumen; Git bleibt die Quelle der Wahrheit |
 | Lizenzbedingungen von Canvas-Bibliotheken | Kosten, Abhängigkeit | MIT-basierter Stack im MVP |
 | Akzeptanz im Designteam („KI ersetzt mich“) | geringe Nutzung | Mensch am Steuer, Transparenz, Begründungen, Claude als Zuarbeit |
 | Personenbezogene Daten in Research-Material | Datenschutzverstoß | Pseudonymisierung, lokale Verarbeitung, `.gitignore` |
 
 ---
 
-## 16. Offene Entscheidungen
+## 17. Offene Entscheidungen
 
 1. **Referenz-DS für den Spike:** eigenes Design System oder ein verbreitetes Open-Source-DS als neutraler Start?
 2. **Primäre Oberfläche:** Browser-Canvas, Desktop-App-Preview oder VS-Code-Webview?
 3. **Dateiformat:** JSON (Vorschlag: gut validierbar, gut von Claude schreibbar) oder YAML bzw. eine TypeScript-DSL?
 4. **Freiform im Lo-Fi:** Wie viel Skizzieren braucht der Wireflow-Modus?
-5. **Multiplayer im MVP** – oder reicht Zusammenarbeit über Git und Pull Requests?
+5. **Live-Räume:** selbst gehosteter Sync-Dienst oder Managed-Dienst – und ab wann? Vorschlag: im MVP nur Zusammenarbeit über Git und Pull Requests.
 6. **Verteilung:** öffentlicher oder interner Plugin-Marketplace?
 7. **Name:** „Wireflow Studio“ ist ein Arbeitstitel; Markenrecht und Verwechslungsgefahr sind zu prüfen.
 
 ---
 
-## 17. Anhang
+## 18. Anhang
 
 ### A. Befehle
 
@@ -781,6 +880,8 @@ Plugin-Skills erscheinen im Namensraum des Plugins (`/wireflow:…`); daneben fu
 - **DS-Manifest:** normalisierte, kuratierbare Beschreibung des Design Systems: Komponenten, Props, Tokens, Muster, Regeln.
 - **DS-Lücke:** ein Intent, für den das Design System keine passende Komponente hat.
 - **Geister-Element:** Vorschlag von Claude, sichtbar markiert, noch nicht angewendet.
+- **Raum:** Live-Sitzung auf einem Flow und Branch; Änderungen werden per CRDT verteilt und als Commits gesichert.
+- **Soft-Lock:** Markierung „wird gerade bearbeitet“; andere Personen und Claude-Sitzungen legen dann Vorschläge an statt direkt zu ändern.
 - **Quality Gate:** automatisierte Prüfung (DS, A11y, Flow, Heuristiken, Content) mit Schwellenwert.
 
 ### C. Quellen
@@ -788,8 +889,8 @@ Plugin-Skills erscheinen im Namensraum des Plugins (`/wireflow:…`); daneben fu
 - Nielsen Norman Group: [Wireflows: A UX Deliverable for Workflows and Apps](https://www.nngroup.com/articles/wireflows/)
 - Nielsen Norman Group: [Journey Mapping 101](https://www.nngroup.com/articles/journey-mapping-101/)
 - Design Tokens Community Group: [Design Tokens Specification 2025.10](https://www.designtokens.org/tr/2025.10/) (erste stabile Version, Oktober 2025)
-- Claude Code: [Plugins reference](https://code.claude.com/docs/en/plugins-reference) · [Channels](https://code.claude.com/docs/en/channels)
+- Claude Code: [Plugins reference](https://code.claude.com/docs/en/plugins-reference) · [Channels](https://code.claude.com/docs/en/channels) · [Plugins im Team](https://code.claude.com/docs/en/plugins/org) · [GitHub Actions](https://code.claude.com/docs/en/github-actions)
 - Figma: [Figma MCP server – Tools and prompts](https://developers.figma.com/docs/figma-mcp-server/tools-and-prompts)
 - tldraw: [License key](https://tldraw.dev/sdk-features/license-key)
-- [React Flow / xyflow](https://reactflow.dev) · [elkjs](https://github.com/kieler/elkjs) · [axe-core](https://github.com/dequelabs/axe-core) · [Playwright](https://playwright.dev) · [Yjs](https://yjs.dev)
+- [React Flow / xyflow](https://reactflow.dev) · [elkjs](https://github.com/kieler/elkjs) · [axe-core](https://github.com/dequelabs/axe-core) · [Playwright](https://playwright.dev) · [Yjs](https://yjs.dev) · [Hocuspocus](https://github.com/ueberdosis/hocuspocus)
 - W3C: [WCAG 2.2](https://www.w3.org/TR/WCAG22/)
