@@ -2,7 +2,7 @@
 
 **Konzept für ein Claude-Code-Plugin: ein gemeinsamer Canvas, auf dem Teams aus ihrem Wissen über Nutzer:innen und Domain Flows entwickeln – begründet durch Research, umgesetzt mit dem eigenen Design System.**
 
-> Status: Konzeptentwurf v0.3 · Stand: 23.11.2026 · „Wireflow Studio“ ist ein Arbeitstitel
+> Status: Konzeptentwurf v0.4 · Stand: 23.11.2026 · „Wireflow Studio“ ist ein Arbeitstitel
 > Click-Dummy der Canvas-Oberfläche: [`prototype/index.html`](prototype/index.html) (im Browser öffnen)
 
 ---
@@ -36,21 +36,23 @@
 
 1. **Der Nutzerkontext ist der Kern.** Research, Domainwissen und die Situation der Nutzer:innen bilden das Warum. Flows werden abgebildet, und jede Annahme darin wird auf User Research gegründet – oder ausdrücklich als ungeprüft markiert. Der Canvas zeigt, was bekannt ist, was nur angenommen wird und was niemand weiß. Kontext und menschliches Urteilsvermögen entscheiden über Nutzerzentrierung; Claude sammelt, verknüpft und fragt nach, erfindet aber kein Nutzerwissen.
 2. **Ein Canvas für das ganze Team, mit KI als Impulsgeber.** Design, Produkt, Entwicklung, Research und Fachexpert:innen arbeiten live auf demselben Canvas. Claude ist Teammitglied und öffnet den Blick: Es recherchiert ähnliche Lösungen und Analogien aus anderen Domains und entwickelt bewusst unterschiedliche Konzeptrichtungen – mit Quellen.
-3. **Das Design System sichert die Umsetzung.** Aus Foundations, Tokens, Komponenten und Patterns entsteht ein kuratiertes DS-Manifest. Hi-Fi-Screens bestehen aus echten Komponenten; Patterns bestimmen, welche Zustände ein Flow braucht.
+3. **Das Design System ist die Basis, Designs sind echter Code.** Man verknüpft sein Design System; daraus entsteht ein kuratiertes DS-Manifest aus Foundations, Tokens, Komponenten und Patterns. Jeder Screen ist ein Screen-Modul – TSX aus den echten Komponenten, so wie es auch in der App laufen kann. Patterns bestimmen, welche Zustände ein Flow braucht.
+
+**Der Grundablauf:** Design System verknüpfen → explorieren → Flows erstellen → prototypen. Ab dem ersten Schritt ist alles auf dem Canvas echter Code, und jeder Schritt ist im Nutzerkontext begründet.
 
 | Ebene | Was entsteht | Begründet durch | Umgesetzt mit |
 |---|---|---|---|
 | **Nutzerkontext** | Wissensbasis: Nutzer:innen, Domain, Fakten, Insights, Annahmen, offene Fragen | Studien, Daten und Fachwissen – jeweils mit Quelle | – |
 | **User Journey** | Phasen, Schritte, Emotionen, Pain Points, Chancen | Insights und Belege aus der Wissensbasis | Chancen verknüpft mit Patterns |
 | **Wireflow** | Screens, Interaktionen, Entscheidungen, Zustände | jedem Schritt seine Grundlage: belegt, Annahme oder offen | Patterns für Zustände und Pfade |
-| **Hi-Fi und Prototyp** | Screens aus echten Komponenten, klickbarer Flow | Tests mit echten Menschen liefern neue Fakten zurück | Komponenten und Tokens aus dem Manifest |
+| **Hi-Fi und Prototyp** | Screen-Module aus echten Komponenten, klickbarer Flow | Tests mit echten Menschen liefern neue Fakten zurück | echter Code: TSX aus Komponenten und Tokens des Design Systems |
 
 **Kernentscheidungen auf einen Blick**
 
 | Thema | Entscheidung |
 |---|---|
 | Kerngedanke | Nutzerkontext als Fundament: Wissensbasis aus Research und Domainwissen; der Wissensstand jedes Flow-Schritts (belegt, Annahme, offen) ist sichtbar ([Vertiefung](nutzerkontext-und-research.md)) |
-| Umsetzung | Design System als Material: kuratiertes DS-Manifest aus Foundations, Tokens, Komponenten und Patterns ([Vertiefung](design-system-integration.md)) |
+| Umsetzung | Designs sind echter Code: Screen-Module (TSX) aus den Komponenten und Tokens des verknüpften Design Systems, Zustände als Stories ([Vertiefung](design-als-code.md)); das DS-Manifest liefert Patterns und Regeln ([Vertiefung](design-system-integration.md)) |
 | Innovation | Claude recherchiert ähnliche Lösungen und Analogien mit Quellen und entwickelt unterschiedliche Konzeptrichtungen; das Team bewertet die Übertragbarkeit |
 | Produktform | gemeinsamer Canvas für das Team – live, mit Präsenz, Kommentaren und Freigaben; im Browser für alle, in Claude Code für alle, die mit Claude arbeiten |
 | Architektur | Team-Server (selbst hostbar) mit Räumen, Wissensbasis, DS-Manifest und Renderer-Bundle; das Claude-Code-Plugin verbindet jede Claude-Sitzung mit dem Raum |
@@ -70,6 +72,7 @@ Der typische Weg heute: Research → Journey Map (Whiteboard) → User Flows (De
 | **Wissen ist verstreut:** Research liegt in Berichten und Köpfen, Domainwissen bei wenigen Expert:innen | Erkenntnisse kommen im Design nicht an; Entscheidungen sind nicht nachvollziehbar |
 | **Getrennte Artefakte:** Journey, Flows und Screens liegen in verschiedenen Tools ohne Verknüpfung | Änderungen werden nicht nachgezogen; niemand weiß, welcher Screen welchen Pain Point löst |
 | **Design-System-Drift:** Mocks nutzen abgelöste Komponenten oder freie Werte; Design-Bibliothek ≠ Code-Bibliothek | Die Entwicklung interpretiert nach – Inkonsistenz und Mehrarbeit |
+| **Designs sind Bilder von Software:** Mockups ahmen Komponenten nach, statt sie zu verwenden | Verhalten, Zustände und Grenzfälle fehlen im Design; die Entwicklung baut alles noch einmal |
 | **Patterns werden nicht gefunden:** Jedes Team löst dieselbe Situation (Fehler, Leerzustand, Speichern) anders | Uneinheitliches Produkt, Doppelarbeit |
 | **DS-Teams arbeiten blind:** Sie sehen nicht, wo und wie das Design System genutzt wird und was fehlt | Roadmap nach Bauchgefühl, Lücken werden lokal gestopft |
 | **Abstimmung in getrennten Tools:** Design, Produkt, Entwicklung und Research arbeiten in verschiedenen Werkzeugen und Meetings | Entscheidungen gehen verloren, Rückfragen im Handoff |
@@ -95,10 +98,10 @@ Das Plugin liefert alle drei.
 
 1. **Nutzerkontext zuerst.** Jede Entscheidung lässt sich bis zu Research oder Domainwissen zurückverfolgen. Was belegt, angenommen oder offen ist, ist immer sichtbar.
 2. **Menschen urteilen, Claude arbeitet zu.** Kontext und Urteilsvermögen des Teams entscheiden über Nutzerzentrierung. Claude erfindet kein Nutzerwissen, und synthetische Ergebnisse sind keine Evidenz. Vorschläge sind begründet und lassen sich annehmen, verwerfen und rückgängig machen.
-3. **KI öffnet den Blick.** Claude recherchiert ähnliche Lösungen und Analogien, entwickelt bewusst unterschiedliche Richtungen und nennt Quellen. Im Lo-Fi darf frei gedacht werden.
+3. **KI öffnet den Blick.** Claude recherchiert ähnliche Lösungen und Analogien, entwickelt bewusst unterschiedliche Richtungen und nennt Quellen. Exploriert wird mit echten Komponenten; Ideen jenseits des Design Systems bleiben erlaubt und werden als Lücke sichtbar.
 4. **Ein Canvas für das ganze Team.** Alle Rollen arbeiten live am selben Stand; wer kein Claude Code nutzt, ist im Browser dabei. Kommentare und Freigaben hängen direkt an den Elementen.
-5. **Das Design System sichert die Umsetzung.** Hi-Fi besteht aus Komponenten, Tokens und Patterns des DS – strukturiert statt Pixelschieben. Was fehlt, wird als DS-Lücke markiert, nicht erfunden.
-6. **Ein Modell, viele Sichten.** Wissensbasis, Journey, Wireflow, Design und Prototyp sind Ansichten desselben verknüpften Graphen; Lo-Fi und Hi-Fi sind Stufen derselben Knoten.
+5. **Das Design System ist die Basis, Designs sind echter Code.** Screens bestehen aus Komponenten, Tokens und Patterns des verknüpften DS – als TSX, das auch in der App laufen kann. Strukturiert statt Pixelschieben; was fehlt, wird als DS-Lücke markiert, nicht erfunden.
+6. **Ein Modell, viele Sichten.** Wissensbasis, Journey, Wireflow, Design und Prototyp sind Ansichten desselben verknüpften Graphen; Wireframe und Hi-Fi sind derselbe Code in zwei Token-Modi.
 7. **Git als Gedächtnis.** Der Raum ist der Live-Stand, Git die Versionsgeschichte: Klartext-Dateien mit stabilen IDs, lesbare Diffs, Review per Pull Request.
 8. **Offen.** Standards und Brücken statt Insel: MCP, DTCG-Tokens, Storybook, Figma, Mermaid.
 
@@ -110,7 +113,7 @@ Das Plugin liefert alle drei.
 |---|---|---|
 | Design-System-Team | „Wissen, wie das DS genutzt wird, was fehlt und was als Nächstes kommt.“ | DS-Insights, Lücken- und Pattern-Report, Beiträge direkt aus dem Canvas |
 | UX-/Product-Designer:in | „Schnell von Research zu einem testbaren Prototyp – ohne DS-Regeln zu brechen.“ | Claude übernimmt Fleißarbeit (Zustände, Varianten, Content); Fokus auf Entscheidungen |
-| Design Engineer / Frontend | „Designs, die 1:1 aus unseren Komponenten bestehen.“ | Screen-IR wird ohne Übersetzung zu Code; Flows werden zu E2E-Tests |
+| Design Engineer / Frontend | „Designs, die 1:1 aus unseren Komponenten bestehen.“ | Designs sind schon Code aus unseren Komponenten; Flows werden zu E2E-Tests |
 | Product Manager:in | „Scope schneiden, Lücken früh sehen, mitentscheiden.“ | live im Canvas dabei, Abdeckung Journey ↔ Screens, Freigaben |
 | UX Researcher:in | „Erkenntnisse sollen im Design ankommen – und Lücken gezielt erforscht werden.“ | Belegte Insights bis in die Screens; das Annahmen-Register zeigt, was als Nächstes erforscht werden sollte |
 | Fachexpert:in der Domain | „Fachliche Regeln und Realität einbringen, ohne ein Design-Tool zu lernen.“ | im Browser kommentieren, Domainregeln pflegen, Annahmen bestätigen oder widerlegen |
@@ -159,7 +162,7 @@ flowchart LR
 - **Elemente:** Screen (Frame), Verbindung (Trigger → Ziel, optional mit Bedingung), Entscheidung, Systemschritt (API-Aufruf, E-Mail, Push), Ein- und Ausstieg, Sub-Flow, Notiz.
 - **Zustände als Varianten:** Standard, Laden, Leer, Fehler, Erfolg, Teildaten. Claude schlägt fehlende Zustände vor.
 - **Jeder Schritt begründet:** Screens, Verbindungen und Entscheidungen tragen ihre Grundlage – Insight mit Belegen, Annahme oder offen. Das Evidenz-Overlay färbt den Flow nach Wissensstand.
-- **Konzeptrichtungen:** Für einen Job entwickelt Claude auf Wunsch mehrere deutlich unterschiedliche Lo-Fi-Flows, auch aus Analogien anderer Domains; das Team wählt.
+- **Konzeptrichtungen:** Für einen Job entwickelt Claude auf Wunsch mehrere deutlich unterschiedliche Flows aus echten DS-Komponenten, auch aus Analogien anderer Domains; das Team klickt sie durch und wählt.
 - **Erzeugung** aus Journey-Schritten, aus Text („Gastbestellung mit Zahlung per Rechnung“) oder **aus bestehendem Code**: Router und Navigationsaufrufe ergeben einen Ist-Flow – wertvoll bei Redesigns.
 - **Auto-Layout** des Graphen (geschichtet, z. B. mit ELK), Lanes für Akteure oder Geräte.
 - **Pattern-gesteuert:** Erkennt Claude im Flow eine Situation mit Pattern (Speichern, Formular, Liste, Benachrichtigung), ergänzt es die Zustände und Pfade, die das Pattern verlangt – als Vorschlag.
@@ -189,14 +192,15 @@ Das Design System ist das Material, aus dem umgesetzt wird: Was im Nutzerkontext
 Pipeline pro Screen:
 
 1. **Planen:** Zweck und Inhaltshierarchie bestimmen, dann das passende Pattern wählen und seine Entscheidungsregeln anwenden (Suche im Manifest).
-2. **Komponieren:** Screen-IR erzeugen – einen Komponentenbaum mit Props, Slots und Tokens.
-3. **Validieren:** Der Server prüft gegen das Manifest. Unbekannte Komponente, Prop oder Token = Fehler mit Korrekturhinweis.
+2. **Komponieren:** ein Screen-Modul als TSX schreiben – nur Komponenten, Tokens und Trigger aus dem verknüpften Design System ([Vertiefung Design als Code](design-als-code.md)).
+3. **Validieren:** TypeScript prüft Komponenten und Props gegen die Typen des Design Systems; Lint-Regeln verbieten freie Werte, `style`-Attribute und fremde Elemente. Jeder Fehler kommt mit Korrekturhinweis zurück.
 4. **Rendern:** echte Komponenten im Renderer, Screenshot per Playwright.
 5. **Selbstkritik:** Claude sieht Screenshot und Lint-Ergebnisse (DS, A11y) und korrigiert – höchstens zwei bis drei Runden, budgetiert.
 6. **Vorschlagen:** als Geister-Frame auf dem Canvas, mit Begründung; auf Wunsch zwei bis drei Varianten nebeneinander.
 
 Dazu kommen:
 
+- **Explorieren:** mehrere Richtungen für einen Screen oder Flow nebeneinander – alle aus echten DS-Komponenten, also sofort klickbar und vergleichbar.
 - **Realistischer Content** nach den Content-Richtlinien statt Lorem ipsum. Deutsche Texte sind länger als englische – ein guter Robustheitstest.
 - **Responsive Layouts** über Breakpoints aus dem Manifest.
 - **Themes und Modi** über den Token-Resolver (Light, Dark, Marken).
@@ -212,11 +216,11 @@ Der Canvas ist der gemeinsame Arbeitsort des Teams. Alle sehen live denselben St
 - **Rechts – Inspector** mit vier Tabs:
   - *Design:* Komponente, Variante, Props. Werte nur aus Tokens; freie Werte werden markiert.
   - *Prototyp:* Interaktionen (Trigger, Aktion, Ziel, Animation, Bedingung).
-  - *Code:* JSX-Ausschnitt mit Imports.
+  - *Code:* die Screen-Datei selbst (TSX), lesbar und bearbeitbar.
   - *Qualität:* DS- und Pattern-Konformität, A11y, Heuristiken, Flow-Integrität.
 - **Oben:** Modus-Umschalter **Journey · Wireflow · Design · Prototyp**, Werkzeuge, Zoom, Claude-Status, Teilen und Export.
 - **Unten:** die Claude-Leiste (⌘K), die die aktuelle Auswahl kennt.
-- **Bearbeitung im Frame ist strukturell:** Auto-Layout-Stacks, Umsortieren per Drag im Canvas oder im Ebenenbaum, Props im Inspector. Freie Platzierung gibt es nur auf einer Skizzen-Ebene im Lo-Fi.
+- **Bearbeitung im Frame ist strukturell:** Auto-Layout-Stacks, Umsortieren per Drag im Canvas oder im Ebenenbaum, Props im Inspector – die Werte kommen aus den TypeScript-Typen der Komponenten. Jede Änderung wird als Code-Transformation in die TSX-Datei geschrieben; Entwickler:innen bearbeiten dieselbe Datei in ihrer IDE. Freie Platzierung gibt es nur auf der Skizzen-Ebene für Ideen jenseits des Design Systems.
 
 Details in [Kapitel 7](#7-ui-konzept).
 
@@ -232,7 +236,7 @@ Details in [Kapitel 7](#7-ui-konzept).
 
 | Gate | Prüft | Wie |
 |---|---|---|
-| DS-Konformität | Anteil DS-Komponenten und Tokens, Abweichungen | Abgleich Screen-IR ↔ Manifest (deterministisch) |
+| DS-Konformität | Anteil DS-Komponenten und Tokens, Abweichungen | Typprüfung und Lint der Screen-Module gegen das Manifest (deterministisch) |
 | Pattern-Konformität | Situationen ohne oder mit abweichendem Pattern | Abgleich mit den Pattern-Karten; Lint-Regeln aus `regeln` und `entscheidung` |
 | Barrierefreiheit | WCAG 2.2 AA: Kontrast, Zielgrößen, Fokusreihenfolge, Labels, Überschriften | axe-core auf gerenderten Screens plus Review durch Subagent |
 | Flow-Integrität | Sackgassen, Waisen, fehlende Zustände und Pfade | Graph-Analyse (deterministisch) |
@@ -245,7 +249,7 @@ Ergebnisse erscheinen als Marker auf dem Canvas, im Qualität-Tab und als Zusamm
 
 ### 5.8 Export und Handoff
 
-- **Code:** Routen- und Seitengerüste mit DS-Komponenten (React zuerst), Storybook-Stories pro Screen-Zustand, **Playwright-Testgerüste aus Flows** (jeder Pfad ein Testfall), Tracking-Plan aus den Interaktionen.
+- **Code:** Screen-Module sind schon Code. Übernommen werden sie, indem Testdaten durch echte Datenanbindung und Trigger durch Router-Navigation ersetzt werden. Dazu kommen Storybook-Stories pro Zustand, **Playwright-Testgerüste aus Flows** (jeder Pfad ein Testfall) und ein Tracking-Plan aus den Interaktionen.
 - **Design:** Frames nach Figma mit echten Bibliotheksinstanzen (über den Figma-MCP-Server, wo Code Connect zuordnet); die Journey als FigJam-Diagramm.
 - **Dokumentation:** Markdown-Spec pro Flow (Screens, Zustände, Interaktionen, Akzeptanzkriterien in Gherkin), Mermaid-Flowchart, PNG und PDF.
 - **Tickets:** pro Screen oder DS-Lücke über vorhandene Connectoren (z. B. Linear, Jira) – optional.
@@ -276,14 +280,14 @@ Ergebnisse erscheinen als Marker auf dem Canvas, im Qualität-Tab und als Zusamm
   ⚠ Integrität: Entscheidung „Slot noch frei?“ hat keinen Nein-Pfad
 
 > /wireflow:hifi --variants 2
-  ✓ 6 Screens · DS-Konformität 97 % · 2 Lücken (Zeit-Slot-Auswahl aus ChipGroup, Erfolgs-Illustration)
+  ✓ 6 Screen-Module (TSX), typgeprüft · DS-Konformität 97 % · 2 Lücken (Zeit-Slot-Auswahl aus ChipGroup, Erfolgs-Illustration)
   ↳ 2 Varianten für „Ergebnisse“ liegen als Vorschlag auf dem Canvas
 
 > /wireflow:review a11y,flow
   ✓ 0 kritische A11y-Befunde · 1 Befund: Metatext-Kontrast 3,6:1 → Token-Fix vorgeschlagen
 
 > /wireflow:export react,stories,e2e
-  ✓ 7 Routen-Gerüste · 14 Stories · 4 Playwright-Tests auf Branch feature/terminbuchung
+  ✓ 7 Screen-Module übernommen · 14 Stories · 4 Playwright-Tests auf Branch feature/terminbuchung
 ```
 
 Zwischen den Schritten arbeitet das Team live im selben Raum: Design und Entwicklung wählen Variante A und korrigieren einen Abstand über ein Token. Die Produktverantwortliche kommentiert im Browser „@claude Fehlerzustand für vergebene Slots ergänzen“ – Claudes Vorschlag folgt dem Pattern für Fehlermeldungen, erscheint bei allen und wird angenommen.
@@ -316,11 +320,11 @@ Der [Click-Dummy](prototype/index.html) zeigt die Oberfläche interaktiv: Modi w
 | Modus | Zeigt | Werkzeuge | Typische Claude-Aktionen |
 |---|---|---|---|
 | **Journey** | Wissensbasis, Phasen × Lanes, Emotionskurve, Pain Points mit Belegen, Annahmen und offene Fragen | Karte, Lane, Verknüpfen | „Synthetisiere die Interviews“, „Was wissen wir nicht?“, „Wie lösen andere das?“ |
-| **Wireflow** | Lo-Fi-Screens, Verbindungen, Entscheidungen | Screen, Verbindung, Entscheidung, Notiz | „Ergänze Fehlerzustände“, „Prüfe auf Sackgassen“, „Ordne neu an“ |
+| **Wireflow** | Screens im Token-Modus „wireframe“, Verbindungen, Entscheidungen | Screen, Verbindung, Entscheidung, Notiz | „Ergänze Fehlerzustände“, „Prüfe auf Sackgassen“, „Ordne neu an“ |
 | **Design** | dieselben Screens in Hi-Fi mit echten DS-Komponenten | Komponente einfügen, Auto-Layout, Tokens | „Erzeuge Hi-Fi“, „Variante B“, „Prüfe den Dark Mode“ |
 | **Prototyp** | Gerät mit klickbarem Flow, Variablen | Abspielen, Hotspots, Testaufgabe | „Spiele den Walkthrough als Persona“, „Erstelle Testaufgaben“ |
 
-Wireflow und Design teilen Layout und Positionen: Der Wechsel ist ein Fidelity-Wechsel, kein Dateiwechsel.
+Wireflow und Design teilen sich Layout, Positionen und Code: Der Wechsel tauscht nur den Token-Modus, keine Datei.
 
 ### 7.3 Interaktionsmuster mit Claude
 
@@ -393,7 +397,7 @@ flowchart LR
 ### 8.2 Laufzeit
 
 - **Team-Server (zentral, selbst hostbar):** hält die Räume – einen pro Flow und Branch – als CRDT-Dokumente, verteilt Änderungen an alle Teilnehmenden, speichert Kommentare und die Vorschlags-Queue und sichert Versionen als Commits ins Repo. Angemeldet wird über GitHub oder SSO; die Rechte am Repo gelten auch im Raum.
-- **DS-Dienst im Team-Server:** hält das freigegebene DS-Manifest mit Pattern-Karten und baut daraus pro DS-Version ein **Renderer-Bundle** – die echten Komponenten samt Providern als statisches Paket. Jeder Canvas lädt es in Sandbox-iframes. So sehen alle dieselben Hi-Fi-Screens, ohne lokales Setup.
+- **DS-Dienst im Team-Server:** hält das freigegebene DS-Manifest mit Pattern-Karten und baut daraus pro DS-Version ein **Renderer-Bundle** – die echten Komponenten samt Providern als statisches Paket. Jeder Canvas lädt es in Sandbox-iframes. Screen-Module baut der Team-Server bei jeder Änderung inkrementell (zum Beispiel mit esbuild). So sehen alle dieselben Screens aus echtem Code, ohne lokales Setup.
 - **Plugin in Claude Code (pro Person):** Claude Code startet den wireflow-MCP-Server (stdio). Er verbindet die Claude-Sitzung mit dem Raum: Claude liest Auswahl und Modell und schreibt Patches und Vorschläge. Für unveröffentlichte DS-Änderungen startet er bei Bedarf lokal einen Vite-Renderer (DS-Branch-Vorschau), konfiguriert in `wireflow.config.ts`.
 - **Canvas im Browser** für alle Teammitglieder, auch ohne Claude Code; in der Desktop-App auch im Browser-Bereich neben dem Chat.
 - **Screenshots** per Playwright (headless): im Team-Server für Thumbnails, Diffs und Exporte, lokal für Claudes Selbstkritik.
@@ -435,6 +439,7 @@ wireflow/
 | **Skills** | Arbeitsanweisungen und Methodenwissen, per Slash-Command aufrufbar (`/wireflow:hifi`). Progressive Disclosure: Details liegen in `references/` und werden nur bei Bedarf geladen. |
 | **Subagents** | spezialisierte Rollen mit eigenem Kontext, parallelisierbar (siehe [Kapitel 10](#10-claude-als-co-designer)) |
 | **MCP-Server** | „die Hände“: deterministische Operationen auf Modell, Canvas, Renderer und Exporten; verbindet die Sitzung mit dem Raum auf dem Team-Server |
+| **Code-Brücke** | liest Screen-Module als Baum ein, schreibt Canvas-Änderungen als Code-Transformation zurück, prüft mit TypeScript und Lint |
 | **Channel** | schiebt Prompts aus der Canvas-Leiste und `@claude`-Kommentare in die laufende Sitzung (Channels sind eine Research Preview und müssen aktiviert werden) |
 | **Hooks** | Leitplanken und Automatik (Tabelle unten) |
 | **Hooks-Modul** | Companion-UI: Pane, Vorschau unter Tool-Zeilen, Statuszeile, Kontextmenü der Desktop-App. Die API ist Early Access und kann sich ändern – deshalb optional; der Kern läuft über MCP und Browser. |
@@ -489,7 +494,7 @@ wireflow/
 | | `ds_search` | Komponenten, Muster, Tokens nach Intent oder Stichwort |
 | | `ds_component` | Props-Schema, Varianten, Richtlinien, Beispiele |
 | | `ds_gaps` | Lücken-Report |
-| Screen | `screen_compose` | Screen-IR validieren und speichern |
+| Screen | `screen_compose` | Screen-Modul (TSX) schreiben, typprüfen und linten |
 | | `screen_render` | rendern, Screenshot als Bild zurückgeben |
 | | `screen_lint` | DS- und A11y-Lint |
 | Prototyp | `prototype_build` | Interaktionen und Variablen kompilieren, Link erzeugen |
@@ -579,7 +584,9 @@ export default defineConfig({
 ├── comments/*.json                   Kommentar-Threads, verankert an IDs
 ├── journeys/termin-buchen.journey.json
 ├── flows/buchung.flow.json
-├── screens/profil.screen.json        eine Datei pro Screen
+├── screens/profil.screen.tsx         Screen-Modul: echter Code aus DS-Komponenten
+├── screens/profil.stories.tsx        Zustände als Storybook-Stories
+├── fixtures/termin.ts                typisierte Testdaten
 ├── prototypes/buchung.proto.json     Variablen, Startpunkte, Testaufgaben
 └── reviews/2026-11-23-a11y.json      Ergebnisse der Quality Gates
 ```
@@ -651,7 +658,7 @@ Jede Kante ist eine ID-Referenz. Daraus ergeben sich Abfragen wie „Welche Scre
   "entry": "scr_suche",
   "variables": { "angemeldet": false, "slotFrei": true },
   "nodes": [
-    { "id": "scr_profil", "type": "screen", "ref": "screens/profil.screen.json" },
+    { "id": "scr_profil", "type": "screen", "ref": "screens/profil.screen.tsx" },
     { "id": "dec_login", "type": "decision", "label": "Angemeldet?" },
     { "id": "dec_slot", "type": "decision", "label": "Slot noch frei?" }
   ],
@@ -664,44 +671,38 @@ Jede Kante ist eine ID-Referenz. Daraus ergeben sich Abfragen wie „Welche Scre
 }
 ```
 
-**Screen-IR (Auszug, Hi-Fi)**
+**Screen-Modul (Auszug)** – echter Code aus dem Design System; Details, Regeln und Stories in der [Vertiefung Design als Code](design-als-code.md)
 
-```json
-{
-  "schema": "wireflow/screen@1",
-  "id": "scr_profil",
-  "title": "Profil & Termine",
-  "fidelity": "hifi",
-  "viewport": "mobile",
-  "states": ["default", "laden", "keine-termine"],
-  "root": {
-    "id": "root",
-    "intent": "page",
-    "component": "Page",
-    "props": { "padding": "{space.4}", "gap": "{space.3}" },
-    "children": [
-      { "id": "hdr", "intent": "navigation.back", "component": "AppBar", "props": { "title": "Termin wählen", "back": true } },
-      { "id": "arzt", "intent": "entity.summary", "component": "Card",
-        "props": { "title": "Dr. Sara Klein", "subtitle": "Dermatologie · 1,2 km" } },
-      { "id": "slots", "intent": "input.choice.time", "component": "ChipGroup",
-        "props": { "label": "Mo, 24.11.", "options": ["08:30", "09:15", "11:00"], "value": "09:15" },
-        "gap": "Kein Slot-Picker im DS – aus ChipGroup komponiert" },
-      { "id": "btn_weiter", "intent": "action.primary", "component": "Button",
-        "props": { "variant": "primary", "size": "lg", "label": "Weiter" } }
-    ]
-  }
+```tsx
+import { Page, AppBar, Card, Avatar, ChipGroup, Text, Button } from '@acme/ui';
+import { flow } from '@wireflow/runtime';
+import type { TerminAuswahl } from '../fixtures/termin';
+
+export function ProfilTermine({ arzt, tage, zeiten }: TerminAuswahl) {
+  return (
+    <Page padding="space.4" gap="space.3">
+      <AppBar data-wf="ab" title="Termin wählen" onBack={flow.back} />
+      <Card data-wf="card_arzt" title={arzt.name} subtitle={arzt.fach} media={<Avatar initials={arzt.kuerzel} />} />
+      <ChipGroup data-wf="ch_uhr" label="Uhrzeit" options={zeiten} defaultValue={zeiten[1]} />
+      <Button data-wf="btn_weiter" variant="primary" size="lg" onPress={flow.trigger('btn_weiter')}>
+        Weiter
+      </Button>
+    </Page>
+  );
 }
 ```
 
+Intern arbeiten Canvas und Raum mit dem Komponentenbaum dieses Codes (*Screen-IR*); gespeichert wird immer das TSX.
+
 ### 9.4 Progressive Fidelity
 
-| Stufe | Ein Element enthält | Darstellung |
+| Stufe | Was es ist | Darstellung |
 |---|---|---|
-| **Lo-Fi** | `intent` + Inhalt (`"label": "Weiter"`) | Wireframe-Primitive in Graustufen |
-| **Mid-Fi** | zusätzlich eine generische Rolle (`"role": "button"`) | neutrale Standardkomponenten |
-| **Hi-Fi** | zusätzlich `component`, `props`, Token-Referenzen | echte DS-Komponenten |
+| **Skizze** | freie Idee jenseits des Design Systems, ohne Code | Skizzen-Ebene |
+| **Wireframe** | Screen-Modul mit echten DS-Komponenten | Token-Modus „wireframe“: neutral, grau, ohne Bilder |
+| **Hi-Fi** | dasselbe Screen-Modul mit vollständigen Inhalten | Marken-Theme |
 
-Weil IDs und Intents über alle Stufen stabil bleiben, überleben Verbindungen, Kommentare und Prototyp-Interaktionen jeden Fidelity-Wechsel.
+Weil Wireframe und Hi-Fi derselbe Code sind und die IDs (`data-wf`) stabil bleiben, überleben Verbindungen, Kommentare und Prototyp-Interaktionen jeden Fidelity-Wechsel.
 
 ---
 
@@ -715,14 +716,14 @@ Weil IDs und Intents über alle Stufen stabil bleiben, überleben Verbindungen, 
 | `research-scout` | ähnliche Lösungen und Analogien recherchieren, Inspirationen mit Quelle anlegen | WebSearch, WebFetch, `knowledge_*` |
 | `flow-architect` | Journey → Wireflow, Zustände, Integrität | `flow_*`, `ds_search` |
 | `ds-curator` | DS-Quellen indizieren, Intents zuordnen, Lücken finden | Read, Glob, `ds_*` |
-| `ui-composer` | Screen-IR komponieren, rendern, selbst prüfen – parallel je Screen | `ds_*`, `screen_*` |
+| `ui-composer` | Screen-Module als TSX schreiben, typprüfen, rendern, selbst prüfen – parallel je Screen | `ds_*`, `screen_*` |
 | `ux-critic` | unabhängiges Review: Heuristiken, A11y, Content, Walkthrough | nur lesend: `screen_render`, `screen_lint`, Read |
 
 **Arbeitsweise**
 
 - **Kein erfundenes Nutzerwissen:** Aussagen über Nutzer:innen ohne Quelle legt Claude als Annahme an. Simulierte Nutzer oder Persona-Walkthroughs zählen nie als Evidenz.
 - **Kontext sparsam halten:** Claude lädt nie das ganze Design System, sondern sucht gezielt (`ds_search` nach Intent oder Muster) und holt nur passende Komponenten-Specs.
-- **Eingeschränkte Generierung:** Screen-IR hat ein Schema. Der Server validiert jede Komposition gegen das Manifest und gibt präzise Fehler zurück („Prop `tone` existiert nicht an `Badge`; erlaubt: `variant`“). Claude korrigiert in derselben Runde.
+- **Eingeschränkte Generierung:** Screen-Module folgen festen Regeln. TypeScript und Lint prüfen jede Fassung gegen das Design System und geben präzise Fehler zurück („Prop `tone` existiert nicht an `Badge`; erlaubt: `variant`“). Claude korrigiert in derselben Runde.
 - **Visuelle Schleife:** komponieren → rendern → Screenshot ansehen → kritisieren → korrigieren. Begrenzt auf wenige Runden pro Screen.
 - **Parallelität:** Mehrere `ui-composer` arbeiten gleichzeitig an verschiedenen Screens; `ux-critic` bewertet mit frischem Kontext, damit die Kritik nicht von der eigenen Herleitung geprägt ist.
 - **Deterministisch, wo möglich:** Layout, Token-Auflösung, DS-Lint und Graph-Checks sind Code. Claude entscheidet über Semantik, Struktur und Content.
@@ -764,7 +765,7 @@ flowchart LR
 
 - **Dasselbe Plugin für alle:** Marketplace und Plugin stehen in der `.claude/settings.json` des Repos (`extraKnownMarketplaces`, `enabledPlugins`). Wer dem Ordner vertraut, arbeitet mit derselben Plugin-Version, denselben Skills und denselben Quality Gates. (Laut Doku werden Teammitglieder dann zur Installation aufgefordert; ein offenes Issue meldet, dass die Aufforderung nicht immer erscheint – im Onboarding also einmal `/plugin install` nennen.)
 - **Ein Manifest, ein Entscheidungs-Log:** Neben dem DS-Manifest liegt `.wireflow/decisions/` mit kurzen Designentscheidungen (Kontext, Entscheidung, Datum, Beteiligte). Jede Claude-Sitzung liest sie als Kontext. So folgen die Claudes aller Teammitglieder denselben Regeln, statt Entscheidungen wieder aufzurollen.
-- **Stabile IDs als Anker:** Kommentare, Freigaben und Diffs hängen an Knoten- und Element-IDs, nicht an Pixelpositionen. Ein Kommentar am Lo-Fi-Element „primäre Aktion“ bleibt am Hi-Fi-Button hängen.
+- **Stabile IDs als Anker:** Kommentare, Freigaben und Diffs hängen an Knoten- und Element-IDs, nicht an Pixelpositionen. Ein Kommentar am Button im Wireframe bleibt im Hi-Fi am selben Button hängen.
 - **Autorschaft:** Jede Änderung trägt Autor (Mensch oder `claude@<person>`), Zeitpunkt und eine Kurzbegründung. Das ergibt den Verlauf pro Element („Wer hat das geändert – und warum?“) und Filter wie „nur Claude-Änderungen“.
 
 ### 11.2 Versionen und Reviews über Git (MVP)
@@ -892,6 +893,8 @@ Die Rechte am Repo sind die Quelle der Wahrheit: Wer das Repo lesen darf, darf e
 | Uneinheitliche oder schlecht dokumentierte Design Systems | schwache Zuordnung Intent → Komponente | Kuratierungsschritt, Konfidenzwerte, manuelle Zuordnung im Manifest, Storybook als Referenz |
 | Projektcode zu rendern ist komplex (Monorepos, Provider, CSS-in-JS, Fonts) | Renderer startet nicht | Adapter-Konfiguration, Provider-Wrapper, `wireflow doctor`, Token-Renderer als Fallback |
 | Viele Live-Frames bremsen den Canvas | träge Bedienung | Level of Detail mit Screenshots, Virtualisierung, Rendern bei Bedarf |
+| Rundreise Canvas ↔ Code bricht bei freiem Code | Teile sind auf dem Canvas nicht bearbeitbar | Regeln für Screen-Module; Code-Blöcke werden angezeigt und markiert, aber nicht verändert |
+| Bauzeiten bei vielen Screen-Modulen | träger Canvas | inkrementelle Builds, Caching, Rendern nur sichtbarer Screens |
 | Qualität, Kosten, Latenz der Generierung | Frust, Budget | validierte IR, inkrementelle Updates, Caching, Budget pro Aktion |
 | Scope Creep („wir bauen Figma nach“) | Verzettelung | strukturierte Gestaltung, Figma-Brücke statt Konkurrenz |
 | Plugin-UI-API ist Early Access | Companion-Pane bricht | Pane optional; Kern über MCP und Browser |
@@ -917,9 +920,10 @@ Die Rechte am Repo sind die Quelle der Wahrheit: Wer das Repo lesen darf, darf e
 5. **Team-Server:** nur selbst gehostet oder zusätzlich als Managed-Dienst? Und wie viel Funktion bleibt im Einzelmodus ohne Server?
 6. **Pattern-Format:** Markdown mit YAML-Kopf (Vorschlag: im Pull Request lesbar, vom DS-Team pflegbar) oder ein reines JSON-Schema?
 7. **Dateiformat des Modells:** JSON (Vorschlag: gut validierbar, gut von Claude schreibbar) oder YAML bzw. eine TypeScript-DSL?
-8. **Freiform im Lo-Fi:** Wie viel Skizzieren braucht der Wireflow-Modus?
-9. **Verteilung:** öffentlicher oder interner Plugin-Marketplace?
-10. **Name:** „Wireflow Studio“ ist ein Arbeitstitel; Markenrecht und Verwechslungsgefahr sind zu prüfen.
+8. **Freiform:** Wie viel Skizzieren jenseits des Design Systems braucht die Exploration?
+9. **Screen-Format:** TSX-Teilmenge mit Code-Blöcken (Vorschlag) oder ein JSON-Baum, aus dem Code erzeugt wird?
+10. **Verteilung:** öffentlicher oder interner Plugin-Marketplace?
+11. **Name:** „Wireflow Studio“ ist ein Arbeitstitel; Markenrecht und Verwechslungsgefahr sind zu prüfen.
 
 ---
 
@@ -949,7 +953,8 @@ Plugin-Skills erscheinen im Namensraum des Plugins (`/wireflow:…`); daneben fu
 - **Annahme:** Aussage ohne ausreichende Evidenz, mit Kategorie, Wichtigkeit, Evidenzstand und Testidee.
 - **Inspiration-Karte:** recherchierte ähnliche Lösung oder Analogie mit Quelle, abstrahiertem Mechanismus und bewerteter Übertragbarkeit.
 - **Intent:** semantische Rolle eines Elements (`action.primary`, `input.choice.time`), unabhängig von der Darstellung.
-- **Screen-IR:** validierbarer Komponentenbaum eines Screens; Zwischenformat zwischen Wireframe, Design und Code.
+- **Screen-Modul:** TSX-Datei eines Screens aus echten Komponenten des Design Systems; was der Canvas zeigt, ist dieser Code.
+- **Screen-IR:** der Komponentenbaum eines Screen-Moduls, wie Canvas und Raum ihn intern bearbeiten; gespeichert wird immer das TSX.
 - **DS-Manifest:** normalisierte, kuratierbare Beschreibung des Design Systems: Komponenten, Props, Tokens, Muster, Regeln.
 - **DS-Lücke:** ein Intent, für den das Design System keine passende Komponente hat.
 - **Pattern-Karte:** strukturierte Beschreibung eines Patterns mit Auslösern, Entscheidungsregeln, verlangten Zuständen und Pfaden.
@@ -966,7 +971,7 @@ Plugin-Skills erscheinen im Namensraum des Plugins (`/wireflow:…`); daneben fu
 - Nielsen Norman Group: [Journey Mapping 101](https://www.nngroup.com/articles/journey-mapping-101/) · [Synthetic Users](https://www.nngroup.com/articles/synthetic-users/)
 - Research-Methoden: [Assumptions Mapping (Strategyzer)](https://strategyzer.com/library/how-assumptions-mapping-can-focus-your-teams-on-running-experiments-that-matter) · [Atomic Research (Maze)](https://maze.co/collections/user-research/atomic-research/)
 - Primer (GitHub): [UI patterns](https://primer.style/product/ui-patterns) · [MCP server](https://primer.style/product/getting-started/foundations/mcp) · [Primitives](https://primer.style/foundations/primitives)
-- Storybook: [AI-Manifeste](https://storybook.js.org/docs/ai/manifests) · [Storybook MCP](https://storybook.js.org/docs/ai/mcp/overview)
+- Storybook: [Component Story Format](https://storybook.js.org/docs/api/csf) · [AI-Manifeste](https://storybook.js.org/docs/ai/manifests) · [Storybook MCP](https://storybook.js.org/docs/ai/mcp/overview)
 - Design Tokens Community Group: [Design Tokens Specification 2025.10](https://www.designtokens.org/tr/2025.10/) (erste stabile Version, Oktober 2025)
 - Claude Code: [Plugins reference](https://code.claude.com/docs/en/plugins-reference) · [Channels](https://code.claude.com/docs/en/channels) · [Plugins im Team](https://code.claude.com/docs/en/plugins/org) · [GitHub Actions](https://code.claude.com/docs/en/github-actions)
 - Figma: [Figma MCP server – Tools and prompts](https://developers.figma.com/docs/figma-mcp-server/tools-and-prompts)

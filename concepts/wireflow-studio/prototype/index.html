@@ -604,7 +604,7 @@ function lum(hex) {
 function ratio(a, b = '#FFFFFF') { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); }
 const fmt = n => n.toFixed(1).replace('.', ',');
 const metaTok = () => (state.a11y === 'fixed' ? 'color.text.muted' : 'color.text.subtle');
-const fileOf = id => id.replace('scr_', '').replace(/_/g, '-') + '.screen.json';
+const fileOf = id => id.replace('scr_', '').replace(/_/g, '-') + '.screen.tsx';
 const pascal = s => s.replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').split(/[^A-Za-z0-9]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join('');
 function painsFor(sid) { const p = JR.phases.find(x => x.id === SCR[sid].phase); return p ? p.pains.filter(pp => pp.id === 'pp_slot_weg' ? ['scr_profil', 'scr_slot_vergeben', 'scr_pruefen'].includes(sid) : true) : []; }
 function tok(name) { const h = HEX[name]; return `<span class="tok">${h ? `<i class="sw" style="background:${h}"></i>` : ''}${esc(name)}</span>`; }
@@ -903,15 +903,19 @@ function protoTab(sid, e) {
   return h + `<div class="sec"><button class="btn sm" data-playfrom="${sid}">Prototyp ab hier abspielen</button></div>`;
 }
 function jsx(e, ind, acts) {
+  const out = jsxRaw(e, ind, acts);
+  return e.id ? out.replace(/(<[A-Z]\w*)/, `$1 data-wf="${e.id}"`) : out;
+}
+function jsxRaw(e, ind, acts) {
   const a = (k, v) => ` ${k}="${v}"`;
   switch (e.t) {
-    case 'ab': return `${ind}<AppBar${a('title', e.title)}${e.sub ? a('subtitle', e.sub) : ''}${e.nb ? '' : ' onBack={goBack}'} />`;
+    case 'ab': return `${ind}<AppBar${a('title', e.title)}${e.sub ? a('subtitle', e.sub) : ''}${e.nb ? '' : ' onBack={flow.back}'} />`;
     case 'h': return `${ind}<Heading level={1}>${e.text}</Heading>`;
     case 'tx': return `${ind}<Text tone="muted"${e.icon ? a('icon', e.icon) : ''}>${e.text}</Text>`;
     case 'field': return `${ind}<TextField${a('label', e.label)}${a('defaultValue', e.value)}${e.icon ? a('icon', e.icon) : ''} />`;
     case 'select': return `${ind}<Select${a('label', e.label)}${a('value', e.value)} />`;
     case 'chips': return `${ind}<ChipGroup${e.label ? a('label', e.label) : ''}${a('value', e.value)}\n${ind}  options={[${e.options.map(o => `'${o}'`).join(', ')}]} />`;
-    case 'bt': return `${ind}<Button${a('variant', e.variant)} size="lg"${acts && acts[e.id] ? ' onPress={next}' : ''}>${e.label}</Button>`;
+    case 'bt': return `${ind}<Button${a('variant', e.variant)} size="lg"${acts && acts[e.id] ? ` onPress={flow.trigger('${e.id}')}` : ''}>${e.label}</Button>`;
     case 'card': return `${ind}<Card${a('title', e.title)}${a('subtitle', e.sub)}${e.meta ? a('meta', e.meta) : ''}${e.badge ? a('badge', e.badge) : ''}\n${ind}  media={<Avatar initials="${e.initials}" />} />`;
     case 'alert': return `${ind}<Alert tone="danger"${a('title', e.title)}>${e.text}</Alert>`;
     case 'sum': return `${ind}<SummaryList items={[\n${e.rows.map(([k, v]) => `${ind}  ['${k}', '${v}'],`).join('\n')}\n${ind}]} />`;
@@ -930,9 +934,9 @@ function codeTab(sid, e) {
   if (e) src = `import { ${e.c || 'SuccessIllustration'} } from '@acme/ui';\n\n${jsx(e, '', acts)}`;
   else {
     const sc = SCR[sid], used = [...new Set(['Page'].concat(sc.els.filter(x => x.c).map(x => x.c), sc.els.some(x => x.t === 'card') ? ['Avatar'] : [], sc.els.some(x => x.t === 'grow') ? ['Spacer'] : []))];
-    src = `import { ${used.join(', ')} } from '@acme/ui';\n\nexport function ${pascal(sc.title)}Screen({ next, goBack }) {\n  return (\n    <Page padding="space.4" gap="space.3">\n${sc.els.map(x => jsx(x, '      ', acts)).join('\n')}\n    </Page>\n  );\n}`;
+    src = `import { ${used.join(', ')} } from '@acme/ui';\nimport { flow } from '@wireflow/runtime';\n\nexport function ${pascal(sc.title)}() {\n  return (\n    <Page padding="space.4" gap="space.3">\n${sc.els.map(x => jsx(x, '      ', acts)).join('\n')}\n    </Page>\n  );\n}`;
   }
-  return `<div class="sec"><h3>${ic('text')}JSX · React</h3><pre class="code" id="codeOut">${hl(src)}</pre><p class="hint">Aus der Screen-IR erzeugt; Props und Tokens sind gegen das DS-Manifest validiert.</p><button class="btn sm" data-copycode="1">Kopieren</button></div>`;
+  return `<div class="sec"><h3>${ic('text')}screens/${fileOf(sid)}</h3><pre class="code" id="codeOut">${hl(src)}</pre><p class="hint">Die Screen-Datei selbst: echter Code aus Acme-UI-Komponenten, typgeprüft gegen das Design System. Der Canvas schreibt Änderungen direkt hier hinein.</p><button class="btn sm" data-copycode="1">Kopieren</button></div>`;
 }
 function decRight(n) {
   const outs = visibleEdges().filter(e => e.f === n.id), yes = outs.find(e => e.when === n.v), no = outs.find(e => e.when === 'else');

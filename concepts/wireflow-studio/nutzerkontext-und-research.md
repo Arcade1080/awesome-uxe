@@ -139,8 +139,8 @@ Daraus entstehen **Inspiration-Karten**: Quelle mit Datum, der abstrahierte **Me
 
 ### 5.2 Erst öffnen, dann schließen
 
-- **Öffnen:** Claude formuliert aus Pain Points „Wie könnten wir …?“-Fragen, entwickelt drei bis fünf deutlich unterschiedliche Konzeptrichtungen als Lo-Fi-Flows und dreht Annahmen bewusst um („Was wäre, wenn es keine festen Termine gäbe?“).
-- **Frei im Lo-Fi:** In dieser Phase schränken Design-System-Regeln nicht ein. Ideen, die neue Patterns brauchen, werden später zu Vorschlägen fürs DS-Team.
+- **Öffnen:** Claude formuliert aus Pain Points „Wie könnten wir …?“-Fragen, entwickelt drei bis fünf deutlich unterschiedliche Konzeptrichtungen als Flows aus echten DS-Komponenten und dreht Annahmen bewusst um („Was wäre, wenn es keine festen Termine gäbe?“).
+- **Auf Basis des Design Systems:** Exploriert wird mit dem verknüpften Design System – jede Richtung ist sofort klickbar. Ideen, die das DS nicht abdeckt, bleiben als Skizze oder Produkt-Komponente erlaubt und werden als DS-Lücke zum Vorschlag fürs DS-Team.
 - **Schließen:** Das Team bewertet die Richtungen auf dem Canvas – mit Kommentaren, Stimmen und gegen Insights und Belege. Die gewählte Richtung geht in Hi-Fi aus dem Design System; die Entscheidung wird festgehalten.
 
 ### 5.3 Subagent `research-scout`

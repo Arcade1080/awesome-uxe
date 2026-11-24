@@ -33,7 +33,7 @@ flowchart LR
 |---|---|---|---|
 | **Foundations** | Farbrollen (wofür welche Farbe), Typostile mit Einsatzzweck, Breakpoints und Raster, Abstandsskala | Elevation, Motion, Icon-Set mit Bedeutungen, Dichte | Layoutentscheidungen, Lint-Regeln, Kontrastpaare |
 | **Design Tokens** | semantische Tokens mit Typ und Wert pro Modus, Aliase | Basis-Tokens klar getrennt, Deprecations mit Ersatz, Figma-Zuordnung, Nutzungshinweise | Hi-Fi-Werte nur aus Tokens, Themes, DS-Lint |
-| **Komponenten** | Name, Importpfad, Props mit Typen, Pflichtfeldern und Defaults, Varianten, Reifegrad | Unterkomponenten und erlaubte Verschachtelung, Zustände, A11y-Vertrag, „wann nutzen / wann nicht“, Beispiele (Stories), Code-Connect | Validierung der Screen-IR, Renderer, Inspector |
+| **Komponenten** | Name, Importpfad, Props mit Typen, Pflichtfeldern und Defaults, Varianten, Reifegrad | Unterkomponenten und erlaubte Verschachtelung, Zustände, A11y-Vertrag, „wann nutzen / wann nicht“, Beispiele (Stories), Code-Connect | Typprüfung der Screen-Module, Renderer, Inspector |
 | **Patterns** | Problem und Auslöser, Lösung (welche Komponenten in welcher Struktur), Entscheidungsregeln | Zustände und Pfade, die das Pattern verlangt, Content-Vorlagen, A11y-Verhalten, Beispiele, Anti-Patterns | Flow-Erzeugung, Komponentenwahl, Pattern-Lint |
 | **Content & A11y** | Tonalität, Terminologie, Schreibweisen, WCAG-Zielniveau | Microcopy-Vorlagen (Fehler, Leerzustände), Längen und Kürzungsregeln, Lokalisierung | Texte im Hi-Fi, Content-Lint, A11y-Gate |
 | **Metadaten** | Version, Reifegrad-Definitionen | Changelog, Migrationshinweise, Owner | Aktualität, Deprecation-Hinweise, Freigaben |
