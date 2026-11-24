@@ -9,6 +9,7 @@ import { flowIssues, toMermaid } from './core/flow.js';
 import { flowKnowledge, openAssumptions } from './core/knowledge.js';
 import { initProject, packageDir } from './core/init.js';
 import { loadScreen } from './core/project.js';
+import { readInbox } from './mcp/bridge.js';
 
 const HELP = `wireflow – Wireflow Studio für Claude Code
 
@@ -21,6 +22,7 @@ const HELP = `wireflow – Wireflow Studio für Claude Code
   wireflow doctor [--brief]                     Einrichtung prüfen
   wireflow mcp                                  MCP-Server (stdio) – startet Claude Code selbst
   wireflow hook-validate                        PostToolUse-Hook (liest JSON von stdin)
+  wireflow hook-inbox                           UserPromptSubmit-/Stop-Hook: offene Canvas-Nachrichten
 `;
 
 function flag(args, name, fallback) {
@@ -96,6 +98,30 @@ async function hookValidate() {
   if (notes.length) {
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: `Wireflow-Hinweise:\n${notes.map(n => `- ${n}`).join('\n')}` } }));
   }
+  return 0;
+}
+
+// Offene Nachrichten aus dem Canvas-Chat – Rückfallweg ohne Kanal:
+// UserPromptSubmit gibt sie als Kontext mit, Stop lässt Claude sie noch erledigen.
+async function hookInbox() {
+  let input = {};
+  try { input = JSON.parse((await readStdin()) || '{}'); } catch { /* ohne Eingabe */ }
+  const root = findRoot(process.env.WIREFLOW_ROOT || input.cwd || undefined);
+  if (!root) return 0;
+  const pending = readInbox(root);
+  if (!pending.length) return 0;
+  const list = pending.slice(0, 5).map(p => {
+    const a = p.meta || {};
+    const where = [a.titel, a.screen, a.element].filter(Boolean).join(' · ');
+    return `- [chat_id ${p.id}] „${String(p.text).slice(0, 400)}“${where ? ` (Auswahl: ${where})` : ''}`;
+  }).join('\n');
+  const msg = `Im Wireflow-Canvas ${pending.length === 1 ? 'wartet eine Nachricht' : `warten ${pending.length} Nachrichten`}:\n${list}\nHole sie mit canvas_inbox ab, erledige sie und antworte mit canvas_reply (chat_id übernehmen).`;
+  if (input.hook_event_name === 'Stop' || input.hook_event_name === 'SubagentStop') {
+    if (input.stop_hook_active || input.hook_event_name === 'SubagentStop') return 0;
+    process.stdout.write(JSON.stringify({ decision: 'block', reason: msg }));
+    return 0;
+  }
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: msg } }));
   return 0;
 }
 
@@ -214,6 +240,9 @@ export async function main(argv) {
       return;
     case 'hook-validate':
       process.exitCode = await hookValidate();
+      return;
+    case 'hook-inbox':
+      process.exitCode = await hookInbox();
       return;
     case undefined:
     case 'help':

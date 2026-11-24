@@ -14,7 +14,7 @@ import { flowIssues } from '../core/flow.js';
 import { flowKnowledge, openAssumptions } from '../core/knowledge.js';
 import { applyOp, handlerProp } from '../core/screens.js';
 import { applyFlowOp } from '../core/flows.js';
-import { getAttr, textOf } from '../core/jsx.js';
+import { getAttr, textOf, walk } from '../core/jsx.js';
 import { packageDir } from '../core/init.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -87,13 +87,13 @@ function fail(msg) { if (window.__wfError) window.__wfError(msg); else document.
 const entry = R[W.ref];
 if (!entry) fail('Screen ' + W.ref + ' ist nicht im Bundle.');
 else {
-  const [mod, stories, name] = entry;
+  const [mod, stories, name, variant] = entry;
   const meta = (stories && stories.default) || {};
-  const Comp = meta.component || mod[name] || mod.default;
+  const Comp = (variant && (mod[name] || mod.default)) || meta.component || mod[name] || mod.default;
   const names = stories ? Object.keys(stories).filter(k => k !== 'default' && /^[A-Z]/.test(k)) : [];
   const story = (stories && (stories[W.story] || stories[names[0]])) || {};
   const args = Object.assign({}, meta.args, story.args);
-  let Render = () => story.render ? story.render(args, { args }) : h(story.component || Comp, args);
+  let Render = () => story.render && !variant ? story.render(args, { args }) : h((!variant && story.component) || Comp, args);
   for (const d of [].concat(story.decorators || [], meta.decorators || [])) { const Inner = Render; Render = () => d(Inner, { args }); }
   try {
     createRoot(document.getElementById('root'), { onUncaughtError: e => fail(String((e && e.stack) || e)) }).render(h(Render));
@@ -107,6 +107,9 @@ async function buildBundle(root) {
   const failed = {};
   for (const s of Object.values(m.screens)) if (s.error) failed[s.ref] = s.error;
   const rel = f => './' + path.relative(m.wf, f).split(path.sep).join('/');
+  // Varianten haben keine eigenen Stories: Sie bekommen die Daten (Args) des Originals.
+  const parentOf = {};
+  for (const f of m.flows) for (const n of f.nodes || []) for (const v of n.variants || []) parentOf[v.ref] = n.ref;
   for (let attempt = 0; attempt < 4; attempt++) {
     const list = Object.values(m.screens).filter(s => !failed[s.ref]);
     const lines = ["import { createElement as h } from 'react';", "import { createRoot } from 'react-dom/client';"];
@@ -115,9 +118,11 @@ async function buildBundle(root) {
     }
     const reg = [];
     list.forEach((s, i) => {
+      const variant = !s.storiesFile && parentOf[s.ref] ? m.screens[parentOf[s.ref]] : null;
+      const storiesFile = s.storiesFile || variant?.storiesFile || null;
       lines.push(`import * as m${i} from ${JSON.stringify(rel(s.file))};`);
-      if (s.storiesFile) lines.push(`import * as s${i} from ${JSON.stringify(rel(s.storiesFile))};`);
-      reg.push(`${JSON.stringify(s.ref)}: [m${i}, ${s.storiesFile ? `s${i}` : 'null'}, ${JSON.stringify(s.component || '')}]`);
+      if (storiesFile) lines.push(`import * as s${i} from ${JSON.stringify(rel(storiesFile))};`);
+      reg.push(`${JSON.stringify(s.ref)}: [m${i}, ${storiesFile ? `s${i}` : 'null'}, ${JSON.stringify(s.component || '')}, ${variant ? 'true' : 'false'}]`);
     });
     lines.push(`const R = {\n${reg.join(',\n')}\n};`, MOUNT);
     try {
@@ -194,7 +199,7 @@ function listen(server, port) {
   });
 }
 
-export async function startCanvas({ root, port } = {}) {
+export async function startCanvas({ root, port, bridge = null } = {}) {
   if (!root) throw new Error('Kein Wireflow-Projekt gefunden. Mit /wireflow:init anlegen.');
   root = path.resolve(root);
   if (instances.has(root)) return instances.get(root);
@@ -319,6 +324,17 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
       if (p === '/' || p === '/index.html') return staticFile(res, 'index.html');
       if (p === '/app.js' || p === '/app.css' || p === '/frame.js') return staticFile(res, p.slice(1));
       if (p === '/api/project') return send(res, 200, projectJson(root, st.v));
+      if (p === '/api/chat') return send(res, 200, { connected: !!bridge, channel: !!bridge?.channel, messages: bridge?.log || [] });
+      if (p === '/api/source') {
+        const ref = u.searchParams.get('ref') || '';
+        const s = modelNow().screens[ref];
+        if (!s || s.source == null) return send(res, 404, { error: `Screen ${ref} nicht gefunden` });
+        const lineOf = i => s.source.slice(0, i).split('\n').length;
+        const lines = {};
+        if (s.tree) walk(s.tree, n => { const id = getAttr(n, 'data-wf'); if (id && n.start != null) lines[id] = [lineOf(n.start), lineOf(n.end)]; });
+        const stories = s.storiesFile ? fs.readFileSync(s.storiesFile, 'utf8') : null;
+        return send(res, 200, { ref, file: `${WF}/${ref}`, source: s.source, stories, storiesFile: s.storiesFile ? path.relative(root, s.storiesFile).split(path.sep).join('/') : null, lines });
+      }
       if (p === '/render') return send(res, 200, await renderPage(u.searchParams), TYPES['.html']);
       if (p === '/bundle.js' || p === '/bundle.css') {
         const b = await getBundle();
@@ -354,8 +370,14 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
       const list = [`${WF}/${f.file}`];
       if (r.ref) list.push(`${WF}/${r.ref}`, `${WF}/${r.ref.replace(/\.screen\.tsx$/, '.stories.tsx')}`);
       if (r.wired) list.push(`${WF}/${m.flows.find(x => x.id === r.flow).nodes.find(n => n.id === body.from).ref}`);
+      if (r.removed) list.push(`${WF}/${r.removed}`);
       const files = ownWrite(list, by);
       return send(res, 200, { ok: true, ...r, v: st.v, files });
+    }
+    if (p === '/api/chat') {
+      if (!bridge) return send(res, 409, { error: 'Dieser Canvas läuft ohne Claude-Sitzung. Öffne ihn in Claude Code mit /wireflow:canvas.' });
+      const m = bridge.userMessage({ text: body.text, selection: body.selection, kind: body.kind });
+      return send(res, 200, { ok: true, message: m });
     }
     if (p === '/api/selection') {
       writeSelection(body.selection || null);
@@ -391,6 +413,7 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
   });
   server.keepAliveTimeout = 5000;
   actualPort = await listen(server, port ?? (Number(process.env.WIREFLOW_PORT) || 4870));
+  const unsubscribe = bridge ? bridge.subscribe(m => broadcast('chat', m)) : () => {};
   const url = `http://127.0.0.1:${actualPort}/?t=${token}`;
   const inst = {
     url,
@@ -398,6 +421,7 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
     token,
     root,
     close: () => new Promise(resolve => {
+      unsubscribe();
       watchers.forEach(w => w.close());
       for (const c of st.clients) c.end();
       instances.delete(root);

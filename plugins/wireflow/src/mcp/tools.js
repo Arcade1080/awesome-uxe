@@ -1,18 +1,62 @@
 // Tools des wireflow-MCP-Servers – „die Hände“ für Claude.
 import fs from 'node:fs';
 import path from 'node:path';
-import { findRoot, loadProject, readJson, writeJson, undoLast, WF, flowById } from '../core/project.js';
+import { findRoot, loadProject, readJson, writeJson, undoLast, WF, flowById, loadScreen } from '../core/project.js';
 import { components, searchDs, loadTokens } from '../core/ds.js';
 import { lintScreen } from '../core/lint.js';
 import { flowIssues, toMermaid } from '../core/flow.js';
 import { flowKnowledge, openAssumptions } from '../core/knowledge.js';
-import { applyOp, writeScreen } from '../core/screens.js';
+import { applyOp, writeScreen, assertScreenRef, slugify } from '../core/screens.js';
 import { applyFlowOp } from '../core/flows.js';
 import { initProject } from '../core/init.js';
-import { walk, getAttr, textOf } from '../core/jsx.js';
+import { walk, getAttr, textOf, findById } from '../core/jsx.js';
+import { createBridge } from './bridge.js';
 
 const rootDir = () => findRoot(process.env.WIREFLOW_ROOT || undefined);
 const model = () => loadProject(rootDir());
+
+// ---------- Verbindung zum Canvas-Chat ----------
+const ctx = { notify: null, bridge: null };
+export function setNotifier(fn) { ctx.notify = fn; }
+export function bridgeFor(root = rootDir()) {
+  if (!root) throw new Error('Kein Wireflow-Projekt gefunden.');
+  if (!ctx.bridge || ctx.bridge.root !== root) ctx.bridge = createBridge({ root, notify: ctx.notify });
+  return ctx.bridge;
+}
+const QUIET = new Set(['canvas_reply', 'canvas_inbox', 'canvas_selection', 'canvas_open', 'project_status']);
+const DESCRIBE = {
+  screen_edit: a => `Ändert ${a.ref}: ${a.op} ${a.id || a.component || ''}`.trim(),
+  screen_write: a => `Schreibt ${a.ref}`,
+  screen_get: a => `Liest ${a.ref}`,
+  screen_lint: a => `Prüft ${a.ref || 'alle Screens'}`,
+  variant_create: a => `Legt Variante „${a.label || a.mode}“ von ${a.ref} an`,
+  flow_edit: a => `Flow: ${a.op}${a.title ? ` „${a.title}“` : ''}`,
+  flow_upsert: () => 'Schreibt den Flow',
+  flow_get: () => 'Liest den Flow',
+  flow_validate: () => 'Prüft den Flow',
+  ds_search: a => `Sucht im Design System: „${a.query || ''}“`,
+  ds_component: a => `Liest Komponente ${a.name}`,
+  ds_patterns: a => (a.id ? `Liest Pattern ${a.id}` : 'Liest Patterns'),
+  ds_tokens: () => 'Liest Tokens',
+  knowledge_get: () => 'Liest die Wissensbasis',
+  knowledge_upsert: a => `Wissen: ${a.kind} ${a.item?.id || ''}`.trim(),
+  knowledge_status: () => 'Liest den Wissensstand',
+  journey_get: () => 'Liest die Journey',
+  journey_upsert: () => 'Schreibt die Journey',
+  export: a => `Export: ${a.format}`,
+  undo: () => 'Macht die letzte Änderung rückgängig',
+};
+// Meldet Werkzeug-Aufrufe an einen offenen Canvas – dort sieht man, woran Claude arbeitet.
+export function activityFor(name, args = {}) {
+  if (!ctx.bridge || QUIET.has(name)) return;
+  try {
+    const ref = typeof args.ref === 'string' && args.ref.startsWith('screens/') ? args.ref : null;
+    ctx.bridge.activity({ tool: name, ref, text: (DESCRIBE[name] || (() => name))(args) });
+  } catch {
+    /* Aktivität ist nur Anzeige */
+  }
+}
+const MODES = { strict: 'Strikt', guided: 'Geführt', free: 'Frei' };
 const obj = (properties, required = []) => ({ type: 'object', properties, required, additionalProperties: false });
 const str = description => ({ type: 'string', description });
 const slug = s => String(s).toLowerCase().normalize('NFKD').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '');
@@ -251,8 +295,68 @@ export const TOOLS = [
     inputSchema: obj({ port: { type: 'number' } }),
     run: async ({ port }) => {
       const { startCanvas } = await import('../canvas/server.js');
-      const c = await startCanvas({ root: rootDir(), port });
-      return { url: c.url, hinweis: 'Canvas läuft, solange diese Claude-Code-Sitzung läuft.' };
+      const root = rootDir();
+      const c = await startCanvas({ root, port, bridge: bridgeFor(root) });
+      return {
+        url: c.url,
+        hinweis: 'Canvas läuft, solange diese Claude-Code-Sitzung läuft. Nachrichten aus dem Chat im Canvas kommen als <channel …> (mit Kanal) oder über canvas_inbox; antworten mit canvas_reply.',
+      };
+    },
+  },
+  {
+    name: 'canvas_reply',
+    description: 'Antwortet im Chat des Canvas – auf Nachrichten, die als <channel … chat_id="…"> oder über canvas_inbox kamen. Kurz und konkret; Änderungen an Screens und Flows erscheinen ohnehin live im Canvas.',
+    inputSchema: obj({ text: str('Antwort (einfaches Markdown: Absätze, - Listen, **fett**, `code`)'), chat_id: str('chat_id der Nachricht, auf die du antwortest') }, ['text']),
+    run: ({ text, chat_id }) => {
+      const r = bridgeFor().reply({ text, chat_id });
+      return { gesendet: true, id: r.id };
+    },
+  },
+  {
+    name: 'canvas_inbox',
+    description: 'Offene Nachrichten aus dem Chat des Canvas (mit Auswahl-Kontext). Aufrufen, wenn ein Hook oder die Person auf wartende Canvas-Nachrichten hinweist; danach mit canvas_reply antworten.',
+    inputSchema: obj({}),
+    run: () => {
+      const offen = bridgeFor().inbox();
+      return offen.length ? { offen } : { offen: [], hinweis: 'Keine offenen Nachrichten im Canvas.' };
+    },
+  },
+  {
+    name: 'variant_create',
+    description: 'Legt eine Variante eines Screens an; sie erscheint im Canvas neben dem Original und kann dort getauscht oder verworfen werden. mode: strict (nur DS-Komponenten, Props, Tokens und Patterns; Aufbau nah am Original) | guided (DS-Komponenten, Aufbau und Hierarchie frei; Patterns und Insights als Leitplanke) | free (kreativ, DS-Lücken erlaubt, aber benennen). Hotspot-IDs (data-wf der Verbindungen im Flow) beibehalten.',
+    inputSchema: obj({
+      ref: str('Original, z. B. screens/profil.screen.tsx'),
+      mode: { type: 'string', enum: ['strict', 'guided', 'free'] },
+      label: str('kurzer Name der Variante, z. B. „Kompakt“'),
+      source: str('vollständiger TSX-Quelltext der Variante'),
+      rationale: str('Unterschied zum Original und Begründung in einem Satz'),
+      flow: str('Flow-ID (optional)'),
+    }, ['ref', 'mode', 'source']),
+    run: ({ ref, mode, label, source, rationale, flow }) => {
+      assertScreenRef(ref);
+      const m = model();
+      const f = flow ? flowById(m, flow) : m.flows.find(x => (x.nodes || []).some(n => n.ref === ref));
+      const node = f?.nodes.find(n => n.ref === ref);
+      if (!node) throw new Error(`${ref} gehört zu keinem Flow-Knoten – Varianten hängen an einem Screen im Flow.`);
+      const base = path.basename(ref, '.screen.tsx').replace(/--.*$/, '');
+      const s = slugify(label || MODES[mode] || mode);
+      let target = `screens/${base}--${s}.screen.tsx`;
+      for (let k = 2; fs.existsSync(path.join(m.wf, target)); k++) target = `screens/${base}--${s}-${k}.screen.tsx`;
+      const r = writeScreen(m, target, source, { force: mode === 'free' });
+      if (!r.ok) return { gespeichert: false, ...r, hinweis: 'Nicht gespeichert – Fehler beheben und erneut senden.' };
+      if (mode === 'strict' && r.lint.warnings.some(w => w.gap)) {
+        undoLast();
+        return { gespeichert: false, pruefung: r.lint, hinweis: 'Strikt erlaubt keine DS-Lücken – nur Komponenten aus dem Manifest.' };
+      }
+      const tree = loadScreen(m.root, target).tree;
+      const fehlend = (f.edges || []).filter(e => e.from === node.id && e.el && !(tree && findById(tree, e.el))).map(e => e.el);
+      applyFlowOp(model(), f.id, { op: 'addVariant', id: node.id, ref: target, mode, label: label || MODES[mode], rationale, by: 'Claude' });
+      return {
+        gespeichert: target,
+        knoten: node.id,
+        pruefung: r.lint,
+        ...(fehlend.length ? { fehlendeHotspots: fehlend, hinweis: 'Diese Hotspot-IDs fehlen – nach dem Tauschen wären Verbindungen kaputt.' } : {}),
+      };
     },
   },
   {

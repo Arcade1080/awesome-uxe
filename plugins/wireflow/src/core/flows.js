@@ -1,6 +1,6 @@
 // Strukturierte Änderungen an Flows – Knoten verschieben, verbinden, Screens anlegen.
 import path from 'node:path';
-import { writeJson, flowById } from './project.js';
+import { writeJson, flowById, removeTracked } from './project.js';
 import { wireTrigger, newScreen, slugify } from './screens.js';
 
 const clean = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''));
@@ -97,6 +97,42 @@ export function applyFlowOp(model, flowId, op) {
       node(op.id);
       data.entry = op.id;
       break;
+    case 'addVariant': {
+      const n = node(op.id);
+      if (n.type !== 'screen') throw new Error('Varianten gibt es nur für Screens');
+      n.variants ||= [];
+      if (!n.variants.some(v => v.ref === op.ref)) n.variants.push(clean({ ref: op.ref, mode: op.mode, label: op.label, rationale: op.rationale, by: op.by }));
+      out.ref = op.ref;
+      break;
+    }
+    case 'promoteVariant': {
+      // Tauschen: Die Variante wird zum Screen im Flow, das Original bleibt als Variante erhalten.
+      const n = node(op.id);
+      const v = (n.variants || []).find(x => x.ref === op.ref);
+      if (!v) throw new Error('Variante nicht gefunden');
+      const before = n.ref;
+      n.ref = v.ref;
+      n.variants = n.variants.map(x => (x === v ? { ref: before, mode: 'original', label: 'Vorherige Fassung' } : x));
+      out.ref = n.ref;
+      break;
+    }
+    case 'discardVariant': {
+      const n = node(op.id);
+      const list = n.variants || [];
+      if (!list.some(x => x.ref === op.ref)) throw new Error('Variante nicht gefunden');
+      n.variants = list.filter(x => x.ref !== op.ref);
+      if (!n.variants.length) delete n.variants;
+      // Noch irgendwo in Gebrauch? (dieser Flow im neuen Stand, andere Flows wie geladen)
+      const used = [data, ...model.flows.filter(fl => fl.id !== data.id)]
+        .some(fl => (fl.nodes || []).some(x => x.ref === op.ref || (x.variants || []).some(v => v.ref === op.ref)));
+      if (!used && op.keepFile !== true) {
+        const file = path.join(model.wf, op.ref);
+        removeTracked(file);
+        removeTracked(file.replace(/\.screen\.tsx$/, '.stories.tsx'));
+        out.removed = op.ref;
+      }
+      break;
+    }
     case 'setVariable':
       if (!op.name) throw new Error('Variablenname fehlt');
       data.variables ||= {};

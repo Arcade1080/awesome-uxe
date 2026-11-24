@@ -86,8 +86,9 @@ Regeln: nur Komponenten aus dem Manifest, kein HTML, kein `style`/`className`, P
 |---|---|---|
 | Skills | `skills/*/SKILL.md` | `/wireflow:init`, `ds`, `research`, `journey`, `flow`, `hifi`, `canvas`, `prototype`, `review`, `export`; Methodenwissen in `ux-methods` |
 | Subagents | `agents/*.md` | `ds-curator`, `journey-analyst`, `flow-architect`, `ui-composer`, `ux-critic`, `research-scout` |
-| MCP-Server | `.mcp.json` → `wireflow mcp` | 23 Werkzeuge: Projekt, DS, Journeys, Flows, Screens, Wissen, Canvas, Export, Rückgängig |
-| Hooks | `hooks/hooks.json` | `SessionStart`: Projektstatus als Kontext; `PostToolUse`: prüft jede Datei unter `.wireflow/` – Fehler gehen an Claude zurück |
+| MCP-Server | `.mcp.json` → `wireflow mcp` | 26 Werkzeuge: Projekt, DS, Journeys, Flows, Screens, Varianten, Wissen, Canvas und Chat, Export, Rückgängig; zugleich Kanal für den Chat im Canvas |
+| Hooks | `hooks/hooks.json` | `SessionStart`: Projektstatus als Kontext; `PostToolUse`: prüft jede Datei unter `.wireflow/` – Fehler gehen an Claude zurück; `UserPromptSubmit` und `Stop`: wartende Nachrichten aus dem Canvas-Chat, falls kein Kanal läuft |
+| Kanal | `plugin.json` → `channels` | Chat und Aufträge aus dem Canvas erscheinen sofort in der Sitzung (Research Preview) |
 | CLI | `bin/wireflow` | `init`, `serve`, `status`, `validate`, `lint`, `export`, `doctor` – im Plugin auf dem `PATH`, ohne Plugin für CI |
 | Canvas | `src/canvas/` | lokaler Server (nur `127.0.0.1`, Token im Link) und Web-App ohne Build |
 
@@ -95,11 +96,36 @@ Keine Laufzeit-Abhängigkeiten: Das Plugin nutzt nur Node.js; React und esbuild 
 
 ## Canvas
 
+![Kontextmenü am ausgewählten Element: Varianten mit Strikt, Geführt, Frei](docs/kontextmenue.png)
+
 - **Design:** Screens als echte Komponenten auf einer unendlichen Fläche. Element anklicken → Inspector mit Props laut Manifest (Enums, Tokens, Text), Interaktion (Ziel im Flow), Richtlinien und Prüfung. Komponenten aus der Liste auf Screens ziehen oder mit „+“ einfügen; Elemente per Drag & Drop umordnen; Entf, ⌘/Strg+D, Alt+↑/↓, ⌘/Strg+Z. Screens am Titel verschieben. Kanten starten am auslösenden Element. Wireframe/Hi-Fi tauscht nur Tokens.
 - **Prototyp:** derselbe Code, klickbar. Variablen steuern Entscheidungen; fehlende Pfade und unverbundene Elemente werden gemeldet; Klick ins Leere zeigt Hotspots.
 - **Journey:** Phasen mit Emotionskurve, Pain Points mit Wissensstand und Beleg.
 - **Wissen:** Wissensstand je Flow-Schritt, Insights mit Belegen, Annahmen nach Risiko, offene Fragen – jeweils mit „Genutzt in“.
 - **Live:** Ändert Claude oder ein Editor eine Datei, aktualisiert sich der Canvas sofort und markiert die betroffenen Screens. Die Auswahl im Canvas liest Claude mit `canvas_selection`.
+- **Rechte Spalte – Design · Code · Chat:** *Design* ist der Inspector, *Code* zeigt Screen-Modul und Stories mit markiertem Element, *Chat* ist das Gespräch mit Claude – die Auswahl geht als Kontext mit.
+- **Kontextmenü** (Rechtsklick auf Screen oder Element, Taste `.`, ✦ am Titel):
+  - **Varianten:** *Strikt* (nur DS, Aufbau nah am Original), *Geführt* (DS-Komponenten, Aufbau frei), *Frei* (kreativ, Lücken benannt).
+  - **Review:** aus Sicht einer Persona der Journey, nach Heuristiken, Barrierefreiheit, Texten oder Design System.
+  - **Weiter:** neuer oder bestehender Screen als Ziel.
+  - **Zustände:** Leer, Fehler, Laden, Erstnutzung, Offline.
+  - **Code**, **Chat**.
+- **Lückenkarten:** Fehlende Pfade, Sackgassen, unerreichbare Screens und fehlende Hotspots stehen als Karte am Ort – mit „Mit Claude entwerfen“ oder einer direkten Aktion.
+- **Varianten** liegen gestrichelt unter dem Original (`screens/<name>--<variante>.screen.tsx`), mit Modus, Begründung und DS-Prüfung. *Tauschen* macht eine Variante zum Screen im Flow, *Verwerfen* löscht sie (rückgängig mit ⌘/Strg+Z).
+
+### Chat mit der laufenden Claude-Sitzung
+
+![Zwei strikte Varianten unter dem Original; Auftrag, Werkzeug-Aufrufe und Antwort im Chat](docs/varianten-und-chat.png)
+
+Öffnet Claude den Canvas (`/wireflow:canvas`), ist der Chat mit genau dieser Sitzung verbunden. Werkzeug-Aufrufe erscheinen als Zeilen im Chat, der bearbeitete Screen leuchtet violett.
+
+- **Sofort per Kanal (Research Preview):** Claude Code mit
+  ```bash
+  claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe
+  ```
+  starten. Kanäle brauchen die Anmeldung über claude.ai oder einen API-Schlüssel der Console (nicht Bedrock oder Vertex); in Team- und Enterprise-Organisationen müssen sie freigeschaltet sein.
+- **Ohne Kanal:** Nachrichten warten in einer Inbox außerhalb des Repos. Beim nächsten Prompt im Terminal (oder am Ende des laufenden Schritts) holt Claude sie mit `canvas_inbox` ab und antwortet mit `canvas_reply`.
+- Ein mit `wireflow serve` gestarteter Canvas hat keine Sitzung; dort ist der Chat deaktiviert.
 
 ## Entwicklung
 

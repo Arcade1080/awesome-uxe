@@ -1,10 +1,26 @@
 {
   "name": "wireflow",
   "displayName": "Wireflow Studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Journeys, Wireflows und Prototypen aus echtem Code des eigenen Design Systems – mit Canvas, Wissensbasis zu Nutzer:innen und Claude als Co-Designer.",
-  "author": { "name": "awesome-uxe" },
+  "author": {
+    "name": "awesome-uxe"
+  },
   "homepage": "https://github.com/arcade1080/awesome-uxe/tree/master/plugins/wireflow",
   "repository": "https://github.com/arcade1080/awesome-uxe",
-  "keywords": ["ux", "wireflow", "user-journey", "design-system", "prototyping", "user-research", "canvas"]
+  "keywords": [
+    "ux",
+    "wireflow",
+    "user-journey",
+    "design-system",
+    "prototyping",
+    "user-research",
+    "canvas"
+  ],
+  "channels": [
+    {
+      "server": "wireflow",
+      "displayName": "Wireflow Canvas"
+    }
+  ]
 }

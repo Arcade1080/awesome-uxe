@@ -19,7 +19,11 @@ Jeder Screen ist ein **Screen-Modul** (`.wireflow/screens/<name>.screen.tsx`): e
    - Daten über Props und typisierte Fixtures (`.wireflow/fixtures/*.ts`), keine Fantasie-Werte im Markup
    - Zustände als Stories: `Standard` plus, was Patterns verlangen (`Leer`, `Fehler`, `Laden`)
 4. **Schreiben.** Kleine Änderungen mit `screen_edit` (insert, move, setProp, setText …), ganze Screens mit `screen_write`. Beide prüfen gegen das Manifest; Fehler beheben, bis die DS-Konformität 100 % ist oder Lücken bewusst dokumentiert sind.
-5. **Varianten** (`--variants n`): als zusätzliche Stories oder als eigene Screen-Module mit Suffix (`-a`, `-b`); Unterschiede benennen.
+5. **Varianten** (`--variants n` oder aus dem Kontextmenü): mit `variant_create` anlegen – sie erscheinen im Canvas neben dem Original. Modus beachten:
+   - `strict`: nur DS-Komponenten, Props, Tokens und Patterns; Aufbau nah am Original (DS-Lücken werden abgelehnt)
+   - `guided`: DS-Komponenten, Aufbau und Hierarchie frei; Patterns und belegte Insights als Leitplanke
+   - `free`: kreativ, auch ungewöhnlich; DS-Lücken erlaubt, aber im Begründungssatz nennen
+   Hotspot-IDs aus dem Flow beibehalten, damit die Person die Variante im Canvas **tauschen** kann. Je Variante einen Satz Begründung (`rationale`).
 6. **Zeigen.** Im Canvas erscheint jede Änderung sofort. Kurz sagen, was sich geändert hat und warum (Pattern, Insight, Richtlinie).
 
 ## Beispiel

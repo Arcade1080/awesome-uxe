@@ -2,7 +2,7 @@
 
 **Konzept für ein Claude-Code-Plugin: ein gemeinsamer Canvas, auf dem Teams aus ihrem Wissen über Nutzer:innen und Domain Flows entwickeln – begründet durch Research, umgesetzt mit dem eigenen Design System.**
 
-> Status: Konzeptentwurf v0.4 · Stand: 23.11.2026 · „Wireflow Studio“ ist ein Arbeitstitel
+> Status: Konzeptentwurf v0.5 · Stand: 24.11.2026 · „Wireflow Studio“ ist ein Arbeitstitel
 > Click-Dummy der Canvas-Oberfläche: [`prototype/index.html`](prototype/index.html) (im Browser öffnen)
 > Umsetzung, Stufe 1 (Einzelmodus): [`plugins/wireflow`](../../plugins/wireflow/README.md) – installierbar mit `/plugin marketplace add arcade1080/awesome-uxe` und `/plugin install wireflow@awesome-uxe`
 
@@ -306,14 +306,14 @@ Der [Click-Dummy](prototype/index.html) zeigt die Oberfläche interaktiv: Modi w
 ┌───────────────────────────────────────────────────────────────────────────┐
 │ [Journey|Wireflow|Design|Prototyp] · ◕ Lisa ◕ Tom ✦ Claude · Teilen       │
 ├──────────────┬──────────────────────────────────────────────┬─────────────┤
-│ Ebenen       │        ◣ Lisa                    ◣ Claude    │ Inspector   │
-│ Komponenten  │  [Suche]──▶[Ergebnisse]──▶[Profil]──▶◇──▶…   │  Design     │
-│ Patterns     │                                      │       │  Prototyp   │
-│ Tokens       │                                 [Anmelden]   │  Code       │
-│ Baum der     │  ┄┄ Vorschlag von Claude ┄┄   ◣ Tom          │  Qualität   │
-│ Auswahl      │          ◉ 2 Kommentare                      │  Kommentare │
+│ Ebenen       │        ◣ Lisa         ▦ Varianten    ◣ Claude │ Design│Code│ │
+│ Komponenten  │  [Suche]──▶[Ergebnisse]──▶[Profil]──▶◇──▶…   │ Chat        │
+│ Patterns     │                  ◎ Review ─( ● )─ → Weiter    │  Props      │
+│ Tokens       │                  ✦ Chat   </> Code  ◫ Zustände │  Quelltext  │
+│ Baum der     │  ┄┄ Variante „Kompakt“ ┄┄   ┌ Nein-Pfad fehlt ┐│  ✦ Claude:  │
+│ Auswahl      │          ◉ 2 Kommentare     └ Mit Claude …    ┘│  Auswahl ×  │
 ├──────────────┴──────────────────────────────────────────────┴─────────────┤
-│ ✦ Claude fragen … (⌘K) · Auswahl: „Profil & Termine“ · Vorschläge (3)     │
+│ Rechtsklick oder „.“: Kontextmenü · Auswahl: „Profil & Termine“            │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -330,7 +330,16 @@ Wireflow und Design teilen sich Layout, Positionen und Code: Der Wechsel tauscht
 
 ### 7.3 Interaktionsmuster mit Claude
 
-- **Claude-Leiste (⌘K)** mit Auswahl-Kontext („2 Screens ausgewählt“) und passenden Vorschlägen.
+- **Rechte Spalte mit drei Reitern – Design · Code · Chat:** *Design* ist der Inspector (Props laut Manifest, Interaktion, Richtlinien, Prüfung), *Code* zeigt das Screen-Modul und seine Stories mit markiertem Element, *Chat* ist das Gespräch mit Claude – mit der Auswahl als Kontext („Auswahl: Button · btn_weiter ×“).
+- **Kontextmenü (radial)** an Screen oder Element, per Rechtsklick, Taste `.` oder ✦ am Frame-Titel:
+  - **Varianten** mit Spielraum: *Strikt* (nur DS-Komponenten, Patterns, Aufbau nah am Original), *Geführt* (DS-Komponenten, Aufbau frei, Patterns und Insights als Leitplanke), *Frei* (kreativ, DS-Lücken erlaubt, aber benannt).
+  - **Review** aus Sicht einer **Persona** aus der Journey – sowie Heuristiken, Barrierefreiheit, Texte und Design System. Ein Persona-Walkthrough ist keine Evidenz.
+  - **Weiter:** neuer Screen oder bestehender Screen als Ziel des ausgewählten Elements.
+  - **Zustände:** Leer, Fehler, Laden, Erstnutzung, Offline als Stories.
+  - **Code** und **Chat** springen in den passenden Reiter.
+- **Lückenkarten am Ort:** Fehlende Ja/Nein-Pfade, Sackgassen, unerreichbare Screens und fehlende Hotspots erscheinen als Karte direkt am Knoten – mit „Mit Claude entwerfen“ und einer Aktion ohne Claude (zum Beispiel „Screen anlegen“).
+- **Varianten nebeneinander:** Varianten liegen gestrichelt unter dem Original, mit Modus und Begründung. *Tauschen* macht eine Variante zum Screen im Flow (die bisherige Fassung bleibt als Variante), *Verwerfen* löscht sie.
+- **Claude bei der Arbeit sehen:** Werkzeug-Aufrufe erscheinen als Zeilen im Chat („Liest Komponente Alert“), der bearbeitete Screen leuchtet in Claude-Violett.
 - **Vorschläge als Geister-Elemente:** gestrichelt in Claude-Violett, mit *Annehmen · Verwerfen · Variante*. Geänderte Elemente tragen ein Diff-Badge.
 - **Begründung auf Nachfrage:** „Warum?“ zeigt die Herleitung – Manifest-Eintrag, Research-Zitat, Heuristik.
 - **„Warum?“ an jedem Element:** nicht nur bei Claude-Vorschlägen. Jedes Element zeigt seine Grundlage bis zu den Fakten – oder den Hinweis „Annahme, ungeprüft“.
@@ -721,6 +730,13 @@ Weil Wireframe und Hi-Fi derselbe Code sind und die IDs (`data-wf`) stabil bleib
 | `ui-composer` | Screen-Module als TSX schreiben, typprüfen, rendern, selbst prüfen – parallel je Screen | `ds_*`, `screen_*` |
 | `ux-critic` | unabhängiges Review: Heuristiken, A11y, Content, Walkthrough | nur lesend: `screen_render`, `screen_lint`, Read |
 
+**Canvas und Sitzung im Gespräch**
+
+- **Kanal:** Der MCP-Server meldet sich als Kanal (`claude/channel`). Nachrichten aus dem Chat und Aufträge aus Kontextmenü oder Lückenkarten erscheinen in der laufenden Sitzung als `<channel … chat_id=… screen=… element=…>`; Claude antwortet mit `canvas_reply`. Kanäle sind eine Research Preview: eigene Kanäle laufen mit `claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe` und mit Anmeldung über claude.ai oder einen API-Schlüssel der Console, nicht über Bedrock oder Vertex.
+- **Rückfallweg ohne Kanal:** Offene Nachrichten liegen in einer Inbox (außerhalb des Repos, nur für die Person). Der Hook `UserPromptSubmit` gibt sie beim nächsten Prompt als Kontext mit, der Hook `Stop` lässt Claude sie vor dem Ende eines Schritts noch erledigen; abgeholt wird mit `canvas_inbox`.
+- **Sicherheit:** Nachrichten kommen nur aus dem Canvas mit Zugangstoken (127.0.0.1, Host- und Origin-Prüfung); Attribute des Kanals enthalten nur Auswahl-Kontext.
+- **Weitere Modelle (später):** Varianten auch von anderen Modellen als zusätzlichen Agents – nebeneinander auf dem Canvas, an denselben Regeln geprüft.
+
 **Arbeitsweise**
 
 - **Kein erfundenes Nutzerwissen:** Aussagen über Nutzer:innen ohne Quelle legt Claude als Annahme an. Simulierte Nutzer oder Persona-Walkthroughs zählen nie als Evidenz.
@@ -853,6 +869,7 @@ Die Rechte am Repo sind die Quelle der Wahrheit: Wer das Repo lesen darf, darf e
 | Flow-Tools | Übersicht über User Flows | keine Hi-Fi-Screens aus dem eigenen DS | Wireflow und Hi-Fi auf denselben Knoten |
 | Design mit Code-Komponenten | echte Komponenten im Design | kein Journey- und Flow-Fundament, keine agentische Arbeitsweise | Komponenten plus Journey plus Agent |
 | Prompt-to-UI/-App | sehr schnelle Entwürfe | generisch, eigener Stack, selten das eigene DS, meist Einzelarbeit | geerdet im eigenen DS, gemeinsam im Team |
+| Agentische Canvas über Storybook (Community-Experimente) | ohne Migration auf bestehenden Stories, mehrere Modelle parallel, Kontextmenü am Screen | in den gezeigten Ausschnitten nicht erkennbar: Nutzerwissen, Annahmen, Entscheidungen mit Variablen; die „Journey“ ist dort eine Karte der Navigation | Wissensbasis, Entscheidungen und DS-Regeln als Prüfung; Storybook als Renderer und mehrere Modelle stehen auf der Roadmap |
 
 **Kurz:** Der gemeinsame Canvas, auf dem Teams Flows aus echtem Nutzerwissen entwickeln – mit sichtbaren Annahmen, KI-Recherche als Impuls und dem eigenen Design System für die Umsetzung, versioniert in Git, mit den Menschen am Steuer.
 
@@ -862,9 +879,10 @@ Die Rechte am Repo sind die Quelle der Wahrheit: Wer das Repo lesen darf, darf e
 
 | Phase | Umfang | Abschlusskriterium |
 |---|---|---|
+| **Umgesetzt – Stufe 1** | Plugin [`plugins/wireflow`](../../plugins/wireflow/README.md) im Einzelmodus: Screens als Code aus dem DS, Canvas mit Design · Code · Chat, Kontextmenü, Lückenkarten, Varianten, Prototyp, Journey, Wissen, Chat über Kanal | Beispielprojekt Acme Health läuft vollständig; Tests für Code-Brücke, MCP, Kanal und Canvas |
 | **0 – Spike** | DS-Manifest für ein Referenz-DS (Vorschlag: Primer) mit ersten Pattern-Karten, Renderer-Bundle, Raum für zwei Personen und eine Claude-Sitzung, Flow- und Screen-Tools | Zwei Personen und Claude bauen gemeinsam einen Flow mit fünf Screens aus Primer-Komponenten, mit mindestens 90 % DS-Konformität |
 | **1 – MVP** | Wissensbasis mit Annahmen-Register und Evidenz-Overlay; gemeinsamer Canvas mit Präsenz, Kommentaren, Soft-Locks und Vorschlags-Queue; DS-Manifest mit Patterns, DS-Audit und DS-Insights; Journey, pattern-gesteuerter Wireflow, Hi-Fi, Prototyp mit Variablen; Gates für DS, Patterns, A11y, Flow; „Version sichern“ als Commit; Browser-Zugang für Stakeholder | Ein Produktteam gestaltet einen echten Flow gemeinsam – von Research bis zum getesteten Prototyp, ohne Umweg über ein Design-Tool |
-| **2 – Brücken** | Recherche zu ähnlichen Lösungen (`research-scout`), Anbindung bestehender Research-Repositories, Figma-Import und -Export, visueller Diff und Preview-Link im Pull Request, `@claude` im PR über die GitHub Action, Merge-Driver, Testmodus, Ist-Flow aus Code, Companion-Pane, Code- und Playwright-Export | Ein bestehendes Redesign läuft vollständig über den Canvas; Reviews finden im Pull Request statt |
+| **2 – Brücken** | Recherche zu ähnlichen Lösungen (`research-scout`), Anbindung bestehender Research-Repositories, Figma-Import und -Export, visueller Diff und Preview-Link im Pull Request, `@claude` im PR über die GitHub Action, Merge-Driver, Testmodus, Ist-Flow aus Code, Companion-Pane, Code- und Playwright-Export; Storybook als Renderer (bestehende Stories ohne Migration), Verbindungen aus dem Router-Code lesen, Entwürfe sammeln und gesammelt in Code übernehmen, Kontrastprüfung mit Vorschlägen, Varianten von weiteren Modellen | Ein bestehendes Redesign läuft vollständig über den Canvas; Reviews finden im Pull Request statt |
 | **3 – Skalierung** | mehrere Design Systems und Marken, DS-Beiträge als Pull Request ans DS-Repo, weitere Renderer (Vue, Web Components), Enterprise-Funktionen (SSO, Audit-Log, Ende-zu-Ende-Verschlüsselung) | Mehrere Teams arbeiten auf demselben Manifest; das DS-Team plant mit DS-Insights |
 
 **Bewusst nicht im Umfang:** Vektor-Illustration, freies Pixel-Design, Marketing- und Markengestaltung. Dafür gibt es gute Werkzeuge – das Plugin verbindet sich mit ihnen, statt sie nachzubauen.

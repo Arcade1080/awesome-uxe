@@ -33,7 +33,7 @@ const S = {
   mode: 'design',
   fid: 'hifi',
   flowId: null,
-  sel: { node: null, el: null, edge: null },
+  sel: { node: null, el: null, edge: null, variant: null },
   leftTab: 'layers',
   compQuery: '',
   view: { x: 60, y: 90, k: 0.5 },
@@ -44,6 +44,12 @@ const S = {
   drag: null,
   proto: { flowId: null, node: null, history: [], vars: {} },
   protoDom: null,
+  rightTab: 'design',
+  codeSub: 'screen',
+  codeCache: new Map(),
+  chat: { messages: [], connected: false, channel: false, unread: 0, attach: true },
+  menu: null,
+  working: new Map(),
 };
 
 // ---------- Zugriff ----------
@@ -153,6 +159,7 @@ function invalidate(files, v) {
 function connect() {
   const es = new EventSource('/api/events');
   es.addEventListener('hello', () => setLive(true));
+  es.addEventListener('chat', e => onChat(JSON.parse(e.data)));
   es.addEventListener('change', e => {
     const d = JSON.parse(e.data);
     if (d.by !== S.client) external(d.files || []);
@@ -197,7 +204,8 @@ function syncSelection() {
       modus: S.mode,
       knoten: n?.id || null,
       titel: n ? n.title || n.label || null : null,
-      screen: n?.ref || null,
+      screen: S.sel.variant || n?.ref || null,
+      variante: S.sel.variant || null,
       zustand: n?.story || (scr?.stories?.[0] ?? null),
       element: el?.id || null,
       komponente: el?.name || null,
@@ -209,7 +217,8 @@ function syncSelection() {
 
 // ---------- Auswahl ----------
 function select(sel) {
-  S.sel = { node: sel.node ?? null, el: sel.el ?? null, edge: sel.edge ?? null };
+  S.sel = { node: sel.node ?? null, el: sel.el ?? null, edge: sel.edge ?? null, variant: sel.variant ?? null };
+  closeMenu();
   if (S.mode === 'design') renderCanvas();
   renderLeft();
   renderRight();
@@ -217,10 +226,11 @@ function select(sel) {
 }
 function validateSelection() {
   const f = flow();
-  if (!f) { S.sel = { node: null, el: null, edge: null }; return; }
+  if (!f) { S.sel = { node: null, el: null, edge: null, variant: null }; return; }
   if (S.sel.edge != null && !f.edges[S.sel.edge]) S.sel.edge = null;
   const n = nodeById(S.sel.node);
-  if (!n) { S.sel.node = null; S.sel.el = null; return; }
+  if (!n) { S.sel.node = null; S.sel.el = null; S.sel.variant = null; return; }
+  if (S.sel.variant && !(n.variants || []).some(v => v.ref === S.sel.variant)) S.sel.variant = null;
   const scr = screenOf(n);
   if (S.sel.el && !(scr?.tree && findEl(scr.tree, S.sel.el))) S.sel.el = null;
 }
@@ -295,8 +305,7 @@ function fit() {
   const f = flow();
   if (!f || !f.nodes.length) return;
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
-  for (const n of f.nodes) {
-    const r = nodeRect(n);
+  for (const r of [...f.nodes.map(nodeRect), ...variantRects(f).map(v => v.rect)]) {
     x1 = Math.min(x1, r.x); y1 = Math.min(y1, r.y); x2 = Math.max(x2, r.x + r.w); y2 = Math.max(y2, r.y + r.h + 30);
   }
   const sr = stage.getBoundingClientRect();
@@ -370,7 +379,7 @@ function frameBySource(src) {
 function renderCanvas() {
   const f = flow();
   for (const [id, el] of S.nodeEls) {
-    if (!f || !f.nodes.some(n => n.id === id)) {
+    if (!id.startsWith('v:') && (!f || !f.nodes.some(n => n.id === id))) {
       el.remove();
       S.nodeEls.delete(id);
       S.frames.delete(id);
@@ -381,10 +390,12 @@ function renderCanvas() {
     if (!empty) stage.append(h('div', { class: 'empty' }, h('div', {}, h('b', {}, 'Noch kein Flow'), 'In Claude Code: /wireflow:flow – oder eine Journey mit /wireflow:journey anlegen.')));
     edgesSvg.innerHTML = '';
     fill(labelsEl, );
+    renderVariants(null);
     return;
   }
   empty?.remove();
   for (const n of f.nodes) renderNode(n);
+  renderVariants(f);
   renderEdges();
   renderOverlays();
 }
@@ -420,9 +431,18 @@ function createScreen(id) {
   const ov = h('div', { class: 'ov' });
   const box = h('div', { class: 'frame' }, ov);
   const el = h('div', { class: 'node scr' }, title, box);
-  const fr = { id, ref: '', story: '', v: S.dataV, url: '', iframe: null, next: null, boxes: {}, h: VH(), box, ov, title, failed: false };
+  const fr = { id, ref: '', story: '', v: S.dataV, url: '', iframe: null, next: null, boxes: {}, h: VH(), box, ov, title, el, failed: false };
   S.frames.set(id, fr);
   title.addEventListener('pointerdown', e => startNodeDrag(e, id));
+  title.addEventListener('contextmenu', e => { e.preventDefault(); select({ node: id }); openMenu(e.clientX, e.clientY); });
+  ov.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const p = localPos(e, fr);
+    const hitId = hitTest(fr, p.x, p.y);
+    select(hitId ? { node: id, el: hitId } : { node: id });
+    openMenu(e.clientX, e.clientY);
+  });
   ov.addEventListener('pointermove', e => onOvMove(e, fr));
   ov.addEventListener('pointerleave', () => { if (S.hover?.node === id && !S.drag) { S.hover = null; renderOverlays(); } });
   ov.addEventListener('pointerdown', e => onOvDown(e, fr));
@@ -451,7 +471,20 @@ function updateScreen(n) {
     k ? h('span', { class: `tag k-${k.level}`, title: 'Wissensstand' }, KLABEL[k.level]) : null,
     scr?.error ? h('span', { class: 'tag bad' }, 'Fehler') : l ? (l.errors.length ? h('span', { class: 'tag bad', title: l.errors.map(e => e.msg).join('\n') }, `${l.errors.length} Fehler`) : h('span', { class: `tag ${l.score.pct < 100 ? 'warn' : 'ok'}`, title: 'Anteil der Elemente aus dem Design System' }, `DS ${l.score.pct} %`)) : null,
     fr.failed ? h('span', { class: 'tag bad' }, 'Renderfehler') : null,
+    h('button', {
+      type: 'button',
+      class: 'fmenu',
+      title: 'Aktionen: Varianten, Review, Weiter, Zustände (Rechtsklick oder Taste .)',
+      'aria-label': `Aktionen für ${n.title || n.id}`,
+      onpointerdown: ev => ev.stopPropagation(),
+      onclick: ev => {
+        const r = ev.currentTarget.getBoundingClientRect();
+        select({ node: n.id });
+        openMenu(r.left + r.width / 2, r.bottom + 120);
+      },
+    }, '✦'),
   );
+  fr.el.classList.toggle('working', S.working.has(n.ref));
   fr.box.style.width = `${VW()}px`;
   fr.box.style.height = `${fr.h}px`;
   ensureIframe(fr);
@@ -525,14 +558,9 @@ function renderEdges() {
     const set = e.set ? Object.entries(e.set).map(([k, v]) => `${k}=${v}`).join(' ') : '';
     labels.push(h('div', { class: `elabel${S.sel.edge === i ? ' sel' : ''}`, style: `left:${g.mid.x}px;top:${g.mid.y}px`, title: `${nodeName(e.from)} → ${nodeName(e.to)}`, onpointerdown: ev => ev.stopPropagation(), onclick: () => select({ edge: i }) }, e.label || e.el || '→', set ? h('span', { class: 'set' }, ` ${set}`) : null));
   });
-  for (const iss of f.issues || []) {
-    if (iss.code !== 'decision-no' && iss.code !== 'decision-yes') continue;
-    const n = nodeById(iss.ref);
-    if (!n) continue;
-    const p = port(n, iss.code === 'decision-no' ? 'b' : 'r');
-    const q = { x: p.x + p.nx * 150, y: p.y + p.ny * 150 };
-    svg += `<path class="miss" d="M${p.x},${p.y} L${q.x},${q.y}"/>`;
-    labels.push(h('div', { class: 'elabel miss', style: `left:${q.x}px;top:${q.y}px`, title: iss.message, onpointerdown: ev => ev.stopPropagation(), onclick: () => select({ node: n.id }) }, iss.code === 'decision-no' ? 'Nein-Pfad fehlt' : 'Ja-Pfad fehlt'));
+  for (const g of gapsOf(f)) {
+    if (g.stub) svg += `<path class="miss" d="M${g.stub[0].x},${g.stub[0].y} L${g.stub[1].x},${g.stub[1].y}"/>`;
+    labels.push(gapCard(g));
   }
   edgesSvg.innerHTML = svg;
   fill(labelsEl, ...labels);
@@ -753,6 +781,7 @@ stage.addEventListener('pointerdown', e => {
 stage.addEventListener('wheel', e => {
   if (S.mode !== 'design') return;
   e.preventDefault();
+  closeMenu();
   if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.01));
   else {
     S.view.x -= e.deltaX;
@@ -946,18 +975,34 @@ function renderRight() {
   const R = $('#right');
   if (!S.data) return;
   keepFocus(R, () => {
-    const pane = h('div', { class: 'pane' });
-    if (S.mode === 'prototype') protoPanel(pane);
-    else {
-      const n = nodeById(S.sel.node);
-      if (S.sel.edge != null && flow()?.edges[S.sel.edge]) edgeInspector(pane, S.sel.edge);
-      else if (n?.type === 'screen' && S.sel.el) elementInspector(pane, n);
-      else if (n?.type === 'screen') screenInspector(pane, n);
-      else if (n?.type === 'decision') decisionInspector(pane, n);
-      else flowInspector(pane);
+    if (S.mode === 'prototype') {
+      const pane = h('div', { class: 'pane' });
+      protoPanel(pane);
+      fill(R, pane);
+      return;
     }
-    fill(R, pane);
+    const tabsEl = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Rechte Spalte' }, ...[['design', 'Design'], ['code', 'Code'], ['chat', chatTabLabel()]].map(([id, label]) => h('button', {
+      type: 'button',
+      role: 'tab',
+      'data-tab': id,
+      'aria-selected': String(S.rightTab === id),
+      onclick: () => { S.rightTab = id; if (id === 'chat') S.chat.unread = 0; renderRight(); },
+    }, label)));
+    const pane = h('div', { class: `pane${S.rightTab === 'chat' ? ' chatpane' : ''}` });
+    if (S.rightTab === 'code') codePane(pane);
+    else if (S.rightTab === 'chat') chatPane(pane);
+    else designPane(pane);
+    fill(R, tabsEl, pane);
   });
+}
+function designPane(pane) {
+  const n = nodeById(S.sel.node);
+  if (S.sel.edge != null && flow()?.edges[S.sel.edge]) edgeInspector(pane, S.sel.edge);
+  else if (n?.type === 'screen' && S.sel.variant) variantInspector(pane, n, S.sel.variant);
+  else if (n?.type === 'screen' && S.sel.el) elementInspector(pane, n);
+  else if (n?.type === 'screen') screenInspector(pane, n);
+  else if (n?.type === 'decision') decisionInspector(pane, n);
+  else flowInspector(pane);
 }
 function literal(p) {
   if (!p) return { ok: true, value: undefined };
@@ -1376,6 +1421,456 @@ function renderKnowledge() {
   );
 }
 
+// ---------- Chat: Gespräch mit der laufenden Claude-Code-Sitzung ----------
+const MODE_LABEL = { strict: 'Strikt', guided: 'Geführt', free: 'Frei', original: 'Original' };
+const MODE_HINT = {
+  strict: 'nur Komponenten, Props und Tokens des Design Systems, Patterns einhalten, Aufbau nah am Original – Verbesserungen im Detail.',
+  guided: 'Komponenten des Design Systems; Aufbau, Hierarchie und Gewichtung frei neu denken; Patterns und belegte Insights als Leitplanke.',
+  free: 'kreativ und mutig explorieren, auch ungewöhnliche Lösungen; Lücken im Design System sind erlaubt, aber im Begründungssatz zu nennen.',
+};
+const chatTabLabel = () => (S.chat.unread ? `Chat · ${S.chat.unread}` : 'Chat');
+function updateChatTab() {
+  const b = $('#right .tabs [data-tab="chat"]');
+  if (b) b.textContent = chatTabLabel();
+}
+function selectionMeta() {
+  const n = nodeById(S.sel.node);
+  if (!n) return { flow: S.flowId };
+  const scr = screenOf(n);
+  const el = scr && S.sel.el && !S.sel.variant ? findEl(scr.tree, S.sel.el)?.node : null;
+  const out = { flow: S.flowId, knoten: n.id, titel: n.title || n.label || n.id, screen: S.sel.variant || n.ref || '', variante: S.sel.variant || '', zustand: n.story || scr?.stories?.[0] || '', element: el?.id || '', komponente: el?.name || '' };
+  return Object.fromEntries(Object.entries(out).filter(([, v]) => v));
+}
+function selectionLabel() {
+  const n = nodeById(S.sel.node);
+  if (!n) return null;
+  if (S.sel.variant) return `${n.title || n.id} · Variante`;
+  const scr = screenOf(n);
+  const el = scr && S.sel.el ? findEl(scr.tree, S.sel.el)?.node : null;
+  return el ? `${el.name} · ${el.id}` : n.title || n.label || n.id;
+}
+function onChat(m) {
+  const list = S.chat.messages;
+  const i = list.findIndex(x => x.id === m.id);
+  if (i >= 0) list[i] = { ...list[i], ...m };
+  else list.push(m);
+  if (list.length > 400) list.splice(0, list.length - 400);
+  if (m.role === 'activity' && m.ref) markWorking(m.ref);
+  if (m.role === 'claude' && i < 0 && (S.rightTab !== 'chat' || S.mode === 'prototype')) {
+    S.chat.unread++;
+    toast('Claude hat im Chat geantwortet.', 'ai');
+  }
+  if (S.mode === 'prototype') return;
+  if (S.rightTab === 'chat') renderRight();
+  else updateChatTab();
+}
+function markWorking(ref) {
+  S.working.set(ref, Date.now());
+  for (const fr of S.frames.values()) if (fr.ref === ref) fr.el?.classList.add('working');
+  clearTimeout(markWorking.timer);
+  markWorking.timer = setTimeout(() => {
+    const now = Date.now();
+    for (const [r, t] of S.working) if (now - t > 5000) S.working.delete(r);
+    for (const fr of S.frames.values()) fr.el?.classList.toggle('working', S.working.has(fr.ref));
+  }, 5200);
+}
+async function sendChat(text, kind) {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  if (!S.chat.connected) {
+    toast('Kein Claude verbunden – den Canvas in Claude Code mit /wireflow:canvas öffnen.', 'warn');
+    return false;
+  }
+  try {
+    const r = await api('/api/chat', { text: t, selection: kind || S.chat.attach ? selectionMeta() : null, kind: kind || null });
+    onChat(r.message);
+    return true;
+  } catch (e) {
+    toast(e.message, 'bad');
+    return false;
+  }
+}
+// Auftrag aus Kontextmenü oder Lückenkarte: im Chat sichtbar, an Claude geschickt.
+async function askClaude(text, kind) {
+  S.rightTab = 'chat';
+  S.chat.unread = 0;
+  const ok = await sendChat(text, kind);
+  renderRight();
+  if (ok) setTimeout(() => { if (S.rightTab === 'chat') renderRight(); }, 16000);
+}
+function mdLite(text) {
+  const inline = s => s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  return esc(text).split(/\n{2,}/).map(b => {
+    const lines = b.split('\n');
+    if (lines.every(l => /^\s*[-*]\s+/.test(l))) return `<ul>${lines.map(l => `<li>${inline(l.replace(/^\s*[-*]\s+/, ''))}</li>`).join('')}</ul>`;
+    return `<p>${lines.map(inline).join('<br>')}</p>`;
+  }).join('');
+}
+function chatItem(m) {
+  const time = new Date(m.time).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  if (m.role === 'activity') return h('div', { class: 'cact', title: time }, '⋯ ', m.text);
+  if (m.role === 'claude') {
+    const body = h('div', { class: 'cbody' });
+    body.innerHTML = mdLite(m.text);
+    return h('div', { class: 'cmsg claude' }, h('div', { class: 'cwho' }, '✦ Claude ', h('small', {}, time)), body);
+  }
+  const a = m.meta || {};
+  const where = [a.titel, a.element].filter(Boolean).join(' · ');
+  return h('div', { class: 'cmsg user' }, h('div', { class: 'cbody' }, m.text), h('div', { class: 'cmeta' }, where ? `${where} · ` : '', `${time} · ${m.status || ''}`));
+}
+function chatPane(pane) {
+  const c = S.chat;
+  pane.append(h('div', { class: 'chathead' },
+    c.connected
+      ? h('span', { class: 'pill', title: 'Mit Kanal (Research Preview) kommen Nachrichten sofort an: claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe – sonst liest Claude sie beim nächsten Schritt.' }, h('i'), h('span', {}, 'Claude Code verbunden'))
+      : h('span', { class: 'pill off' }, h('i'), h('span', {}, 'Ohne Claude-Sitzung'))));
+  const list = h('div', { class: 'chatlist', role: 'log', 'aria-live': 'polite' });
+  if (!c.messages.length) {
+    list.append(h('p', { class: 'hint' }, c.connected
+      ? 'Frag Claude zur Auswahl – oder nutze das Kontextmenü (Rechtsklick auf einen Screen oder ein Element, Taste .): Varianten, Review, Zustände, Weiter.'
+      : 'Dieser Canvas läuft ohne Claude-Sitzung (wireflow serve). Öffne ihn in Claude Code mit /wireflow:canvas – dann gehen Nachrichten direkt an Claude.'));
+  }
+  for (const m of c.messages) list.append(chatItem(m));
+  const last = [...c.messages].reverse().find(m => m.role === 'user');
+  if (last && last.status === 'gesendet' && Date.now() - Date.parse(last.time) > 15000 && !c.messages.some(m => m.role !== 'user' && Date.parse(m.time) > Date.parse(last.time))) {
+    list.append(h('div', { class: 'chatnote' }, 'Claude hat noch nicht reagiert. Mit Kanal kommen Nachrichten sofort an: ', h('code', {}, 'claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe'), '. Ohne Kanal liest Claude sie beim nächsten Schritt – schreib im Terminal zum Beispiel „weiter“.'));
+  }
+  const sel = selectionLabel();
+  const chip = !sel ? null : c.attach
+    ? h('span', { class: 'chip' }, `Auswahl: ${sel}`, h('button', { type: 'button', 'aria-label': 'Auswahl nicht mitsenden', onclick: () => { c.attach = false; renderRight(); } }, '×'))
+    : h('button', { type: 'button', class: 'chip off', onclick: () => { c.attach = true; renderRight(); } }, `+ Auswahl: ${sel}`);
+  const ta = h('textarea', { 'data-key': 'chat:input', rows: '3', 'aria-label': 'Nachricht an Claude', placeholder: c.connected ? 'Nachricht an Claude … (Enter sendet, Umschalt+Enter: neue Zeile)' : 'Nicht verbunden' });
+  ta.disabled = !c.connected;
+  const go = async () => {
+    const t = ta.value;
+    if (!t.trim()) return;
+    ta.value = '';
+    if (!(await sendChat(t))) ta.value = t;
+    renderRight();
+  };
+  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); go(); } });
+  pane.append(list, h('div', { class: 'composer' }, chip, ta, h('div', { class: 'btns' }, btn('Senden', go, !c.connected, 'pri'))));
+  requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
+}
+
+// ---------- Code: das Screen-Modul hinter der Auswahl ----------
+function syntax(s) {
+  return s
+    .replace(/(&quot;.*?&quot;|&#39;.*?&#39;|`[^`]*`)/g, '<span class="st">$1</span>')
+    .replace(/\b(import|from|export|function|return|const|type|default|satisfies)\b(?![^<]*<\/span>)/g, '<span class="kw">$1</span>')
+    .replace(/(&lt;\/?)([A-Z][\w.]*)/g, '$1<span class="tg">$2</span>')
+    .replace(/\bdata-wf=/g, '<span class="wf">data-wf</span>=');
+}
+function codePane(pane) {
+  const n = nodeById(S.sel.node);
+  const ref = n?.type === 'screen' ? S.sel.variant || n.ref : null;
+  if (!ref) {
+    pane.append(h('p', { class: 'hint' }, 'Screen auswählen – hier steht sein Code: das Screen-Modul aus Komponenten des Design Systems und seine Zustände als Stories.'));
+    return;
+  }
+  const key = `${ref}@${S.dataV}`;
+  const d = S.codeCache.get(key);
+  if (!d) {
+    pane.append(h('p', { class: 'hint' }, 'Lade Code …'));
+    api(`/api/source?ref=${encodeURIComponent(ref)}`).then(x => { S.codeCache.set(key, x); if (S.rightTab === 'code') renderRight(); }).catch(e => toast(e.message, 'bad'));
+    return;
+  }
+  const sub = d.stories ? S.codeSub : 'screen';
+  const src = sub === 'stories' ? d.stories : d.source;
+  const hl = sub === 'screen' && S.sel.el && !S.sel.variant ? d.lines[S.sel.el] : null;
+  const pre = h('pre', { class: 'codeview', tabindex: '0', 'aria-label': `Quelltext ${sub === 'stories' ? d.storiesFile : d.file}` });
+  src.split('\n').forEach((line, i) => {
+    const row = document.createElement('div');
+    row.className = `cl${hl && i + 1 >= hl[0] && i + 1 <= hl[1] ? ' on' : ''}`;
+    row.innerHTML = `<span class="ln">${i + 1}</span>${syntax(esc(line)) || ' '}`;
+    pre.append(row);
+  });
+  pane.append(
+    h('div', { class: 'ihead' }, h('code', {}, sub === 'stories' ? d.storiesFile : d.file)),
+    d.stories ? h('div', { class: 'seg sub', role: 'group', 'aria-label': 'Datei' }, ...[['screen', 'Screen'], ['stories', 'Zustände (Stories)']].map(([id, l]) => h('button', { type: 'button', 'aria-pressed': String(sub === id), onclick: () => { S.codeSub = id; renderRight(); } }, l))) : null,
+    pre,
+    h('p', { class: 'hint' }, 'Der Canvas schreibt diesen Code; Änderungen im Editor oder durch Claude erscheinen sofort im Canvas.'),
+  );
+  requestAnimationFrame(() => pre.querySelector('.cl.on')?.scrollIntoView({ block: 'center' }));
+}
+
+// ---------- Varianten neben dem Original ----------
+function variantRects(f) {
+  const out = [];
+  if (!f) return out;
+  const taken = f.nodes.map(n => nodeRect(n));
+  for (const n of f.nodes) {
+    const vs = n.variants || [];
+    if (!vs.length) continue;
+    const r = nodeRect(n);
+    const w = vs.length * (VW() + 60) - 60;
+    const hit = yy => taken.some(t => t.x < r.x + w + 40 && t.x + t.w > r.x - 40 && t.y < yy + VH() + 80 && t.y + t.h > yy - 80);
+    let y = r.y + r.h + 170;
+    for (let guard = 0; hit(y) && guard < 30; guard++) y += 200;
+    vs.forEach((v, i) => {
+      const rect = { x: r.x + i * (VW() + 60), y, w: VW(), h: VH() };
+      taken.push(rect);
+      out.push({ n, v, rect, key: `v:${n.id}:${v.ref}` });
+    });
+  }
+  return out;
+}
+function createVariant(key, nodeId, ref) {
+  const title = h('div', { class: 'ftitle' });
+  const ov = h('div', { class: 'ov' });
+  const box = h('div', { class: 'frame' }, ov);
+  const el = h('div', { class: 'node scr var' }, title, box);
+  const fr = { id: key, variantOf: nodeId, ref, story: '', v: S.dataV, url: '', iframe: null, next: null, boxes: {}, h: VH(), box, ov, title, el, failed: false };
+  S.frames.set(key, fr);
+  const pick = e => { if (e.button !== 0) return; e.stopPropagation(); select({ node: nodeId, variant: ref }); };
+  title.addEventListener('pointerdown', pick);
+  ov.addEventListener('pointerdown', pick);
+  const menu = e => { e.preventDefault(); e.stopPropagation(); select({ node: nodeId, variant: ref }); openMenu(e.clientX, e.clientY); };
+  ov.addEventListener('contextmenu', menu);
+  title.addEventListener('contextmenu', menu);
+  return el;
+}
+function renderVariants(f) {
+  const list = variantRects(f);
+  const keep = new Set(list.map(x => x.key));
+  for (const [key, el] of S.nodeEls) {
+    if (key.startsWith('v:') && !keep.has(key)) { el.remove(); S.nodeEls.delete(key); S.frames.delete(key); }
+  }
+  for (const { n, v, rect, key } of list) {
+    let el = S.nodeEls.get(key);
+    if (!el) { el = createVariant(key, n.id, v.ref); world.append(el); S.nodeEls.set(key, el); }
+    el.style.left = `${rect.x}px`;
+    el.style.top = `${rect.y}px`;
+    el.classList.toggle('sel', S.sel.node === n.id && S.sel.variant === v.ref);
+    el.classList.toggle('working', S.working.has(v.ref));
+    const fr = S.frames.get(key);
+    fr.ref = v.ref;
+    fr.story = n.story || '';
+    const l = S.data.screens[v.ref]?.lint;
+    fill(fr.title,
+      h('span', { class: `tag ${v.mode === 'free' ? 'warn' : v.mode === 'original' ? '' : 'ai'}` }, `◇ ${MODE_LABEL[v.mode] || v.mode || 'Variante'}`),
+      h('b', { title: v.rationale || '' }, v.label || 'Variante'),
+      l ? h('span', { class: `tag ${l.errors.length ? 'bad' : l.score.pct < 100 ? 'warn' : 'ok'}` }, l.errors.length ? `${l.errors.length} Fehler` : `DS ${l.score.pct} %`) : null);
+    fr.box.style.width = `${VW()}px`;
+    fr.box.style.height = `${fr.h}px`;
+    ensureIframe(fr);
+  }
+}
+function variantInspector(pane, n, ref) {
+  const v = (n.variants || []).find(x => x.ref === ref);
+  if (!v) { screenInspector(pane, n); return; }
+  const scr = S.data.screens[ref];
+  const f = flow();
+  pane.append(h('div', { class: 'ihead' }, h('h2', {}, v.label || 'Variante'), h('span', { class: `tag ${v.mode === 'free' ? 'warn' : v.mode === 'original' ? '' : 'ai'}` }, MODE_LABEL[v.mode] || v.mode || '')));
+  pane.append(h('p', { class: 'hint' }, `Variante von „${n.title || n.id}“${v.by ? ` · von ${v.by}` : ''} · `, h('code', {}, `.wireflow/${ref}`)));
+  if (v.rationale) pane.append(h('p', {}, v.rationale));
+  const missing = f.edges.filter(e => e.from === n.id && e.el && !(scr?.tree && findEl(scr.tree, e.el))).map(e => e.el);
+  if (missing.length) pane.append(msgList([{ msg: `Hotspots fehlen: ${missing.join(', ')} – nach dem Tauschen wären diese Verbindungen offen.`, level: 'warning' }]));
+  pane.append(h('div', { class: 'btns' },
+    btn('Tauschen', async () => { const r = await flowOp({ op: 'promoteVariant', id: n.id, ref }); if (r) select({ node: n.id }); }, false, 'pri'),
+    btn('Verwerfen', async () => {
+      if (!confirm(`Variante „${v.label || ref}“ verwerfen? Die Datei wird gelöscht (Rückgängig mit ⌘/Strg+Z).`)) return;
+      const r = await flowOp({ op: 'discardVariant', id: n.id, ref });
+      if (r) select({ node: n.id });
+    }, false, 'danger'),
+    btn('Code', () => { S.rightTab = 'code'; renderRight(); })));
+  pane.append(h('p', { class: 'hint' }, 'Tauschen macht die Variante zum Screen im Flow; die bisherige Fassung bleibt als Variante erhalten.'));
+  if (scr?.lint) {
+    const l = scr.lint;
+    pane.append(h('div', { class: 'grp' }, 'Design System', h('em', {}, `${l.score.pct} % aus ${S.data.ds.name || 'DS'}`)));
+    pane.append(msgList([...l.errors.map(m => ({ msg: m.msg, level: 'error' })), ...l.warnings.map(m => ({ msg: m.msg, level: 'warning' }))], 'Keine Befunde.'));
+  }
+}
+
+// ---------- Lücken als Karten am Ort ----------
+function gapsOf(f) {
+  const out = [];
+  const slots = {};
+  for (const iss of f.issues || []) {
+    const n = nodeById(iss.ref);
+    if (!n) continue;
+    const r = nodeRect(n);
+    const name = n.title || n.label || n.id;
+    const slot = () => (slots[n.id] = (slots[n.id] || 0) + 1) - 1;
+    if (iss.code === 'decision-no' || iss.code === 'decision-yes') {
+      const no = iss.code === 'decision-no';
+      const label = no ? 'Nein' : 'Ja';
+      const when = no ? 'else' : n.var || 'true';
+      const p = port(n, no ? 'b' : 'r');
+      const q = { x: p.x + p.nx * 150, y: p.y + p.ny * 150 };
+      out.push({ level: 'warn', at: q, anchor: no ? 'top' : 'left', stub: [p, q], title: `${label}-Pfad fehlt`, text: `„${n.label}“ = ${label}: Wohin geht es?`, actions: [
+        ['Mit Claude entwerfen', () => askClaude(`Entwirf den ${label}-Pfad für die Entscheidung „${n.label}“ (${n.id}) im Flow „${f.title}“: Lege mit flow_edit addScreen einen passenden Screen aus Komponenten des Design Systems an (Patterns beachten – bei Fehlern mit Weg zurück, Eingaben bleiben erhalten), gestalte ihn und verbinde ihn mit flow_edit connect (from: "${n.id}", when: "${when}", label: "${label}").`, 'luecke')],
+        ['Screen anlegen', () => newScreenFor(n, label, when)],
+      ] });
+    } else if (iss.code === 'dead-end') {
+      out.push({ level: 'info', at: { x: r.x + r.w + 36, y: r.y + 60 + slot() * 150 }, anchor: 'left', title: 'Führt nirgendwohin', text: `„${name}“ hat keinen Ausgang.`, actions: [
+        ['Mit Claude weiterführen', () => askClaude(`„${name}“ (${n.ref}) hat im Flow „${f.title}“ keinen Ausgang. Schlag vor, wie es weitergeht – oder ob es ein Ausstieg ist – und setze es um: Interaktion im Screen, Ziel-Screen mit flow_edit addScreen, Verbindung mit flow_edit connect.`, 'luecke')],
+        ['Ist Ausstieg', () => flowOp({ op: 'setNode', id: n.id, props: { exit: true } })],
+      ] });
+    } else if (iss.code === 'unreachable') {
+      out.push({ level: 'warn', at: { x: r.x - 36, y: r.y + 60 }, anchor: 'right', title: 'Nicht erreichbar', text: `Kein Weg vom Einstieg zu „${name}“.`, actions: [
+        ['Verbinden …', () => { select({ node: n.id }); toast('In einem anderen Screen ein Element wählen und unter „Interaktion“ hierher verbinden.'); }],
+      ] });
+    } else if (iss.code === 'hotspot') {
+      out.push({ level: 'bad', at: { x: r.x + r.w + 36, y: r.y + 60 + slot() * 150 }, anchor: 'left', title: 'Hotspot fehlt im Code', text: iss.message, actions: [
+        ['Mit Claude reparieren', () => askClaude(`${iss.message} Stelle die Verbindung im Screen wieder her (data-wf-ID und flow.trigger) oder passe den Flow an.`, 'luecke')],
+      ] });
+    } else if (iss.code === 'screen') {
+      out.push({ level: 'bad', at: { x: r.x + r.w / 2, y: r.y + 120 }, anchor: 'top', title: 'Screen fehlt', text: iss.message, actions: [
+        ['Mit Claude anlegen', () => askClaude(`${iss.message} Lege das Screen-Modul ${n.ref} aus Komponenten des Design Systems an.`, 'luecke')],
+      ] });
+    }
+  }
+  return out;
+}
+function gapCard(g) {
+  return h('div', { class: `gapcard ${g.level} a-${g.anchor}`, role: 'group', 'aria-label': g.title, style: `left:${g.at.x}px;top:${g.at.y}px`, onpointerdown: ev => ev.stopPropagation() },
+    h('b', {}, g.title),
+    h('p', {}, g.text),
+    h('div', { class: 'gbtns' }, ...g.actions.map(([label, fn], i) => h('button', { type: 'button', class: i === 0 ? 'pri' : '', onclick: fn }, label))));
+}
+
+// ---------- Kontextmenü (radial) ----------
+function selectionCenter() {
+  const { n, hit } = selected();
+  if (!n) return null;
+  const fr = S.frames.get(S.sel.variant ? `v:${n.id}:${S.sel.variant}` : n.id);
+  if (!fr?.box) return null;
+  const r = fr.box.getBoundingClientRect();
+  if (hit && !S.sel.variant && fr.boxes[hit.node.id]) {
+    const b = fr.boxes[hit.node.id];
+    const s = r.width / VW();
+    return { x: r.left + (b[0] + b[2] / 2) * s, y: r.top + (b[1] + b[3] / 2) * s };
+  }
+  return { x: r.left + r.width / 2, y: r.top + Math.min(r.height / 2, 220) };
+}
+function openMenu(cx, cy) {
+  const n = nodeById(S.sel.node);
+  if (!n || n.type !== 'screen' || S.mode !== 'design') return;
+  const pad = 200;
+  S.menu = { x: Math.max(pad, Math.min(innerWidth - pad, cx)), y: Math.max(pad - 30, Math.min(innerHeight - pad + 30, cy)), open: null };
+  renderMenu();
+  $('#radial .ritem')?.focus();
+}
+function closeMenu() {
+  if (!S.menu) return;
+  S.menu = null;
+  renderMenu();
+}
+async function nextScreen(targetId) {
+  const { n, hit } = selected();
+  if (!n) return;
+  const el = hit && hit.parent && spec(hit.node.name)?.handler ? hit.node.id : null;
+  const label = (hit && hit.parent && hit.node.text) || 'Weiter';
+  if (targetId) {
+    const r = await flowOp({ op: 'connect', from: n.id, el, to: targetId, label });
+    if (r) toast(`Verbunden: ${el || n.title || n.id} → ${nodeName(targetId)}`);
+    return;
+  }
+  const title = prompt('Titel des neuen Screens', 'Neuer Screen');
+  if (!title) return;
+  const pos = freeSpotRight(n);
+  const a = await flowOp({ op: 'addScreen', title, ...pos });
+  if (a?.node) {
+    await flowOp({ op: 'connect', from: n.id, el, to: a.node, label });
+    select({ node: a.node });
+    setTimeout(() => centerOn(a.node), 150);
+  }
+}
+function freeSpotRight(n) {
+  const r = nodeRect(n);
+  const rects = flow().nodes.filter(x => x !== n).map(nodeRect).concat(variantRects(flow()).map(v => v.rect));
+  const x = r.x + r.w + 160;
+  let y = r.y;
+  const hit = yy => rects.some(t => t.x < x + VW() + 60 && t.x + t.w > x - 60 && t.y < yy + VH() + 60 && t.y + t.h > yy - 60);
+  for (let i = 0; hit(y) && i < 30; i++) y += VH() + 200;
+  return { x: Math.round(x / 10) * 10, y: Math.round(y / 10) * 10 };
+}
+function menuItems() {
+  const { n, hit } = selected();
+  const f = flow();
+  const title = n.title || n.id;
+  const elInfo = hit && hit.parent && !S.sel.variant ? ` – mit Fokus auf ${hit.node.id} <${hit.node.name}>` : '';
+  const ref = S.sel.variant || n.ref;
+  const toCode = () => { S.rightTab = 'code'; renderRight(); };
+  const toChat = () => {
+    S.rightTab = 'chat';
+    S.chat.attach = true;
+    S.chat.unread = 0;
+    renderRight();
+    setTimeout(() => $('#right [data-key="chat:input"]')?.focus(), 30);
+  };
+  const personas = [...new Set(S.data.journeys.map(j => j.persona).filter(Boolean))];
+  const journeyOf = p => S.data.journeys.find(j => j.persona === p);
+  const ask = (text, kind) => () => askClaude(text, kind);
+  const reviewSub = [
+    ...personas.slice(0, 3).map(p => ({
+      label: `Persona: ${p.length > 24 ? `${p.slice(0, 23)}…` : p}`,
+      title: p,
+      run: ask(`Review „${title}“ (${ref})${elInfo} aus Sicht der Persona „${p}“${journeyOf(p) ? ` aus der Journey „${journeyOf(p).title}“` : ''}: Geh den Screen mit ihren Zielen, dem Szenario, den Pain Points und den belegten Insights durch. Antworte mit Befunden (blockiert / sollte / könnte) und konkreten Vorschlägen per canvas_reply – ändere nichts. Ein Persona-Walkthrough ist keine Evidenz.`, 'review'),
+    })),
+    { label: 'Heuristiken', run: ask(`Review „${title}“ (${ref})${elInfo} nach den Heuristiken von Nielsen und den Richtlinien des Design Systems. Befunde (blockiert / sollte / könnte) mit Vorschlag per canvas_reply – ändere nichts.`, 'review') },
+    { label: 'Barrierefreiheit', run: ask(`Prüfe „${title}“ (${ref})${elInfo} auf Barrierefreiheit nach WCAG 2.2 (Beschriftungen, Reihenfolge, Zielgrößen, Kontrast über Tokens, Fehlermeldungen) und die A11y-Hinweise des Manifests. Befunde per canvas_reply – ändere nichts.`, 'review') },
+    { label: 'Texte', run: ask(`Review der Texte in „${title}“ (${ref})${elInfo}: Sprache der Nutzer:innen, Klarheit, Länge, Buttons als Verben, Fehlermeldungen mit Ausweg. Schlag bessere Texte vor (per canvas_reply) – ändere nichts.`, 'review') },
+    { label: 'Design System', run: ask(`Prüfe „${title}“ (${ref})${elInfo} gegen das Design System: passende Komponenten und Patterns, Richtlinien, Regeln, Lücken. Befunde per canvas_reply – ändere nichts.`, 'review') },
+  ];
+  if (S.sel.variant) {
+    return [
+      { id: 'swap', label: 'Tauschen', icon: '⇄', angle: -90, run: async () => { const r = await flowOp({ op: 'promoteVariant', id: n.id, ref: S.sel.variant }); if (r) select({ node: n.id }); } },
+      { id: 'drop', label: 'Verwerfen', icon: '✕', angle: 30, run: async () => {
+        if (!confirm('Variante verwerfen? Die Datei wird gelöscht (Rückgängig mit ⌘/Strg+Z).')) return;
+        const r = await flowOp({ op: 'discardVariant', id: n.id, ref: S.sel.variant });
+        if (r) select({ node: n.id });
+      } },
+      { id: 'code', label: 'Code', icon: '</>', angle: 90, run: toCode },
+      { id: 'chat', label: 'Chat', icon: '✦', angle: 150, run: toChat },
+      { id: 'review', label: 'Review', icon: '◎', angle: 210, sub: reviewSub },
+    ];
+  }
+  const hot = f.edges.filter(e => e.from === n.id && e.el).map(e => e.el);
+  const variants = mode => `Erzeuge 2 Varianten von „${title}“ (${n.ref})${elInfo} im Modus ${MODE_LABEL[mode]}: ${MODE_HINT[mode]} Behalte die Hotspot-IDs ${hot.length ? hot.join(', ') : '(keine)'} bei. Lege jede Variante mit variant_create an (mode: "${mode}") und nenne den Unterschied in einem Satz.`;
+  const others = f.nodes.filter(x => x.id !== n.id && x.type === 'screen').slice(0, 4);
+  return [
+    { id: 'variants', label: 'Varianten', icon: '▦', angle: -90, sub: ['strict', 'guided', 'free'].map(mode => ({ label: MODE_LABEL[mode], title: MODE_HINT[mode], run: ask(variants(mode), 'varianten') })) },
+    { id: 'next', label: 'Weiter', icon: '→', angle: -30, sub: [{ label: '+ Neuer Screen', run: () => nextScreen(null) }, ...others.map(x => ({ label: `→ ${x.title || x.id}`, run: () => nextScreen(x.id) }))] },
+    { id: 'states', label: 'Zustände', icon: '◫', angle: 30, sub: ['Leer', 'Fehler', 'Laden', 'Erstnutzung', 'Offline'].map(z => ({ label: z, run: ask(`Lege für „${title}“ (${n.ref}) den Zustand „${z}“ als Story im Stories-File an – passend zu den Patterns des Design Systems und mit realistischen Fixture-Daten. Ergänze Props im Screen nur, wenn nötig, und sag kurz per canvas_reply, was der Zustand zeigt.`, 'zustand') })) },
+    { id: 'code', label: 'Code', icon: '</>', angle: 90, run: toCode },
+    { id: 'chat', label: 'Chat', icon: '✦', angle: 150, run: toChat },
+    { id: 'review', label: 'Review', icon: '◎', angle: 210, sub: reviewSub },
+  ];
+}
+function renderMenu() {
+  let el = $('#radial');
+  if (!S.menu) { el?.remove(); return; }
+  if (!el) { el = h('div', { id: 'radial', class: 'radial', role: 'menu', 'aria-label': 'Kontextmenü' }); document.body.append(el); }
+  const { x, y, open } = S.menu;
+  const parts = [h('div', { class: 'rhub', style: `left:${x}px;top:${y}px` })];
+  for (const it of menuItems()) {
+    const a = (it.angle * Math.PI) / 180;
+    parts.push(h('button', {
+      type: 'button',
+      role: 'menuitem',
+      class: `ritem${open === it.id ? ' on' : ''}`,
+      style: `left:${x + Math.cos(a) * 84}px;top:${y + Math.sin(a) * 84}px`,
+      'aria-haspopup': it.sub ? 'true' : null,
+      'aria-expanded': it.sub ? String(open === it.id) : null,
+      onclick: () => {
+        if (it.sub) { S.menu.open = open === it.id ? null : it.id; renderMenu(); $('#radial .rpill')?.focus(); } else { closeMenu(); it.run(); }
+      },
+    }, h('span', { class: 'ri', 'aria-hidden': 'true' }, it.icon), h('span', { class: 'rl' }, it.label)));
+    if (open === it.id && it.sub) {
+      const k = it.sub.length;
+      const spread = Math.min(24, 150 / Math.max(1, k - 1));
+      it.sub.forEach((s, i) => {
+        const b = ((it.angle + (i - (k - 1) / 2) * spread) * Math.PI) / 180;
+        parts.push(h('button', { type: 'button', role: 'menuitem', class: 'rpill', title: s.title || '', style: `left:${x + Math.cos(b) * 172}px;top:${y + Math.sin(b) * 172}px`, onclick: () => { closeMenu(); s.run(); } }, s.label));
+      });
+    }
+  }
+  fill(el, ...parts);
+}
+addEventListener('pointerdown', e => { if (S.menu && !e.target.closest?.('#radial')) closeMenu(); }, true);
+
 // ---------- Kopf, Status, Modus ----------
 function renderTop() {
   $('#crumb').textContent = S.data.project.name || '';
@@ -1388,7 +1883,7 @@ function renderTop() {
 function renderStatus() {
   const d = S.data;
   const f = flow();
-  const hints = { design: 'Titel ziehen: Screen verschieben · Leere Fläche ziehen: schwenken · ⌘/Strg+Scrollen: zoomen · 0: alles zeigen', prototype: 'Variablen rechts steuern die Entscheidungen', journey: 'Pain Points zeigen ihren Beleg', knowledge: 'Annahmen nach Risiko sortiert' };
+  const hints = { design: 'Rechtsklick oder .: Kontextmenü · Titel ziehen: verschieben · Fläche ziehen: schwenken · ⌘/Strg+Scrollen: zoomen · 0: alles zeigen', prototype: 'Variablen rechts steuern die Entscheidungen', journey: 'Pain Points zeigen ihren Beleg', knowledge: 'Annahmen nach Risiko sortiert' };
   fill($('#status'), 
     h('span', {}, `${d.ds.name || 'Design System'} ${d.ds.version || ''} · ${d.ds.components.length} Komponenten · ${d.ds.patterns.length} Patterns`),
     h('span', {}, `${Object.keys(d.screens).length} Screens · ${d.flows.length} Flow(s)`),
@@ -1432,6 +1927,7 @@ function toast(msg, kind = '') {
 
 // ---------- Tastatur und Kopfzeile ----------
 addEventListener('keydown', e => {
+  if (S.menu && e.key === 'Escape') { e.preventDefault(); closeMenu(); return; }
   const typing = e.target.closest?.('input,textarea,select,[contenteditable]');
   const mod = e.metaKey || e.ctrlKey;
   if (typing) { if (e.key === 'Escape') e.target.blur(); return; }
@@ -1442,6 +1938,11 @@ addEventListener('keydown', e => {
     if (mod && e.key.toLowerCase() === 'd' && S.sel.el) { e.preventDefault(); duplicateSelected(); return; }
     if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && S.sel.el) { e.preventDefault(); moveSelected(e.key === 'ArrowUp' ? -1 : 1); return; }
     if (e.key === 'Escape') { selectParent(); return; }
+    if (e.key === '.' && S.sel.node && !mod) {
+      const c = selectionCenter();
+      if (c) { e.preventDefault(); openMenu(c.x, c.y); }
+      return;
+    }
     if (!mod && (e.key === '0' || e.key === '!')) { fit(); return; }
     if (!mod && (e.key === '+' || e.key === '=')) { zoomCenter(1.25); return; }
     if (!mod && e.key === '-') { zoomCenter(0.8); return; }
@@ -1476,6 +1977,12 @@ async function init() {
     return;
   }
   S.flowId = S.data.flows[0]?.id || null;
+  try {
+    const c = await api('/api/chat');
+    Object.assign(S.chat, { connected: !!c.connected, channel: !!c.channel, messages: c.messages || [] });
+  } catch {
+    /* ohne Chat */
+  }
   applyView();
   connect();
   setMode('design');

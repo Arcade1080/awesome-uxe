@@ -55,6 +55,13 @@ export function writeTracked(file, content) {
   fs.writeFileSync(file, content);
   return true;
 }
+export function removeTracked(file) {
+  if (!fs.existsSync(file)) return false;
+  history.push({ file, prev: fs.readFileSync(file, 'utf8') });
+  if (history.length > 100) history.shift();
+  fs.rmSync(file);
+  return true;
+}
 export function writeJson(file, data) {
   return writeTracked(file, JSON.stringify(data, null, 2) + '\n');
 }

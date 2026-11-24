@@ -18,6 +18,14 @@ argument-hint: "[flow-id]"
 
 ## Zusammenarbeit mit Claude
 
-- Änderungen von Claude (`screen_edit`, `flow_edit` …) erscheinen sofort im Canvas.
+- Änderungen von Claude (`screen_edit`, `flow_edit`, `variant_create` …) erscheinen sofort im Canvas; der bearbeitete Screen leuchtet, Werkzeug-Aufrufe stehen im Chat.
 - Was die Person auswählt, liest Claude mit `canvas_selection` – „ändere das Ausgewählte“ funktioniert ohne IDs.
 - Rückgängig: Strg/⌘+Z im Canvas oder das Werkzeug `undo`.
+
+## Chat im Canvas
+
+Die rechte Spalte hat drei Reiter: **Design** (Inspector), **Code** (Screen-Modul und Stories, markiertes Element) und **Chat**. Chat-Nachrichten, Aufträge aus dem **Kontextmenü** (Rechtsklick, Taste `.`: Varianten Strikt/Geführt/Frei, Review mit Persona, Weiter, Zustände) und aus **Lückenkarten** gehen an diese Sitzung:
+
+- **Mit Kanal** (Research Preview) kommen sie sofort als `<channel … chat_id="…" screen="…" element="…">`. Dafür Claude Code so starten: `claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe` (Anmeldung über claude.ai oder Console-API-Schlüssel; nicht über Bedrock oder Vertex).
+- **Ohne Kanal** erinnern die Hooks beim nächsten Prompt bzw. am Ende eines Schritts; dann `canvas_inbox` aufrufen.
+- **Immer** mit `canvas_reply` antworten (chat_id übernehmen), kurz und konkret. Varianten mit `variant_create` anlegen, Reviews nur berichten, nichts ändern.
