@@ -17,9 +17,9 @@ Ziel: Am Ende rendert der Canvas Screens aus den **echten Komponenten** des Desi
    - Gibt es mehrere Kandidaten, die Person fragen. Nichts raten.
 3. **Anlegen.** `project_init` mit `dsPackage` aufrufen. Das legt `.wireflow/` an: `project.json`, einen Manifest-Entwurf aus den Exporten des Pakets, gefundene Token-Dateien und eine leere Wissensbasis. Bestehende Dateien bleiben unverändert.
 4. **Manifest vervollständigen.** Den Subagent `ds-curator` beauftragen, `.wireflow/ds/manifest.json` aus den Quellen zu füllen:
-   - je Komponente: `category`, `status`, `description`, `props` (Typ, `enum`, `required`, `type: "token"` mit `group`, `type: "handler"` für Ereignisse), `defaults` (Props und Text für neue Instanzen auf dem Canvas), `intents`, `guidelines`, `a11y`, `rules`
+   - je Komponente: `category`, `status`, `description`, `props` (Typ, `enum`, `required`, `default` = Standardwert wie im Code, `type: "token"` mit `group`, `type: "node"` für Slots, `type: "handler"` für Ereignisse), `defaults` (Props und Text für neue Instanzen auf dem Canvas), `intents`, `guidelines`, `a11y`, `rules`
    - `styles`: CSS-Einstieg des DS (z. B. `"@primer/css/dist/primer.css"` oder `"@firma/ui/styles.css"`)
-   - `tokens.files` und `tokens.modes.wireframe` (Graustufen-Werte für den Wireframe-Modus)
+   - `tokens.files` und `tokens.modes`: `wireframe` (Graustufen) und, falls das DS ihn hat, `dark` (Dunkelmodus der Screens)
    - Patterns als Karten unter `.wireflow/ds/patterns/*.md` (Frontmatter: `id`, `name`, `status`, `ausloeser`, `regeln`; Text: wann welche Komponente, welche Zustände der Flow braucht)
 5. **Renderer prüfen.** Im Terminal `wireflow doctor` ausführen. `esbuild`, `react` und `react-dom` müssen aus dem Projekt auflösbar sein. Fehlt esbuild, der Person `npm i -D esbuild` vorschlagen (nicht ungefragt installieren).
 6. **Bericht.** Kurz zusammenfassen: gefundene Komponenten, Patterns, Tokens, erkannte Lücken. Nächste Schritte nennen: `/wireflow:research` (Wissen erfassen), `/wireflow:journey`, `/wireflow:flow`, `/wireflow:canvas`.

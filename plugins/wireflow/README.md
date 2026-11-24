@@ -104,6 +104,13 @@ Keine Laufzeit-Abhängigkeiten: Das Plugin nutzt nur Node.js; React und esbuild 
 - **Wissen:** Wissensstand je Flow-Schritt, Insights mit Belegen, Annahmen nach Risiko, offene Fragen – jeweils mit „Genutzt in“.
 - **Live:** Ändert Claude oder ein Editor eine Datei, aktualisiert sich der Canvas sofort und markiert die betroffenen Screens. Die Auswahl im Canvas liest Claude mit `canvas_selection`.
 - **Rechte Spalte – Design · Code · Chat:** *Design* ist der Inspector, *Code* zeigt Screen-Modul und Stories mit markiertem Element, *Chat* ist das Gespräch mit Claude – die Auswahl geht als Kontext mit.
+- **Design-Panel mit Props | Style:**
+  - **Props** – was die Komponente ist und tut: Segment-Schalter für Auswahlwerte, Schalter für Ja/Nein, Standardwerte aus dem Manifest („Standard: md“), ↺ zum Zurücksetzen, *Tauschen gegen …* (Komponenten mit ähnlichem Zweck zuerst, passende Props bleiben), Inhalt und Slots, Interaktion, Anordnen, Richtlinien.
+  - **Style** – wie sie aussieht, nur über Tokens: Größe, Token-Skalen für Abstände, die tatsächlich verwendeten Tokens aus dem Rendering (Fläche, Text, Rahmen, Radius, Innenabstand, Schrift), Kontrast nach WCAG und Werte ohne Token als Hinweis fürs DS-Team.
+  - **Anders gestalten:** *Nur dieses* oder *Überall* (alle Instanzen) – geht als Auftrag an Claude: eine Variante oder ein Vorschlag fürs Design System statt freier Werte.
+- **Änderungsliste** unten im Design-Panel: jede Änderung aus Canvas und von Claude mit „vorher → nachher“; × macht eine einzelne rückgängig, auch wenn danach weitere Änderungen kamen.
+- **Griffe an der Auswahl:** Größe (B × H), „+“ fügt eine Komponente darunter ein (mit Suche), der Pfeil ↗ zieht eine Verbindung auf einen anderen Screen oder eine Entscheidung.
+- **Dunkelmodus:** Das Werkzeug folgt dem System und lässt sich umschalten (◐ · ☾ · ☀). Definiert das Design System einen Token-Modus `dark`, zeigt „Dunkel“ auch die Screens im Dunkelmodus.
 - **Kontextmenü** (Rechtsklick auf Screen oder Element, Taste `.`, ✦ am Titel):
   - **Varianten:** *Strikt* (nur DS, Aufbau nah am Original), *Geführt* (DS-Komponenten, Aufbau frei), *Frei* (kreativ, Lücken benannt).
   - **Review:** aus Sicht einer Persona der Journey, nach Heuristiken, Barrierefreiheit, Texten oder Design System.
@@ -112,6 +119,8 @@ Keine Laufzeit-Abhängigkeiten: Das Plugin nutzt nur Node.js; React und esbuild 
   - **Code**, **Chat**.
 - **Lückenkarten:** Fehlende Pfade, Sackgassen, unerreichbare Screens und fehlende Hotspots stehen als Karte am Ort – mit „Mit Claude entwerfen“ oder einer direkten Aktion.
 - **Varianten** liegen gestrichelt unter dem Original (`screens/<name>--<variante>.screen.tsx`), mit Modus, Begründung und DS-Prüfung. *Tauschen* macht eine Variante zum Screen im Flow, *Verwerfen* löscht sie (rückgängig mit ⌘/Strg+Z).
+
+![Design-Panel: Style eines Buttons mit verwendeten Tokens, Kontrast und „Anders gestalten“](docs/props-und-style.png)
 
 ### Chat mit der laufenden Claude-Sitzung
 

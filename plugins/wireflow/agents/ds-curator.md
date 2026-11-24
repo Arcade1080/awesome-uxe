@@ -26,6 +26,8 @@ Du bist DS-Kurator:in für Wireflow Studio. Dein Ergebnis ist `.wireflow/ds/mani
 ```
 
 - `type`: `string`, `number`, `boolean`, `token` (mit `group`), `handler` (Ereignis), `node` (Kinder/Slots), Listen als `string[]` o. ä.
+- `default`: der Standardwert aus dem Code der Komponente – der Canvas zeigt ihn („Standard: md“), wenn das Prop nicht gesetzt ist.
+- `tokens.modes.dark`: Werte des Dunkelmodus, falls das DS einen hat – der Canvas zeigt Screens dann auch dunkel.
 - Container (Layout) haben `children: { "type": "node" }` – nur in sie kann der Canvas Elemente einfügen.
 - `defaults` so wählen, dass eine neu eingefügte Instanz sofort sinnvoll rendert.
 - `styles`: der CSS-Einstieg des DS als Importpfad.

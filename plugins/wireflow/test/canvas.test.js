@@ -150,10 +150,21 @@ test('Canvas im Browser: Screens rendern, Element auswählen, Prop ändern', { s
     assert.equal(label, 'Weiter', 'echte Komponente gerendert');
     await page.click('#left .tree button:has-text("Profil & Termine")');
     await page.click('#left .tree button:has-text("Button")');
-    await page.waitForSelector('#right select[data-key="btn_weiter:variant"]');
-    await page.selectOption('#right select[data-key="btn_weiter:variant"]', 'ghost');
+    await page.waitForSelector('#right .segctl[aria-label="variant"]');
+    await page.click('#right .segctl[aria-label="variant"] button:has-text("ghost")');
     await page.waitForFunction(() => document.querySelector('.node[data-node="scr_profil"] iframe:not(.loading)')?.contentDocument?.querySelector('.acme-btn--ghost'), null, { timeout: 10000 });
     assert.match(read(root, 'screens/profil.screen.tsx'), /variant="ghost"/);
+
+    // Style: Tokens aus dem Rendering, Kontrast, Änderungsliste mit Rückgängig je Eintrag
+    await page.click('#right .elseg button:has-text("Style")');
+    await page.waitForFunction(() => [...document.querySelectorAll('#right .look .tok')].some(t => t.textContent === 'font.family.base'), null, { timeout: 10000 });
+    const tokens = await page.$$eval('#right .look .tok', t => t.map(x => x.textContent));
+    assert.ok(tokens.includes('radius.md'), tokens.join(','));
+    assert.match(await page.textContent('#right .contrast'), /Kontrast [\d,]+ : 1/);
+    await page.waitForSelector('#right .changes li');
+    await page.click('#right .changes li button.reset');
+    await page.waitForFunction(() => document.querySelector('.node[data-node="scr_profil"] iframe:not(.loading)')?.contentDocument?.querySelector('.acme-btn--primary'), null, { timeout: 10000 });
+    assert.doesNotMatch(read(root, 'screens/profil.screen.tsx'), /variant="ghost"/);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

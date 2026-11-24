@@ -50,6 +50,9 @@ const S = {
   chat: { messages: [], connected: false, channel: false, unread: 0, attach: true },
   menu: null,
   working: new Map(),
+  elTab: 'props',
+  scope: 'one',
+  picker: null,
 };
 
 // ---------- Zugriff ----------
@@ -706,9 +709,28 @@ function renderOverlays() {
       return h('div', { class: cls, style: `left:${b[0]}px;top:${b[1]}px;width:${b[2]}px;height:${b[3]}px` }, label ? h('span', {}, label) : null);
     };
     if (S.hover?.node === fr.id && S.hover.el && S.hover.el !== S.sel.el && !S.drag) kids.push(box(S.hover.el, 'hb'));
-    if (S.sel.node === fr.id && S.sel.el && S.drag?.kind !== 'move') {
+    if (S.sel.node === fr.id && S.sel.el && S.drag?.kind !== 'move' && !S.sel.variant) {
       const scr = S.data.screens[fr.ref];
-      kids.push(box(S.sel.el, 'sb', findEl(scr?.tree, S.sel.el)?.node.name));
+      const hitSel = findEl(scr?.tree, S.sel.el);
+      const b = fr.boxes[S.sel.el];
+      if (b && hitSel) {
+        kids.push(box(S.sel.el, 'sb', `${hitSel.node.name} · ${b[2]} × ${b[3]}`));
+        if (hitSel.parent) {
+          kids.push(h('button', {
+            type: 'button', class: 'hdl add', title: 'Komponente darunter einfügen', 'aria-label': 'Komponente darunter einfügen',
+            style: `left:${b[0] + b[2] / 2}px;top:${b[1] + b[3]}px`,
+            onpointerdown: ev => ev.stopPropagation(),
+            onclick: ev => { ev.stopPropagation(); const r = ev.currentTarget.getBoundingClientRect(); openPicker(r.left - 10, r.bottom + 8); },
+          }, '+'));
+        }
+        if (spec(hitSel.node.name)?.handler) {
+          kids.push(h('button', {
+            type: 'button', class: 'hdl link', title: 'Ziehen: mit einem anderen Screen verbinden', 'aria-label': 'Verbindung ziehen',
+            style: `left:${b[0] + b[2]}px;top:${b[1]}px`,
+            onpointerdown: ev => startLinkDrag(ev, fr, S.sel.el),
+          }, '↗'));
+        }
+      }
     }
     const t = S.drag?.target;
     if (t && t.node === fr.id) {
@@ -817,6 +839,10 @@ addEventListener('message', e => {
       renderOverlays();
       const n = nodeById(fr.id);
       if (n && d.failed) updateScreen(n);
+      if (S.sel.node === fr.id && S.sel.el && S.rightTab === 'design' && S.elTab === 'style') {
+        clearTimeout(S.styleTimer);
+        S.styleTimer = setTimeout(renderRight, 60);
+      }
     } else {
       fr.iframe.contentWindow.postMessage({ wf: 1, type: 'hotspots', ids: (flow()?.edges || []).filter(x => x.from === S.proto.node && x.el).map(x => x.el) }, location.origin);
     }
@@ -1003,6 +1029,7 @@ function designPane(pane) {
   else if (n?.type === 'screen') screenInspector(pane, n);
   else if (n?.type === 'decision') decisionInspector(pane, n);
   else flowInspector(pane);
+  changesBlock(pane);
 }
 function literal(p) {
   if (!p) return { ok: true, value: undefined };
@@ -1013,23 +1040,43 @@ function literal(p) {
 }
 const rawShow = p => (p.kind === 'str' ? `"${p.raw}"` : p.kind === 'bool' ? 'true' : `{${p.raw}}`);
 
+// ---------- Design-Panel: Props (was es ist und tut) | Style (wie es aussieht) ----------
+function contentLabel(el) {
+  if (el.text) return el.text;
+  for (const k of ['title', 'label', 'initials']) {
+    const l = literal(el.props.find(p => p.name === k));
+    if (l.ok && typeof l.value === 'string' && l.value) return l.value;
+  }
+  return '';
+}
 function elementInspector(pane, n) {
   const scr = screenOf(n);
   const hit = findEl(scr?.tree, S.sel.el);
   if (!hit) { screenInspector(pane, n); return; }
   const el = hit.node;
   const sp = spec(el.name);
-  pane.append(h('div', { class: 'ihead' }, h('h2', {}, el.name), h('code', {}, el.id), sp ? (sp.status && sp.status !== 'stable' ? h('span', { class: 'tag warn' }, sp.status) : h('span', { class: 'tag ok' }, S.data.ds.name || 'DS')) : h('span', { class: 'tag warn' }, 'DS-Lücke')));
+  const content = contentLabel(el);
+  pane.append(h('div', { class: 'ihead' },
+    h('h2', {}, el.name, content ? h('span', { class: 'hsub' }, ` · ${content.length > 26 ? `${content.slice(0, 25)}…` : content}`) : null),
+    h('code', {}, el.id),
+    sp ? (sp.status && sp.status !== 'stable' ? h('span', { class: 'tag warn' }, sp.status) : h('span', { class: 'tag ok' }, S.data.ds.name || 'DS')) : h('span', { class: 'tag warn' }, 'DS-Lücke')));
   if (sp?.description) pane.append(h('p', { class: 'hint' }, sp.description));
-  if (!sp) pane.append(h('p', { class: 'hint' }, `Keine Komponente aus ${S.data.ds.name || 'dem Design System'}. Ersetzen oder als Lücke dokumentieren.`));
-  pane.append(h('div', { class: 'grp' }, 'Eigenschaften'));
-  for (const [name, ps] of Object.entries(sp?.props || {})) if (name !== 'children') pane.append(propRow(n, el, name, ps));
+  pane.append(h('div', { class: 'seg elseg', role: 'tablist', 'aria-label': 'Props oder Style' }, ...[['props', 'Props'], ['style', 'Style']].map(([id, label]) => h('button', {
+    type: 'button', role: 'tab', 'aria-selected': String(S.elTab === id), 'aria-pressed': String(S.elTab === id),
+    onclick: () => { S.elTab = id; renderRight(); },
+  }, label))));
+  if (S.elTab === 'style') stylePane(pane, n, el, sp);
+  else propsPane(pane, n, el, sp, hit, scr);
+}
+function propsPane(pane, n, el, sp, hit, scr) {
+  if (!sp) pane.append(h('p', { class: 'hint' }, `Keine Komponente aus ${S.data.ds.name || 'dem Design System'}. Tauschen oder als Lücke dokumentieren.`));
+  if (hit.parent) pane.append(swapRow(n, el, sp));
+  const entries = Object.entries(sp?.props || {}).filter(([name, ps]) => name !== 'children' && ps.type !== 'token' && ps.type !== 'node');
+  pane.append(h('div', { class: 'grp' }, `${el.name}-Props`));
+  if (!entries.length) pane.append(h('p', { class: 'hint' }, Object.values(sp?.props || {}).some(p => p.type === 'token') ? 'Keine weiteren Props – Abstände stehen unter Style.' : 'Keine Props.'));
+  for (const [name, ps] of entries) pane.append(propRow(n, el, name, ps));
   for (const p of el.props.filter(p => !sp?.props?.[p.name])) pane.append(h('div', { class: 'row' }, h('span', { title: 'Nicht im Manifest' }, p.name), h('span', { class: 'code' }, rawShow(p))));
-  const textual = sp ? sp.props?.children && sp.props.children.type !== 'node' : !!el.text;
-  if (textual) {
-    if (el.code || el.children.length) pane.append(h('div', { class: 'row' }, h('span', {}, 'Inhalt'), h('span', { class: 'code' }, 'Code-Block – im Code bearbeiten')));
-    else pane.append(inputRow('Text', `${el.id}:#text`, el.text, v => screenOp(n.ref, { op: 'setText', id: el.id, text: v })));
-  }
+  slotsBlock(pane, n, el, sp);
   interactionBlock(pane, n, el, sp);
   const isRoot = !hit.parent;
   pane.append(h('div', { class: 'grp' }, 'Anordnen'), h('div', { class: 'btns' },
@@ -1041,32 +1088,93 @@ function elementInspector(pane, n) {
   const msgs = [...scr.lint.errors.filter(m => m.el === el.id).map(m => ({ msg: m.msg, level: 'error' })), ...scr.lint.warnings.filter(m => m.el === el.id).map(m => ({ msg: m.msg, level: 'warning' }))];
   if (msgs.length) pane.append(h('div', { class: 'grp' }, 'Prüfung'), msgList(msgs));
 }
+// Komponente tauschen: zuerst Komponenten mit verwandtem Zweck (gleiche Intent-Familie)
+function swapRow(n, el, sp) {
+  const fam = new Set((sp?.intents || []).map(i => i.split('.')[0]));
+  const all = S.data.ds.components.filter(c => c.name !== el.name);
+  const near = all.filter(c => (c.intents || []).some(i => fam.has(i.split('.')[0])));
+  const rest = all.filter(c => !near.includes(c));
+  const sel = h('select', { 'data-key': `${el.id}:swap`, 'aria-label': 'Komponente tauschen gegen', onchange: async ev => {
+    const to = ev.target.value;
+    if (!to) return;
+    const r = await screenOp(n.ref, { op: 'swap', id: el.id, component: to });
+    if (r) toast(`${el.name} → ${to} getauscht – passende Props bleiben.`);
+  } },
+  h('option', { value: '' }, 'Tauschen gegen …'),
+  near.length ? h('optgroup', { label: 'Ähnlicher Zweck' }, ...near.map(c => h('option', { value: c.name }, c.name))) : null,
+  h('optgroup', { label: near.length ? 'Weitere' : 'Komponenten' }, ...rest.map(c => h('option', { value: c.name }, c.name))));
+  return h('div', { class: 'row' }, h('span', {}, 'Komponente'), sel);
+}
+// Slots: Inhalte, die selbst Komponenten sind (Props vom Typ node und children)
+function slotsBlock(pane, n, el, sp) {
+  const slots = Object.entries(sp?.props || {}).filter(([k, ps]) => ps.type === 'node' && k !== 'children');
+  const textual = sp ? sp.props?.children && sp.props.children.type !== 'node' : !!el.text;
+  const container = sp?.props?.children?.type === 'node';
+  if (!slots.length && !textual && !container) return;
+  pane.append(h('div', { class: 'grp' }, 'Inhalt und Slots'));
+  if (textual) {
+    if (el.code || el.children.length && el.children.some(c => c.type === 'el')) pane.append(h('div', { class: 'row' }, h('span', {}, 'children'), h('span', { class: 'code' }, 'Code-Block – im Code bearbeiten')));
+    else pane.append(inputRow('Text', `${el.id}:#text`, el.text, v => screenOp(n.ref, { op: 'setText', id: el.id, text: v }), 'Nicht gesetzt'));
+  }
+  if (container) {
+    pane.append(h('div', { class: 'row' }, h('span', {}, 'children'), h('div', { class: 'ctl' },
+      h('span', { class: 'slotv' }, `${el.children.length} Element${el.children.length === 1 ? '' : 'e'}`),
+      h('button', { type: 'button', class: 'btn sm', onclick: () => { S.leftTab = 'layers'; renderLeft(); } }, 'Ebenen ›'),
+      h('button', { type: 'button', class: 'btn sm', onclick: () => { S.leftTab = 'components'; renderLeft(); } }, '+ Einfügen'))));
+  }
+  for (const [name] of slots) {
+    const cur = el.props.find(p => p.name === name);
+    const inner = cur?.raw?.match(/^<([A-Z][\w.]*)/)?.[1];
+    const pick = h('select', { 'data-key': `${el.id}:slot:${name}`, 'aria-label': `${name} tauschen gegen`, onchange: async ev => {
+      const to = ev.target.value;
+      if (!to) return;
+      const c = spec(to);
+      const props = Object.entries(c?.defaults?.props || {}).map(([k, v]) => (typeof v === 'string' ? `${k}="${v}"` : typeof v === 'object' && v && 'expr' in v ? `${k}={${v.expr}}` : `${k}={${JSON.stringify(v)}}`)).join(' ');
+      await screenOp(n.ref, { op: 'setProp', id: el.id, name, value: { expr: `<${to}${props ? ` ${props}` : ''} />` } });
+    } }, h('option', { value: '' }, 'Tauschen gegen …'), ...S.data.ds.components.filter(c => !c.props?.children || c.props.children.type !== 'node').map(c => h('option', { value: c.name }, c.name)));
+    pane.append(h('div', { class: 'row' }, h('span', {}, name), h('div', { class: 'ctl col' },
+      h('span', { class: 'slotv' }, cur ? (inner ? `<${inner}>` : rawShow(cur)) : 'leer'),
+      pick,
+      cur ? h('button', { type: 'button', class: 'btn sm', onclick: () => screenOp(n.ref, { op: 'setProp', id: el.id, name, value: null }) }, 'Leeren') : null)));
+  }
+}
 function propRow(n, el, name, ps) {
   const cur = el.props.find(p => p.name === name);
   const key = `${el.id}:${name}`;
   const set = value => screenOp(n.ref, { op: 'setProp', id: el.id, name, value });
   const lit = literal(cur);
+  const def = ps.default;
   const label = h('label', { for: key, title: ps.type || '' }, name, ps.required ? h('span', { class: 'req' }, ' *') : null);
+  const reset = cur && lit.ok && !ps.required && ps.type !== 'handler'
+    ? h('button', { type: 'button', class: 'reset', title: def !== undefined ? `Zurück auf Standard (${def})` : 'Zurücksetzen', 'aria-label': `${name} zurücksetzen`, onclick: () => set(null) }, '↺')
+    : null;
   let ctl;
   if (cur && !lit.ok) ctl = h('span', { class: 'code', title: 'Datenbindung oder Ausdruck – im Code ändern' }, `{${cur.raw}}`);
   else if (ps.type === 'handler') ctl = h('span', { class: 'code' }, cur ? rawShow(cur) : '—');
-  else if (ps.enum) {
+  else if (ps.enum && ps.enum.length <= 5 && ps.enum.map(String).join('').length <= 34) {
+    const val = lit.value;
+    ctl = h('div', { class: 'segctl', role: 'group', id: key, 'aria-label': name }, ...ps.enum.map(o => {
+      const on = val !== undefined && String(val) === String(o);
+      const isDef = val === undefined && def !== undefined && String(def) === String(o);
+      return h('button', {
+        type: 'button', class: isDef ? 'def' : null, 'aria-pressed': String(on), title: isDef ? 'Standard (nicht gesetzt)' : null,
+        onclick: () => { if (!on) set(typeof ps.enum[0] === 'number' ? Number(o) : o); },
+      }, String(o));
+    }));
+  } else if (ps.enum) {
     ctl = h('select', { id: key, 'data-key': key, onchange: ev => { const v = ev.target.value; set(v === '' ? null : typeof ps.enum[0] === 'number' ? Number(v) : v); } },
-      h('option', { value: '' }, '— Standard'), ...ps.enum.map(o => h('option', { value: String(o), selected: lit.value !== undefined && String(lit.value) === String(o) }, String(o))));
-  } else if (ps.type === 'token') {
-    const toks = S.data.ds.tokens.filter(t => !ps.group || t.path.startsWith(`${ps.group}.`));
-    ctl = h('select', { id: key, 'data-key': key, onchange: ev => set(ev.target.value || null) },
-      h('option', { value: '' }, '— Standard'), ...toks.map(t => h('option', { value: t.path, selected: lit.value === t.path }, `${t.path} · ${t.css}`)));
+      h('option', { value: '' }, def !== undefined ? `Standard: ${def}` : 'Nicht gesetzt'), ...ps.enum.map(o => h('option', { value: String(o), selected: lit.value !== undefined && String(lit.value) === String(o) }, String(o))));
   } else if (ps.type === 'boolean') {
-    ctl = h('input', { type: 'checkbox', id: key, 'data-key': key, checked: lit.value === true, onchange: ev => set(ev.target.checked ? true : null) });
+    const on = lit.value === true;
+    ctl = h('button', { type: 'button', role: 'switch', class: 'switch', id: key, 'aria-checked': String(on), 'aria-label': name, onclick: () => set(on ? null : true) }, h('i'));
   } else if (ps.type === 'string' || ps.type === 'number') {
-    ctl = h('input', { type: ps.type === 'number' ? 'number' : 'text', id: key, 'data-key': key });
+    ctl = h('input', { type: ps.type === 'number' ? 'number' : 'text', id: key, 'data-key': key, placeholder: def !== undefined ? `Standard: ${def}` : 'Nicht gesetzt' });
     ctl.value = lit.value === undefined ? '' : String(lit.value);
     ctl.addEventListener('change', () => { const v = ctl.value; set(v === '' ? null : ps.type === 'number' ? Number(v) : v); });
     ctl.addEventListener('keydown', e => { if (e.key === 'Enter') ctl.blur(); });
   } else if (/\[\]$/.test(ps.type || '')) {
     const strList = ps.type === 'string[]';
-    ctl = h('textarea', { id: key, 'data-key': key, rows: '3', title: strList ? 'Ein Eintrag pro Zeile' : 'JSON' });
+    ctl = h('textarea', { id: key, 'data-key': key, rows: '3', title: strList ? 'Ein Eintrag pro Zeile' : 'JSON', placeholder: 'Nicht gesetzt' });
     ctl.value = lit.value === undefined ? '' : strList && Array.isArray(lit.value) ? lit.value.join('\n') : JSON.stringify(lit.value);
     ctl.addEventListener('change', () => {
       const t = ctl.value.trim();
@@ -1075,8 +1183,276 @@ function propRow(n, el, name, ps) {
       try { set(JSON.parse(t)); } catch { toast('Kein gültiges JSON', 'bad'); }
     });
   } else ctl = h('span', { class: 'code' }, cur ? rawShow(cur) : '—');
-  return h('div', { class: 'row' }, label, ctl);
+  if (ctl.classList?.contains('segctl')) return h('div', { class: 'row stack' }, h('div', { class: 'rlabel' }, label, reset), ctl);
+  return h('div', { class: 'row' }, label, h('div', { class: 'ctl' }, ctl, reset));
 }
+
+// ---------- Style: nur Tokens – sichtbar machen, was das Design System liefert ----------
+const swCtx = document.createElement('canvas').getContext('2d');
+function toHex(v) {
+  if (!v || v === 'transparent' || /rgba\([^)]*,\s*0\)$/.test(v)) return null;
+  swCtx.fillStyle = '#000000';
+  swCtx.fillStyle = v;
+  return String(swCtx.fillStyle).toLowerCase();
+}
+const normFont = v => String(v).replace(/["']/g, '').replace(/\s*,\s*/g, ',').trim().toLowerCase();
+function tokenIndex(win, doc) {
+  const root = win.getComputedStyle(doc.documentElement);
+  const idx = { color: new Map(), dim: new Map(), font: new Map(), weight: new Map() };
+  const add = (m, k, v) => { if (!m.has(k)) m.set(k, []); m.get(k).push(v); };
+  for (const t of S.data.ds.tokens) {
+    const v = root.getPropertyValue(`--${t.path.replace(/\./g, '-')}`).trim();
+    if (!v) continue;
+    if (t.type === 'color') { const hx = toHex(v); if (hx) add(idx.color, hx, t.path); }
+    else if (/^-?[\d.]+px$/.test(v)) add(idx.dim, String(parseFloat(v)), t.path);
+    else if (t.type === 'fontFamily' || /^font\.family/.test(t.path)) add(idx.font, normFont(v), t.path);
+    else if (t.type === 'fontWeight' || /^font\.weight/.test(t.path)) add(idx.weight, String(parseFloat(v)), t.path);
+  }
+  return idx;
+}
+function effectiveBg(el, win) {
+  for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
+    const c = win.getComputedStyle(node).backgroundColor;
+    if (toHex(c)) return { value: c, inherited: node !== el };
+  }
+  return { value: 'rgb(255, 255, 255)', inherited: true };
+}
+function luminance(hex) {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/.exec(hex);
+  if (!m) return null;
+  const [r, g, b] = m.slice(1).map(x => { const v = parseInt(x, 16) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function computedLook(fr, id) {
+  const win = fr?.iframe?.contentWindow;
+  const doc = fr?.iframe?.contentDocument;
+  const el = doc?.querySelector(`[data-wf="${CSS.escape(id)}"]`);
+  if (!el || !win) return null;
+  const cs = win.getComputedStyle(el);
+  const idx = tokenIndex(win, doc);
+  const rows = [];
+  let untokened = 0;
+  const color = (label, value) => {
+    const hx = toHex(value);
+    if (!hx) return;
+    const tokens = idx.color.get(hx) || [];
+    if (!tokens.length) untokened++;
+    rows.push({ label, swatch: hx, tokens, value: hx });
+  };
+  const dim = (label, values, prefix) => {
+    const px = [...new Set(values.map(v => parseFloat(v)).filter(v => v > 0))];
+    if (!px.length) return;
+    const tokens = px.map(p => (idx.dim.get(String(p)) || []).filter(t => !prefix || prefix.some(pre => t.startsWith(pre)))[0] || null);
+    tokens.forEach(t => { if (!t) untokened++; });
+    rows.push({ label, tokens: tokens.filter(Boolean), missing: tokens.some(t => !t), value: px.map(p => `${p}px`).join(' · ') });
+  };
+  const bg = effectiveBg(el, win);
+  color(bg.inherited ? 'Fläche (geerbt)' : 'Fläche', bg.value);
+  color('Text', cs.color);
+  if (parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== 'none') color(`Rahmen ${parseFloat(cs.borderTopWidth)}px`, cs.borderTopColor);
+  dim('Radius', [cs.borderTopLeftRadius], ['radius.']);
+  dim('Innenabstand', [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft], ['space.']);
+  if (/flex|grid/.test(cs.display)) dim('Abstand (gap)', [cs.rowGap], ['space.']);
+  const fam = idx.font.get(normFont(cs.fontFamily)) || [];
+  if (!fam.length) untokened++;
+  rows.push({ label: 'Schrift', tokens: fam, missing: !fam.length, value: cs.fontFamily.split(',')[0].replace(/["']/g, '') });
+  dim('Schriftgröße', [cs.fontSize], ['font.size.', 'font.']);
+  rows.push({ label: 'Schriftstärke', tokens: idx.weight.get(String(parseFloat(cs.fontWeight))) || [], value: cs.fontWeight, quiet: true });
+  let contrast = null;
+  const text = el.textContent.trim();
+  const fg = toHex(cs.color);
+  const back = toHex(bg.value);
+  if (text && fg && back && fg.startsWith('#') && back.startsWith('#')) {
+    const a = luminance(fg);
+    const b = luminance(back);
+    const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    const size = parseFloat(cs.fontSize);
+    const large = size >= 24 || (size >= 18.66 && parseFloat(cs.fontWeight) >= 700);
+    contrast = { ratio, need: large ? 3 : 4.5, large };
+  }
+  return { rows, untokened, contrast };
+}
+function lookRow(r) {
+  return h('div', { class: 'look' },
+    h('span', { class: 'll' }, r.label),
+    h('span', { class: 'lt' },
+      r.swatch ? h('i', { class: 'sw', style: `background:${r.swatch}` }) : null,
+      ...r.tokens.map(t => h('code', { class: 'tok' }, t)),
+      r.missing || (!r.tokens.length && !r.quiet) ? h('span', { class: 'tag warn', title: 'Dieser Wert kommt nicht aus einem Token – Hinweis fürs Design-System-Team.' }, 'kein Token') : null,
+      h('small', {}, r.value)));
+}
+function tokenScaleRow(n, el, name, ps) {
+  const cur = el.props.find(p => p.name === name);
+  const lit = literal(cur);
+  const toks = S.data.ds.tokens.filter(t => !ps.group || t.path.startsWith(`${ps.group}.`));
+  const set = value => screenOp(n.ref, { op: 'setProp', id: el.id, name, value });
+  const reset = cur && lit.ok ? h('button', { type: 'button', class: 'reset', title: ps.default ? `Zurück auf Standard (${ps.default})` : 'Zurücksetzen', 'aria-label': `${name} zurücksetzen`, onclick: () => set(null) }, '↺') : null;
+  const ctl = cur && !lit.ok
+    ? h('span', { class: 'code' }, `{${cur.raw}}`)
+    : h('div', { class: 'segctl scale', role: 'group', 'aria-label': name }, ...toks.map(t => {
+      const on = lit.value === t.path;
+      const isDef = lit.value === undefined && ps.default === t.path;
+      return h('button', { type: 'button', class: isDef ? 'def' : null, 'aria-pressed': String(on), title: `${t.path} · ${t.css}${isDef ? ' · Standard' : ''}`, onclick: () => { if (!on) set(t.path); } }, t.path.split('.').pop());
+    }));
+  return h('div', { class: 'row stack' }, h('div', { class: 'rlabel' }, h('label', { title: `${ps.group || 'token'}-Tokens` }, name, h('small', {}, ` · ${ps.group || 'token'}`)), reset), ctl);
+}
+function countInstances(name) {
+  let count = 0;
+  let screens = 0;
+  for (const s of Object.values(S.data.screens)) {
+    if (!s.tree) continue;
+    let here = 0;
+    walkTree(s.tree, x => { if (x.name === name) here++; });
+    if (here) { count += here; screens++; }
+  }
+  return { count, screens };
+}
+function stylePane(pane, n, el, sp) {
+  const fr = S.frames.get(n.id);
+  const b = fr?.boxes?.[el.id];
+  pane.append(h('div', { class: 'grp' }, 'Größe', h('em', {}, b ? `${b[2]} × ${b[3]} px` : '–')));
+  const tokenProps = Object.entries(sp?.props || {}).filter(([, ps]) => ps.type === 'token');
+  if (tokenProps.length) {
+    pane.append(h('div', { class: 'grp' }, 'Abstände und Layout', h('em', {}, 'Tokens')));
+    for (const [name, ps] of tokenProps) pane.append(tokenScaleRow(n, el, name, ps));
+  }
+  const look = computedLook(fr, el.id);
+  pane.append(h('div', { class: 'grp' }, 'Aussehen', h('em', {}, `aus ${S.data.ds.name || 'dem Design System'}${S.fid === 'wireframe' ? ' · Wireframe' : ''}`)));
+  if (!look) pane.append(h('p', { class: 'hint' }, 'Wird gerendert …'));
+  else {
+    pane.append(h('div', { class: 'looks' }, ...look.rows.map(lookRow)));
+    if (look.contrast) {
+      const ok = look.contrast.ratio >= look.contrast.need;
+      pane.append(h('div', { class: `contrast ${ok ? 'ok' : 'bad'}` },
+        h('b', {}, `Kontrast ${look.contrast.ratio.toFixed(2).replace('.', ',')} : 1`),
+        h('span', {}, ok ? `erfüllt WCAG AA (${look.contrast.need.toString().replace('.', ',')} : 1${look.contrast.large ? ', großer Text' : ''})` : `zu gering – braucht ${look.contrast.need.toString().replace('.', ',')} : 1`)));
+    }
+    if (look.untokened) pane.append(h('p', { class: 'hint' }, `${look.untokened} Wert${look.untokened === 1 ? '' : 'e'} ohne Token – kommt aus der Komponente selbst, ein Hinweis fürs Design-System-Team.`));
+  }
+  deviationBlock(pane, n, el);
+}
+function deviationBlock(pane, n, el) {
+  const { count, screens } = countInstances(el.name);
+  const key = `${el.id}:abweichung`;
+  pane.append(h('div', { class: 'grp' }, 'Anders gestalten'));
+  pane.append(h('p', { class: 'hint' }, 'Freie Werte gibt es in Screens nicht – Aussehen kommt aus Props und Tokens. Soll es anders aussehen, wird daraus eine Variante oder ein Vorschlag fürs Design System.'));
+  pane.append(h('div', { class: 'seg elseg', role: 'group', 'aria-label': 'Geltungsbereich' }, ...[['one', 'Nur dieses'], ['all', `Überall · ${count}× ${el.name}`]].map(([id, label]) => h('button', {
+    type: 'button', 'aria-pressed': String(S.scope === id), onclick: () => { S.scope = id; renderRight(); },
+  }, label))));
+  pane.append(h('p', { class: 'hint' }, S.scope === 'all'
+    ? `Betrifft ${count} ${el.name} in ${screens} Screens – eine Änderung am Design System. Claude bereitet einen Vorschlag fürs DS-Team vor, statt das Paket direkt zu ändern.`
+    : `Nur ${el.id}: Claude löst es mit Props, Tokens oder einer anderen Komponente – oder schlägt eine neue Variante von ${el.name} vor.`));
+  const ta = h('textarea', { class: 'full', 'data-key': key, rows: '2', placeholder: 'Was soll anders aussehen? z. B. „weniger Gewicht“, „mehr Luft nach oben“' });
+  const go = () => {
+    const wish = ta.value.trim();
+    if (!wish) { ta.focus(); return; }
+    ta.value = '';
+    const text = S.scope === 'all'
+      ? `Vorschlag für das Design System: ${el.name} soll überall anders aussehen – „${wish}“. Betroffen: ${count} Instanzen in ${screens} Screens. Ändere das DS-Paket nicht direkt. Formuliere einen Vorschlag fürs DS-Team (Begründung, betroffene Tokens oder Varianten, Folgen für Barrierefreiheit), trage ihn als Lücke ins Manifest ein (gaps) und fasse ihn per canvas_reply zusammen.`
+      : `Gestaltungswunsch für ${el.name} ${el.id} in „${n.title || n.id}“ (${n.ref}): „${wish}“ – nur dieses Element. Löse es mit dem Design System: passende Prop, Variante, Token oder eine andere DS-Komponente (screen_edit). Gibt das DS es nicht her, keine freien Werte: schlag eine neue Variante oder ein Prop für ${el.name} vor und dokumentiere die Lücke. Antworte per canvas_reply.`;
+    askClaude(text, 'stil');
+  };
+  pane.append(ta, h('div', { class: 'btns' }, btn('An Claude', go, !S.chat.connected, 'pri'), !S.chat.connected ? h('span', { class: 'hint' }, 'Braucht den Canvas aus Claude Code (/wireflow:canvas).') : null));
+}
+
+// ---------- Änderungsliste mit Rückgängig je Eintrag ----------
+function changesBlock(pane) {
+  const list = (S.data.changes || []).slice().reverse();
+  if (!list.length) return;
+  const n = nodeById(S.sel.node);
+  const refTitle = ref => S.data.flows.flatMap(f => f.nodes).find(x => x.ref === ref)?.title || ref.replace(/^screens\//, '');
+  const open = list.filter(c => !c.reverted).length;
+  pane.append(h('div', { class: 'grp' }, `Änderungen · ${open}`, h('em', {}, h('button', { type: 'button', class: 'linkbtn', onclick: undo }, 'Rückgängig ⌘Z'))));
+  pane.append(h('ul', { class: 'changes' }, ...list.slice(0, 8).map(c => h('li', { class: `${c.reverted ? 'rev' : ''}${n?.ref === c.ref ? ' here' : ''}` },
+    h('div', { class: 'chl' }, h('span', {}, c.label), h('small', {}, `${refTitle(c.ref)} · ${c.by === 'Claude' ? '✦ Claude' : 'Canvas'}${c.reverted ? ' · rückgängig' : ''}`)),
+    c.revertible ? h('button', { type: 'button', class: 'reset', title: 'Nur diese Änderung rückgängig machen', 'aria-label': `Rückgängig: ${c.label}`, onclick: () => revertOne(c.id) }, '×') : null))));
+  pane.append(h('p', { class: 'hint' }, 'Gespeichert ist jede Änderung sofort als Code; × macht eine einzelne rückgängig.'));
+}
+async function revertOne(id) {
+  try {
+    const r = await api('/api/revert', { id });
+    toast(`Rückgängig: ${r.label}`);
+    scheduleReload(r.files || [], r.v);
+  } catch (e) {
+    toast(e.message, 'bad');
+  }
+}
+
+// ---------- Canvas-Griffe: Komponente darunter einfügen, Verbindung ziehen ----------
+function openPicker(cx, cy) {
+  S.picker = { x: Math.min(cx, innerWidth - 260), y: Math.min(cy, innerHeight - 330), q: '' };
+  renderPicker();
+  setTimeout(() => $('#picker input')?.focus(), 20);
+}
+function closePicker() {
+  if (!S.picker) return;
+  S.picker = null;
+  renderPicker();
+}
+function renderPicker() {
+  let el = $('#picker');
+  if (!S.picker) { el?.remove(); return; }
+  if (!el) { el = h('div', { id: 'picker', class: 'picker', role: 'dialog', 'aria-label': 'Komponente einfügen' }); document.body.append(el); }
+  el.style.left = `${S.picker.x}px`;
+  el.style.top = `${S.picker.y}px`;
+  const q = h('input', { type: 'search', placeholder: 'Komponente einfügen …', 'aria-label': 'Komponente suchen' });
+  q.value = S.picker.q;
+  const list = h('div', { class: 'plist' });
+  const fillList = () => {
+    const terms = S.picker.q.toLowerCase().split(/\s+/).filter(Boolean);
+    const cs = S.data.ds.components.filter(c => !terms.length || terms.every(t => [c.name, c.description, ...(c.intents || [])].join(' ').toLowerCase().includes(t)));
+    fill(list, ...cs.slice(0, 12).map(c => h('button', { type: 'button', onclick: () => { closePicker(); insertComponent(c.name); } }, h('b', {}, c.name), c.description ? h('small', {}, c.description) : null)));
+    if (!cs.length) list.append(h('p', { class: 'hint' }, 'Nichts gefunden – vielleicht eine DS-Lücke.'));
+  };
+  q.addEventListener('input', () => { S.picker.q = q.value; fillList(); });
+  q.addEventListener('keydown', e => { if (e.key === 'Enter') list.querySelector('button')?.click(); if (e.key === 'Escape') closePicker(); });
+  fillList();
+  fill(el, q, list, h('p', { class: 'hint' }, `Wird nach der Auswahl eingefügt · ${S.data.ds.name || 'Design System'}`));
+}
+addEventListener('pointerdown', e => { if (S.picker && !e.target.closest?.('#picker')) closePicker(); }, true);
+
+function startLinkDrag(e, fr, elId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const from = nodeById(fr.id);
+  if (!from) return;
+  const line = h('div', { class: 'linkline' });
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  const path = document.createElementNS(svgNS, 'path');
+  svg.append(path);
+  line.append(svg);
+  document.body.append(line);
+  const x0 = e.clientX;
+  const y0 = e.clientY;
+  let target = null;
+  const mark = id => {
+    if (target === id) return;
+    if (target) S.nodeEls.get(target)?.classList.remove('linktarget');
+    target = id;
+    if (target) S.nodeEls.get(target)?.classList.add('linktarget');
+  };
+  beginPointer({
+    move: ev => {
+      const dx = Math.max(60, Math.abs(ev.clientX - x0) / 2);
+      path.setAttribute('d', `M${x0},${y0} C${x0 + dx},${y0} ${ev.clientX - dx},${ev.clientY} ${ev.clientX},${ev.clientY}`);
+      const under = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('.node');
+      const id = under?.dataset.node;
+      mark(id && id !== fr.id && !id.startsWith('v:') ? id : null);
+    },
+    up: async () => {
+      line.remove();
+      const to = target;
+      mark(null);
+      if (!to) return;
+      const scr = screenOf(from);
+      const label = findEl(scr?.tree, elId)?.node.text || 'Weiter';
+      const r = await flowOp({ op: 'connect', from: from.id, el: elId, to, label });
+      if (r) toast(`Verbunden: ${elId} → ${nodeName(to)}${r.wired ? ' (flow.trigger im Code ergänzt)' : ''}`);
+    },
+  });
+}
+
 function interactionBlock(pane, n, el, sp) {
   const f = flow();
   const idx = f.edges.findIndex(e => e.from === n.id && e.el === el.id);
@@ -1872,8 +2248,31 @@ function renderMenu() {
 addEventListener('pointerdown', e => { if (S.menu && !e.target.closest?.('#radial')) closeMenu(); }, true);
 
 // ---------- Kopf, Status, Modus ----------
+// Darstellung des Werkzeugs: wie das System, dunkel oder hell (wie im Click-Dummy)
+const THEMES = ['auto', 'dark', 'light'];
+const THEME_INFO = { auto: ['◐', 'Darstellung: wie das System'], dark: ['☾', 'Darstellung: dunkel'], light: ['☀', 'Darstellung: hell'] };
+let theme = (() => { try { return localStorage.getItem('wireflow-theme') || 'auto'; } catch { return 'auto'; } })();
+function applyTheme() {
+  if (theme === 'dark' || theme === 'light') document.documentElement.dataset.theme = theme;
+  else delete document.documentElement.dataset.theme;
+  const b = $('#themeBtn');
+  b.textContent = THEME_INFO[theme][0];
+  b.title = `${THEME_INFO[theme][1]} – klicken zum Wechseln`;
+  b.setAttribute('aria-label', THEME_INFO[theme][1]);
+}
+$('#themeBtn').addEventListener('click', () => {
+  theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+  try { localStorage.setItem('wireflow-theme', theme); } catch { /* privat */ }
+  applyTheme();
+  toast(THEME_INFO[theme][1]);
+});
+applyTheme();
+
 function renderTop() {
   $('#crumb').textContent = S.data.project.name || '';
+  const darkBtn = document.querySelector('[data-fid="dark"]');
+  darkBtn.hidden = !(S.data.ds.modes || []).includes('dark');
+  if (darkBtn.hidden && S.fid === 'dark') S.fid = 'hifi';
   const sel = $('#flowSel');
   const opts = S.data.flows.map(f => `<option value="${esc(f.id)}"${f.id === S.flowId ? ' selected' : ''}>${esc(f.title || f.id)}</option>`).join('');
   if (sel.innerHTML !== opts) sel.innerHTML = opts || '<option>Kein Flow</option>';
@@ -1928,6 +2327,7 @@ function toast(msg, kind = '') {
 // ---------- Tastatur und Kopfzeile ----------
 addEventListener('keydown', e => {
   if (S.menu && e.key === 'Escape') { e.preventDefault(); closeMenu(); return; }
+  if (S.picker && e.key === 'Escape') { e.preventDefault(); closePicker(); return; }
   const typing = e.target.closest?.('input,textarea,select,[contenteditable]');
   const mod = e.metaKey || e.ctrlKey;
   if (typing) { if (e.key === 'Escape') e.target.blur(); return; }

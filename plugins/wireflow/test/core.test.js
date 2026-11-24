@@ -136,3 +136,28 @@ test('init legt .wireflow an und entwirft das Manifest aus den Exporten', () => 
   const again = initProject(root, { dsPackage: '@acme/ui' });
   assert.deepEqual(again.created, [], 'bestehende Dateien bleiben unverändert');
 });
+
+test('Änderungsliste: Tauschen, Entfernen, Verschieben – Rückgängig je Eintrag in beliebiger Reihenfolge', async () => {
+  const { applyOpRecorded, changeLog, revertChange } = await import('../src/core/screens.js');
+  const root = tempProject();
+  const ref = 'screens/profil.screen.tsx';
+  const body = src => src.split('\n').filter(l => !l.startsWith('import {')).join('\n');
+  const before = read(root, ref);
+  const start = changeLog().length;
+  const ops = [
+    { op: 'setProp', id: 'btn_weiter', name: 'variant', value: 'secondary' },
+    { op: 'remove', id: 'tx_res' },
+    { op: 'swap', id: 'ch_uhr', component: 'Select' },
+    { op: 'insert', component: 'Alert', index: 1 },
+    { op: 'move', id: 'card_arzt', delta: 2 },
+    { op: 'setText', id: 'btn_weiter', text: 'Los' },
+  ];
+  for (const o of ops) applyOpRecorded(loadProject(root), ref, o, 'Canvas');
+  const mine = changeLog().slice(start);
+  assert.equal(mine[0].label, 'Button btn_weiter · variant: primary → secondary');
+  assert.equal(mine[2].label, 'ChipGroup ch_uhr → Select getauscht');
+  assert.match(read(root, ref), /<Select data-wf="ch_uhr" label="Uhrzeit" options=\{zeiten\} \/>/, 'Tauschen behält passende Props');
+  for (const i of [1, 4, 2, 0, 5, 3]) revertChange(loadProject(root), mine[i].id);
+  assert.equal(body(read(root, ref)), body(before), 'Ausgangsstruktur wiederhergestellt');
+  assert.throws(() => revertChange(loadProject(root), mine[0].id), /schon rückgängig/);
+});

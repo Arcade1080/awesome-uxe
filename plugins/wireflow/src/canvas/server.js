@@ -12,7 +12,7 @@ import { loadTokens, tokensCss, components } from '../core/ds.js';
 import { lintScreen } from '../core/lint.js';
 import { flowIssues } from '../core/flow.js';
 import { flowKnowledge, openAssumptions } from '../core/knowledge.js';
-import { applyOp, handlerProp } from '../core/screens.js';
+import { applyOpRecorded, handlerProp, changeLog, revertChange } from '../core/screens.js';
 import { applyFlowOp } from '../core/flows.js';
 import { getAttr, textOf, walk } from '../core/jsx.js';
 import { packageDir } from '../core/init.js';
@@ -56,6 +56,7 @@ export function projectJson(root, v = 0) {
       gaps: m.manifest.gaps || [],
       patterns: m.patterns.map(p => ({ id: p.id, name: p.meta.name || p.id, status: p.meta.status || '', text: p.text })),
       tokens: loadTokens(m).map(t => ({ path: t.path, type: t.type, css: t.css })),
+      modes: Object.keys(m.manifest.tokens?.modes || {}),
       known: [...comps.keys()],
     },
     flows: m.flows.map(f => ({ ...f, issues: flowIssues(f, m), knowledge: flowKnowledge(f, m.knowledge) })),
@@ -287,7 +288,8 @@ export async function startCanvas({ root, port, bridge = null } = {}) {
   const renderPage = async q => {
     const m = modelNow();
     const ref = q.get('ref') || '';
-    const mode = q.get('mode') === 'wireframe' ? 'wireframe' : 'hifi';
+    const wanted = q.get('mode') || 'hifi';
+    const mode = Object.keys(m.manifest.tokens?.modes || {}).includes(wanted) ? wanted : 'hifi';
     let vars = {};
     try { vars = JSON.parse(q.get('vars') || '{}'); } catch { /* leer */ }
     const wfInfo = { ref, story: q.get('story') || '', mode, ui: q.get('ui') === 'prototype' ? 'prototype' : 'design', vars };
@@ -323,7 +325,10 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
     if (req.method === 'GET') {
       if (p === '/' || p === '/index.html') return staticFile(res, 'index.html');
       if (p === '/app.js' || p === '/app.css' || p === '/frame.js') return staticFile(res, p.slice(1));
-      if (p === '/api/project') return send(res, 200, projectJson(root, st.v));
+      if (p === '/api/project') {
+        const changes = changeLog().slice(-40).map(({ inverse, ...c }) => ({ ...c, revertible: !!inverse && !c.reverted }));
+        return send(res, 200, { ...projectJson(root, st.v), changes });
+      }
       if (p === '/api/chat') return send(res, 200, { connected: !!bridge, channel: !!bridge?.channel, messages: bridge?.log || [] });
       if (p === '/api/source') {
         const ref = u.searchParams.get('ref') || '';
@@ -359,8 +364,13 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
     if (p === '/api/op') {
       const m = loadProject(root);
       if (!m.screens[body.ref]) throw new Error(`Screen ${body.ref} nicht gefunden`);
-      const r = applyOp(m, body.ref, body);
+      const r = applyOpRecorded(m, body.ref, body, 'Canvas');
       const files = ownWrite([`${WF}/${body.ref}`], by);
+      return send(res, 200, { ok: true, ...r, v: st.v, files });
+    }
+    if (p === '/api/revert') {
+      const r = revertChange(loadProject(root), String(body.id || ''));
+      const files = ownWrite([`${WF}/${r.ref}`], by);
       return send(res, 200, { ok: true, ...r, v: st.v, files });
     }
     if (p === '/api/flow') {

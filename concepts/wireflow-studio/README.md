@@ -330,7 +330,11 @@ Wireflow und Design teilen sich Layout, Positionen und Code: Der Wechsel tauscht
 
 ### 7.3 Interaktionsmuster mit Claude
 
-- **Rechte Spalte mit drei Reitern – Design · Code · Chat:** *Design* ist der Inspector (Props laut Manifest, Interaktion, Richtlinien, Prüfung), *Code* zeigt das Screen-Modul und seine Stories mit markiertem Element, *Chat* ist das Gespräch mit Claude – mit der Auswahl als Kontext („Auswahl: Button · btn_weiter ×“).
+- **Rechte Spalte mit drei Reitern – Design · Code · Chat:** *Design* ist der Inspector, *Code* zeigt das Screen-Modul und seine Stories mit markiertem Element, *Chat* ist das Gespräch mit Claude – mit der Auswahl als Kontext („Auswahl: Button · btn_weiter ×“).
+- **Design-Panel geteilt in Props und Style:** *Props* beschreibt, was eine Komponente ist und tut (Auswahlwerte als Segment-Schalter, Standardwerte aus dem Manifest, Komponente tauschen, Slots, Interaktion). *Style* zeigt, wie sie aussieht – ausschließlich über Tokens: Abstands-Skalen, die im Rendering verwendeten Tokens, Kontrast und Werte ohne Token. Wer anders gestalten will, wählt **Nur dieses** oder **Überall**; daraus wird eine Variante bzw. ein Vorschlag fürs Design System, nie ein freier Wert.
+- **Änderungsliste** mit „vorher → nachher“ und Rückgängig je Eintrag – für Änderungen aus dem Canvas und von Claude.
+- **Griffe an der Auswahl:** Größe, „+“ zum Einfügen darunter, ein Pfeil zum Ziehen einer Verbindung.
+- **Dunkelmodus** für das Werkzeug (System, dunkel, hell) und – wenn das Design System einen Token-Modus `dark` hat – für die Screens.
 - **Kontextmenü (radial)** an Screen oder Element, per Rechtsklick, Taste `.` oder ✦ am Frame-Titel:
   - **Varianten** mit Spielraum: *Strikt* (nur DS-Komponenten, Patterns, Aufbau nah am Original), *Geführt* (DS-Komponenten, Aufbau frei, Patterns und Insights als Leitplanke), *Frei* (kreativ, DS-Lücken erlaubt, aber benannt).
   - **Review** aus Sicht einer **Persona** aus der Journey – sowie Heuristiken, Barrierefreiheit, Texte und Design System. Ein Persona-Walkthrough ist keine Evidenz.

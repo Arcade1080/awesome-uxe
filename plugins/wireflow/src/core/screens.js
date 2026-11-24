@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  parseModule, printModule, printEl, findById, ensureIds, insertEl, removeEl, moveEl,
-  setProp, setText, makeEl, cloneEl, stripIds, indexInParent, getAttr, walk,
+  parseModule, parseElement, printModule, printEl, findById, ensureIds, insertEl, removeEl, moveEl,
+  setProp, setText, makeEl, cloneEl, stripIds, indexInParent, getAttr, walk, textOf,
 } from './jsx.js';
 import { components } from './ds.js';
 import { writeTracked, WF, loadScreen } from './project.js';
@@ -36,6 +36,14 @@ export function handlerProp(spec) {
   return names.find(n => n === 'onPress' || n === 'onClick') || names.find(n => n !== 'onBack') || null;
 }
 
+// Position unter den Element-Kindern von parent: direkt nach dem Anker (after), sonst index.
+function anchoredIndex(parent, after, fallback, skipId) {
+  const kids = parent.children.filter(c => c.type === 'el' && getAttr(c, 'data-wf') !== skipId);
+  if (after === null) return 0;
+  const a = after ? kids.findIndex(c => getAttr(c, 'data-wf') === after) : -1;
+  return a >= 0 ? a + 1 : Math.min(fallback ?? kids.length, kids.length);
+}
+
 export function applyOp(model, ref, op) {
   const file = path.join(model.root, WF, assertScreenRef(ref));
   const mod = parseModule(fs.readFileSync(file, 'utf8'));
@@ -64,9 +72,10 @@ export function applyOp(model, ref, op) {
       selected = null;
       break;
     case 'move': {
-      need(op.id);
+      const cur = need(op.id);
       const i = indexInParent(root, op.id);
-      const index = op.index ?? i + (op.delta || 0);
+      const target = op.parent ? need(op.parent).node : cur.parent;
+      const index = 'after' in op ? anchoredIndex(target, op.after, op.index, op.id) : op.index ?? i + (op.delta || 0);
       if (index < 0 || !moveEl(root, op.id, op.parent || null, index)) throw new Error('Verschieben nicht möglich');
       break;
     }
@@ -85,12 +94,113 @@ export function applyOp(model, ref, op) {
     case 'setText':
       setText(need(op.id).node, op.text || '');
       break;
+    case 'swap': {
+      // Komponente tauschen: Props, die die neue Komponente kennt, bleiben; Pflicht-Props aus den Defaults.
+      const hit = need(op.id);
+      const to = comps.get(op.component);
+      if (!to) throw new Error(`„${op.component}“ ist keine Komponente des Design Systems`);
+      const n = hit.node;
+      n.name = op.component;
+      n.attrs = n.attrs.filter(a => a.kind === 'spread' || a.name === 'data-wf' || a.name === 'key' || /^aria-/.test(a.name || '') || to.props?.[a.name]);
+      for (const [k, ps] of Object.entries(to.props || {})) {
+        if (k === 'children' || !ps.required || n.attrs.some(a => a.name === k)) continue;
+        const d = to.defaults?.props?.[k];
+        if (d !== undefined) setProp(n, k, d);
+      }
+      if (!to.props?.children && n.children.length) { n.children = []; n.inline = true; n.innerRaw = null; }
+      else if (to.props?.children?.type === 'string' && n.children.some(c => c.type === 'el')) setText(n, textOf(n) || to.defaults?.text || '');
+      else if (to.props?.children?.type === 'string' && !n.children.length && to.defaults?.text) setText(n, to.defaults.text);
+      break;
+    }
+    case 'replaceRaw': {
+      const hit = need(op.id);
+      if (!hit.parent) throw new Error('Das Wurzelelement lässt sich nicht ersetzen');
+      const el = parseElement(op.jsx);
+      hit.parent.children.splice(hit.parent.children.indexOf(hit.node), 1, el);
+      break;
+    }
+    case 'insertRaw': {
+      // Wiederherstellen eines entfernten Elements (Rückgängig je Eintrag)
+      const el = parseElement(op.jsx);
+      const parent = op.parent ? need(op.parent).node : root;
+      insertEl(parent, 'after' in op ? anchoredIndex(parent, op.after, op.index) : op.index ?? Number.MAX_SAFE_INTEGER, el);
+      selected = getAttr(el, 'data-wf');
+      break;
+    }
     default:
       throw new Error(`Unbekannte Operation: ${op.op}`);
   }
   ensureIds(root);
   writeTracked(file, fmt(mod, model));
   return { ref, selected };
+}
+
+// Beschreibt eine Operation vor dem Ausführen: Text für die Änderungsliste und Gegenoperation.
+const shown = a => {
+  if (!a) return 'nicht gesetzt';
+  if (a.kind === 'bool') return 'an';
+  if (a.kind === 'str') return a.raw;
+  return `{${a.raw}}`;
+};
+const asValue = a => (!a ? null : a.kind === 'bool' ? true : a.kind === 'str' ? a.raw : { expr: a.raw });
+const prevSiblingId = (parent, node) => {
+  const kids = parent.children.filter(c => c.type === 'el');
+  const i = kids.indexOf(node);
+  return i > 0 ? getAttr(kids[i - 1], 'data-wf') || null : null;
+};
+export function planChange(model, ref, op) {
+  const file = path.join(model.root, WF, assertScreenRef(ref));
+  const root = parseModule(fs.readFileSync(file, 'utf8')).root;
+  const hit = op.id ? findById(root, op.id) : null;
+  const n = hit?.node;
+  const who = n ? `${n.name} ${op.id}` : op.component || '';
+  switch (op.op) {
+    case 'setProp': {
+      const before = n?.attrs.find(a => a.name === op.name);
+      const after = op.value === undefined || op.value === null || op.value === false ? 'nicht gesetzt' : typeof op.value === 'object' && 'expr' in op.value ? `{${op.value.expr}}` : typeof op.value === 'object' ? JSON.stringify(op.value) : String(op.value);
+      return { label: `${who} · ${op.name}: ${shown(before)} → ${after}`, inverse: { op: 'setProp', id: op.id, name: op.name, value: asValue(before) } };
+    }
+    case 'setText':
+      return { label: `${who} · Text: „${textOf(n)}“ → „${op.text || ''}“`, inverse: { op: 'setText', id: op.id, text: textOf(n) } };
+    case 'insert':
+      return { label: `${op.component} eingefügt`, inverse: null };
+    case 'duplicate':
+      return { label: `${who} dupliziert`, inverse: null };
+    case 'remove':
+      return { label: `${who} entfernt`, inverse: hit?.parent ? { op: 'insertRaw', parent: getAttr(hit.parent, 'data-wf'), after: prevSiblingId(hit.parent, n), index: indexInParent(root, op.id), jsx: printEl(n, '') } : null };
+    case 'move':
+      return { label: `${who} verschoben`, inverse: hit?.parent ? { op: 'move', id: op.id, parent: getAttr(hit.parent, 'data-wf'), after: prevSiblingId(hit.parent, n), index: indexInParent(root, op.id) } : null };
+    case 'swap':
+      return { label: `${who} → ${op.component} getauscht`, inverse: n ? { op: 'replaceRaw', id: op.id, jsx: printEl(n, '') } : null };
+    default:
+      return { label: `${op.op} ${op.id || ''}`.trim(), inverse: null };
+  }
+}
+
+// ---------- Änderungsliste (Canvas und Claude) mit Rückgängig je Eintrag ----------
+const changes = [];
+let changeSeq = 0;
+export function changeLog() {
+  return changes;
+}
+export function applyOpRecorded(model, ref, op, by = null) {
+  let plan = null;
+  try { plan = planChange(model, ref, op); } catch { plan = null; }
+  const r = applyOp(model, ref, op);
+  const inverse = plan?.inverse || ((op.op === 'insert' || op.op === 'duplicate') && r.selected ? { op: 'remove', id: r.selected } : null);
+  const label = op.op === 'insert' ? `${op.component} ${r.selected} eingefügt` : op.op === 'duplicate' ? `${plan?.label || op.id} → ${r.selected}` : plan?.label || op.op;
+  changes.push({ id: `ch${++changeSeq}`, time: new Date().toISOString(), ref, label, inverse, by, reverted: false });
+  if (changes.length > 60) changes.splice(0, changes.length - 60);
+  return r;
+}
+export function revertChange(model, id) {
+  const e = changes.find(c => c.id === id);
+  if (!e) throw new Error('Änderung nicht gefunden');
+  if (e.reverted) throw new Error('Diese Änderung ist schon rückgängig gemacht');
+  if (!e.inverse) throw new Error('Diese Änderung lässt sich nur mit ⌘/Strg+Z rückgängig machen');
+  const r = applyOp(model, e.ref, e.inverse);
+  e.reverted = true;
+  return { ...r, ref: e.ref, label: e.label };
 }
 
 // Verdrahtet ein Element mit flow.trigger('<id>'), falls es noch keinen Handler hat.

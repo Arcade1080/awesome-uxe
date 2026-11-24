@@ -26,6 +26,24 @@
         "color.feedback.info": "#52525b",
         "color.feedback.info-subtle": "#e4e4e7",
         "font.family.base": "system-ui, sans-serif"
+      },
+      "dark": {
+        "color.action.primary": "#4fb6c2",
+        "color.action.primary-subtle": "#163a40",
+        "color.action.on-primary": "#06191c",
+        "color.text.default": "#e6eef0",
+        "color.text.muted": "#9fb2b7",
+        "color.text.subtle": "#80959a",
+        "color.surface.default": "#111718",
+        "color.surface.subtle": "#192225",
+        "color.border.default": "#3a4d52",
+        "color.border.subtle": "#263437",
+        "color.feedback.success": "#5fd096",
+        "color.feedback.success-subtle": "#173426",
+        "color.feedback.danger": "#ff8f80",
+        "color.feedback.danger-subtle": "#3d1f1c",
+        "color.feedback.info": "#7db7ff",
+        "color.feedback.info-subtle": "#172a40"
       }
     }
   },
@@ -38,11 +56,13 @@
       "props": {
         "padding": {
           "type": "token",
-          "group": "space"
+          "group": "space",
+          "default": "space.4"
         },
         "gap": {
           "type": "token",
-          "group": "space"
+          "group": "space",
+          "default": "space.3"
         },
         "children": {
           "type": "node"
@@ -100,7 +120,8 @@
           "enum": [
             1,
             2
-          ]
+          ],
+          "default": 1
         },
         "children": {
           "type": "string",
@@ -134,7 +155,8 @@
           "enum": [
             "default",
             "muted"
-          ]
+          ],
+          "default": "default"
         },
         "icon": {
           "type": "string",
@@ -189,7 +211,8 @@
             "email",
             "password",
             "tel"
-          ]
+          ],
+          "default": "text"
         },
         "icon": {
           "type": "string",
@@ -302,14 +325,16 @@
             "primary",
             "secondary",
             "ghost"
-          ]
+          ],
+          "default": "primary"
         },
         "size": {
           "type": "string",
           "enum": [
             "md",
             "lg"
-          ]
+          ],
+          "default": "md"
         },
         "onPress": {
           "type": "handler"
@@ -474,7 +499,8 @@
             "info",
             "danger",
             "success"
-          ]
+          ],
+          "default": "info"
         },
         "title": {
           "type": "string",

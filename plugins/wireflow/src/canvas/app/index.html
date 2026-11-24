@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wireflow Studio</title>
 <link rel="stylesheet" href="/app.css">
+<script>try{var t=localStorage.getItem('wireflow-theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}catch(e){}</script>
 </head>
 <body>
 <div class="app" id="app" data-mode="design">
@@ -25,7 +26,9 @@
       <div class="seg" role="group" aria-label="Darstellung der Screens">
         <button type="button" data-fid="wireframe" aria-pressed="false">Wireframe</button>
         <button type="button" data-fid="hifi" aria-pressed="true">Hi-Fi</button>
+        <button type="button" data-fid="dark" aria-pressed="false" hidden title="Screens im Dunkelmodus des Design Systems">Dunkel</button>
       </div>
+      <button type="button" class="themebtn" id="themeBtn" aria-label="Darstellung">◐</button>
       <span class="pill off" id="live" title="Verbindung zum Projekt"><i></i><span>Verbinde …</span></span>
     </div>
   </header>

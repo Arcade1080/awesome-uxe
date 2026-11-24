@@ -6,7 +6,7 @@ import { components, searchDs, loadTokens } from '../core/ds.js';
 import { lintScreen } from '../core/lint.js';
 import { flowIssues, toMermaid } from '../core/flow.js';
 import { flowKnowledge, openAssumptions } from '../core/knowledge.js';
-import { applyOp, writeScreen, assertScreenRef, slugify } from '../core/screens.js';
+import { applyOpRecorded, writeScreen, assertScreenRef, slugify } from '../core/screens.js';
 import { applyFlowOp } from '../core/flows.js';
 import { initProject } from '../core/init.js';
 import { walk, getAttr, textOf, findById } from '../core/jsx.js';
@@ -229,17 +229,17 @@ export const TOOLS = [
   },
   {
     name: 'screen_edit',
-    description: 'Strukturierte Änderung an einem Screen-Modul – wie auf dem Canvas. op: insert {component, parent?, index?, props?, text?} | remove {id} | move {id, delta|index, parent?} | duplicate {id} | setProp {id, name, value} | setText {id, text}.',
+    description: 'Strukturierte Änderung an einem Screen-Modul – wie auf dem Canvas. op: insert {component, parent?, index?, props?, text?} | remove {id} | move {id, delta|index, parent?} | duplicate {id} | setProp {id, name, value} | setText {id, text} | swap {id, component} (Komponente tauschen, passende Props bleiben).',
     inputSchema: obj({
       ref: str('Screen, z. B. screens/profil.screen.tsx'),
-      op: { type: 'string', enum: ['insert', 'remove', 'move', 'duplicate', 'setProp', 'setText'] },
+      op: { type: 'string', enum: ['insert', 'remove', 'move', 'duplicate', 'setProp', 'setText', 'swap'] },
       id: str('data-wf des Elements'), component: str('DS-Komponente für insert'), parent: str('data-wf des Elternelements'),
       index: { type: 'number' }, delta: { type: 'number' }, name: str('Prop-Name'), value: { description: 'Prop-Wert (String, Zahl, Boolean, Liste oder {expr:"…"})' },
       text: str('Text'), props: { type: 'object' },
     }, ['ref', 'op']),
     run: ({ ref, ...op }) => {
       const m = model();
-      const r = applyOp(m, ref, op);
+      const r = applyOpRecorded(m, ref, op, 'Claude');
       const fresh = model();
       return { ...r, pruefung: lintScreen(fresh.screens[ref], fresh) };
     },
