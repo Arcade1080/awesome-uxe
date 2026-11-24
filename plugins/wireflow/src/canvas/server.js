@@ -2,6 +2,7 @@
 // des Design Systems (gebündelt mit dem esbuild des Projekts) und schreibt Änderungen
 // vom Canvas als Code zurück. Nur 127.0.0.1, Zugang über ein Token im Link.
 import http from 'node:http';
+import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -17,6 +18,7 @@ import { applyFlowOp } from '../core/flows.js';
 import { getAttr, textOf, walk } from '../core/jsx.js';
 import { packageDir } from '../core/init.js';
 import { monitorAlive } from '../mcp/bridge.js';
+import { storybookSettings, findStorybook, storyGroups, storybookDirs, storybookHint } from '../core/storybook.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.join(HERE, 'app');
@@ -187,6 +189,26 @@ function readBody(req) {
 
 const cookies = h => Object.fromEntries((h || '').split(';').map(x => x.trim().split('=')).filter(x => x[0]).map(([k, ...v]) => [k, v.join('=')]));
 
+// ---------- Storybook über denselben Ursprung ----------
+// Der Canvas reicht Anfragen, die er nicht selbst beantwortet, an das laufende Storybook
+// weiter. So liegen dessen iframe.html und der Canvas am selben Ursprung: Auswahl,
+// Komponentenbaum und Style-Werte lassen sich direkt aus dem Frame lesen.
+const HOP = new Set(['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'te', 'trailer']);
+const SB_FRAME = '<script src="/__wireflow/sbframe.js"></script>';
+function forwardHeaders(headers, target) {
+  const out = {};
+  for (const [k, v] of Object.entries(headers)) if (!HOP.has(k)) out[k] = v;
+  out.host = target.host;
+  // Das Zugangstoken des Canvas bleibt hier.
+  const rest = (headers.cookie || '').split(';').map(x => x.trim()).filter(x => x && !/^wf_\d+=/.test(x));
+  if (rest.length) out.cookie = rest.join('; ');
+  else delete out.cookie;
+  if (out.origin) out.origin = target.origin;
+  delete out.referer;
+  return out;
+}
+const hostOf = t => t.hostname.replace(/^\[|\]$/g, '');
+
 function listen(server, port) {
   return new Promise((resolve, reject) => {
     const onErr = e => {
@@ -211,6 +233,75 @@ export async function startCanvas({ root, port, bridge = null } = {}) {
   const st = { v: 1, code: 1, bundle: null, building: null, clients: new Set(), own: new Map(), pending: new Set(), timer: null };
   const dataOnly = f => /^\.wireflow\/(flows|journeys|knowledge|decisions|research|ds\/patterns)\//.test(f) || /\.(md|gitkeep)$/.test(f);
   let actualPort = 0;
+
+  // Storybook: gefunden (url, base) oder nicht; Index-Änderungen melden.
+  const sb = { url: null, base: '', groups: [], hash: '', status: 'sucht', hint: '', dirs: null, dirsAt: 0, busy: null };
+  const sbDirs = () => {
+    if (!sb.dirs || Date.now() - sb.dirsAt > 60000) { sb.dirs = storybookDirs(root); sb.dirsAt = Date.now(); }
+    return sb.dirs;
+  };
+  const refreshSb = () => {
+    if (sb.busy) return sb.busy;
+    sb.busy = (async () => {
+      let settings = { url: null, screens: [] };
+      try { settings = storybookSettings(modelNow()); } catch { /* Projekt gerade nicht lesbar */ }
+      const found = await findStorybook(root, settings, { dirs: sbDirs() });
+      const before = `${sb.status}|${sb.url}|${sb.hash}`;
+      if (found) {
+        const groups = storyGroups(found.index, { base: found.base, settings });
+        sb.url = found.url;
+        sb.base = found.base;
+        sb.groups = groups;
+        sb.hash = crypto.createHash('sha1').update(JSON.stringify(groups)).digest('hex').slice(0, 12);
+        sb.status = 'verbunden';
+        sb.hint = '';
+      } else {
+        sb.url = null;
+        sb.groups = [];
+        sb.hash = '';
+        sb.status = 'aus';
+        sb.hint = storybookHint(sbDirs().map(d => path.relative(root, d).split(path.sep).join('/')));
+      }
+      if (before !== `${sb.status}|${sb.url}|${sb.hash}`) broadcast('storybook', { status: sb.status, hash: sb.hash });
+    })().finally(() => { sb.busy = null; });
+    return sb.busy;
+  };
+  const sbTimer = setInterval(() => { if (st.clients.size) refreshSb(); }, 2500);
+  sbTimer.unref?.();
+  const sbJson = () => ({ status: sb.status, url: sb.url, base: sb.base, hash: sb.hash, hint: sb.hint, groups: sb.groups, dirs: sbDirs().map(d => path.relative(root, d).split(path.sep).join('/') || '.') });
+
+  const proxySb = (req, res, u) => {
+    const target = new URL(sb.url);
+    const inject = u.pathname === '/iframe.html';
+    const headers = forwardHeaders(req.headers, target);
+    if (inject) headers['accept-encoding'] = 'identity';
+    const preq = http.request({ hostname: hostOf(target), port: target.port, method: req.method, path: u.pathname + u.search, headers }, pres => {
+      const out = {};
+      for (const [k, v] of Object.entries(pres.headers)) if (!HOP.has(k)) out[k] = v;
+      if (inject && pres.statusCode === 200 && /text\/html/.test(pres.headers['content-type'] || '')) {
+        const chunks = [];
+        pres.on('data', c => chunks.push(c));
+        pres.on('end', () => {
+          let html = Buffer.concat(chunks).toString('utf8');
+          html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${SB_FRAME}</body>`) : html + SB_FRAME;
+          delete out['content-length'];
+          delete out['content-encoding'];
+          delete out.etag;
+          res.writeHead(200, { ...out, 'cache-control': 'no-store' });
+          res.end(html);
+        });
+        return;
+      }
+      res.writeHead(pres.statusCode || 502, out);
+      pres.pipe(res);
+    });
+    preq.on('error', e => {
+      refreshSb();
+      if (!res.headersSent) send(res, 502, `Storybook nicht erreichbar (${e.code || e.message}).`, 'text/plain; charset=utf-8');
+      else res.destroy();
+    });
+    req.pipe(preq);
+  };
 
   const getBundle = () => {
     if (st.bundle && st.bundle.v === st.code) return Promise.resolve(st.bundle);
@@ -326,6 +417,19 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
     if (req.method === 'GET') {
       if (p === '/' || p === '/index.html') return staticFile(res, 'index.html');
       if (p === '/app.js' || p === '/app.css' || p === '/frame.js') return staticFile(res, p.slice(1));
+      if (p === '/__wireflow/sbframe.js') return staticFile(res, 'sbframe.js');
+      if (p === '/api/storybook') {
+        if (u.searchParams.has('refresh') || sb.status === 'sucht') await refreshSb();
+        return send(res, 200, sbJson());
+      }
+      if (p === '/api/file') {
+        // Quelltext für den Code-Reiter (Stories und Komponenten aus Storybook) – nur im Projekt.
+        const rel = String(u.searchParams.get('path') || '');
+        const file = path.resolve(root, rel);
+        if (!rel || !file.startsWith(root + path.sep) || !/\.(tsx?|jsx?|mdx|vue|svelte|css)$/.test(file) || /(^|[\\/])node_modules[\\/]/.test(rel)) return send(res, 400, { error: 'Datei nicht erlaubt' });
+        if (!fs.existsSync(file) || fs.statSync(file).size > 1_000_000) return send(res, 404, { error: 'Datei nicht gefunden' });
+        return send(res, 200, { path: path.relative(root, file).split(path.sep).join('/'), source: fs.readFileSync(file, 'utf8') });
+      }
       if (p === '/api/project') {
         const changes = changeLog().slice(-40).map(({ inverse, ...c }) => ({ ...c, revertible: !!inverse && !c.reverted }));
         return send(res, 200, { ...projectJson(root, st.v), changes, delivery: bridge ? (monitorAlive(root) ? 'monitor' : bridge.channel ? 'kanal' : 'hooks') : null });
@@ -355,11 +459,13 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
         req.on('close', () => { clearInterval(ping); st.clients.delete(res); });
         return;
       }
+      if (sb.url && !p.startsWith('/api/')) return proxySb(req, res, u);
       return send(res, 404, { error: 'Nicht gefunden' });
     }
-    if (req.method !== 'POST') return send(res, 405, { error: 'Methode nicht erlaubt' });
     const origin = req.headers.origin;
     if (origin && origin !== `http://127.0.0.1:${actualPort}` && origin !== `http://localhost:${actualPort}`) return send(res, 403, { error: 'Fremder Ursprung' });
+    if (sb.url && !p.startsWith('/api/')) return proxySb(req, res, u);
+    if (req.method !== 'POST') return send(res, 405, { error: 'Methode nicht erlaubt' });
     const body = await readBody(req);
     const by = String(req.headers['x-wf-client'] || '').slice(0, 40) || null;
     if (p === '/api/op') {
@@ -402,6 +508,7 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
     return send(res, 404, { error: 'Nicht gefunden' });
   };
 
+  refreshSb();
   const server = http.createServer(async (req, res) => {
     try {
       const host = (req.headers.host || '').toLowerCase();
@@ -423,6 +530,32 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
     }
   });
   server.keepAliveTimeout = 5000;
+  // WebSockets des Storybooks (Vite-HMR, Server-Kanal) durchreichen – mit denselben Prüfungen.
+  const tunnels = new Set();
+  server.on('upgrade', (req, socket, head) => {
+    const host = (req.headers.host || '').toLowerCase();
+    const origin = req.headers.origin;
+    const ok = sb.url && /^(127\.0\.0\.1|localhost):\d+$/.test(host) && cookies(req.headers.cookie)[`wf_${actualPort}`] === token
+      && (!origin || origin === `http://127.0.0.1:${actualPort}` || origin === `http://localhost:${actualPort}`);
+    if (!ok) { socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); return; }
+    const target = new URL(sb.url);
+    const up = net.connect(Number(target.port) || 80, hostOf(target), () => {
+      const headers = { ...forwardHeaders(req.headers, target), connection: 'Upgrade', upgrade: req.headers.upgrade || 'websocket' };
+      let raw = `${req.method} ${req.url} HTTP/1.1\r\n`;
+      for (const [k, v] of Object.entries(headers)) for (const one of [].concat(v)) raw += `${k}: ${one}\r\n`;
+      up.write(`${raw}\r\n`);
+      if (head?.length) up.write(head);
+      up.pipe(socket);
+      socket.pipe(up);
+    });
+    const pair = { socket, up };
+    tunnels.add(pair);
+    const end = () => { tunnels.delete(pair); socket.destroy(); up.destroy(); };
+    up.on('error', end);
+    socket.on('error', end);
+    up.on('close', end);
+    socket.on('close', end);
+  });
   actualPort = await listen(server, port ?? (Number(process.env.WIREFLOW_PORT) || 4870));
   const unsubscribe = bridge ? bridge.subscribe(m => broadcast('chat', m)) : () => {};
   const url = `http://127.0.0.1:${actualPort}/?t=${token}`;
@@ -433,6 +566,8 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
     root,
     close: () => new Promise(resolve => {
       unsubscribe();
+      clearInterval(sbTimer);
+      for (const t of tunnels) { t.socket.destroy(); t.up.destroy(); }
       watchers.forEach(w => w.close());
       for (const c of st.clients) c.end();
       instances.delete(root);

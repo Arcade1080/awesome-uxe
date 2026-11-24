@@ -2,7 +2,7 @@
 
 **Konzept für ein Claude-Code-Plugin: ein gemeinsamer Canvas, auf dem Teams aus ihrem Wissen über Nutzer:innen und Domain Flows entwickeln – begründet durch Research, umgesetzt mit dem eigenen Design System.**
 
-> Status: Konzeptentwurf v0.5 · Stand: 24.11.2026 · „Wireflow Studio“ ist ein Arbeitstitel
+> Status: Konzeptentwurf v0.6 · Stand: 24.11.2026 · „Wireflow Studio“ ist ein Arbeitstitel
 > Click-Dummy der Canvas-Oberfläche: [`prototype/index.html`](prototype/index.html) (im Browser öffnen)
 > Umsetzung, Stufe 1 (Einzelmodus): [`plugins/wireflow`](../../plugins/wireflow/README.md) – installierbar mit `/plugin marketplace add arcade1080/awesome-uxe` und `/plugin install wireflow@awesome-uxe`
 
@@ -344,6 +344,7 @@ Wireflow und Design teilen sich Layout, Positionen und Code: Der Wechsel tauscht
 - **Lückenkarten am Ort:** Fehlende Ja/Nein-Pfade, Sackgassen, unerreichbare Screens und fehlende Hotspots erscheinen als Karte direkt am Knoten – mit „Mit Claude entwerfen“ und einer Aktion ohne Claude (zum Beispiel „Screen anlegen“).
 - **Varianten nebeneinander:** Varianten liegen gestrichelt unter dem Original, mit Modus und Begründung. *Tauschen* macht eine Variante zum Screen im Flow (die bisherige Fassung bleibt als Variante), *Verwerfen* löscht sie.
 - **Claude bei der Arbeit sehen:** Werkzeug-Aufrufe erscheinen als Zeilen im Chat („Liest Komponente Alert“), der bearbeitete Screen leuchtet in Claude-Violett.
+- **Storybook als Renderer:** Hat das Projekt Storybook, zeigt ein eigenes Brett dessen Stories als Frames – gerendert von Storybook selbst, ohne Migration. Screens stehen als Spalten mit ihren Zuständen darunter; der Komponentenbaum kommt live aus React, Args lassen sich wie in den Controls live ändern und von Claude in den Code übernehmen. Varianten und Zustände aus dem Kontextmenü entstehen als neue Stories im Code des Projekts.
 - **Vorschläge als Geister-Elemente:** gestrichelt in Claude-Violett, mit *Annehmen · Verwerfen · Variante*. Geänderte Elemente tragen ein Diff-Badge.
 - **Begründung auf Nachfrage:** „Warum?“ zeigt die Herleitung – Manifest-Eintrag, Research-Zitat, Heuristik.
 - **„Warum?“ an jedem Element:** nicht nur bei Claude-Vorschlägen. Jedes Element zeigt seine Grundlage bis zu den Fakten – oder den Hinweis „Annahme, ungeprüft“.
@@ -874,7 +875,7 @@ Die Rechte am Repo sind die Quelle der Wahrheit: Wer das Repo lesen darf, darf e
 | Flow-Tools | Übersicht über User Flows | keine Hi-Fi-Screens aus dem eigenen DS | Wireflow und Hi-Fi auf denselben Knoten |
 | Design mit Code-Komponenten | echte Komponenten im Design | kein Journey- und Flow-Fundament, keine agentische Arbeitsweise | Komponenten plus Journey plus Agent |
 | Prompt-to-UI/-App | sehr schnelle Entwürfe | generisch, eigener Stack, selten das eigene DS, meist Einzelarbeit | geerdet im eigenen DS, gemeinsam im Team |
-| Agentische Canvas über Storybook (Community-Experimente) | ohne Migration auf bestehenden Stories, mehrere Modelle parallel, Kontextmenü am Screen | in den gezeigten Ausschnitten nicht erkennbar: Nutzerwissen, Annahmen, Entscheidungen mit Variablen; die „Journey“ ist dort eine Karte der Navigation | Wissensbasis, Entscheidungen und DS-Regeln als Prüfung; Storybook als Renderer und mehrere Modelle stehen auf der Roadmap |
+| Agentische Canvas über Storybook (Community-Experimente) | ohne Migration auf bestehenden Stories, mehrere Modelle parallel, Kontextmenü am Screen | in den gezeigten Ausschnitten nicht erkennbar: Nutzerwissen, Annahmen, Entscheidungen mit Variablen; die „Journey“ ist dort eine Karte der Navigation | Wissensbasis, Entscheidungen und DS-Regeln als Prüfung; Storybook als Renderer ist umgesetzt, mehrere Modelle stehen auf der Roadmap |
 
 **Kurz:** Der gemeinsame Canvas, auf dem Teams Flows aus echtem Nutzerwissen entwickeln – mit sichtbaren Annahmen, KI-Recherche als Impuls und dem eigenen Design System für die Umsetzung, versioniert in Git, mit den Menschen am Steuer.
 
@@ -884,10 +885,10 @@ Die Rechte am Repo sind die Quelle der Wahrheit: Wer das Repo lesen darf, darf e
 
 | Phase | Umfang | Abschlusskriterium |
 |---|---|---|
-| **Umgesetzt – Stufe 1** | Plugin [`plugins/wireflow`](../../plugins/wireflow/README.md) im Einzelmodus: Screens als Code aus dem DS, Canvas mit Design · Code · Chat, Kontextmenü, Lückenkarten, Varianten, Prototyp, Journey, Wissen, Chat über Kanal | Beispielprojekt Acme Health läuft vollständig; Tests für Code-Brücke, MCP, Kanal und Canvas |
+| **Umgesetzt – Stufe 1** | Plugin [`plugins/wireflow`](../../plugins/wireflow/README.md) im Einzelmodus: Screens als Code aus dem DS, Canvas mit Design · Code · Chat, Kontextmenü, Lückenkarten, Varianten, Prototyp, Journey, Wissen, Chat mit der laufenden Sitzung (Monitor, Kanal, Hooks), Storybook als Renderer (bestehende Stories ohne Migration) | Beispielprojekt Acme Health läuft vollständig, auch mit Storybook; Tests für Code-Brücke, MCP, Chat, Storybook und Canvas |
 | **0 – Spike** | DS-Manifest für ein Referenz-DS (Vorschlag: Primer) mit ersten Pattern-Karten, Renderer-Bundle, Raum für zwei Personen und eine Claude-Sitzung, Flow- und Screen-Tools | Zwei Personen und Claude bauen gemeinsam einen Flow mit fünf Screens aus Primer-Komponenten, mit mindestens 90 % DS-Konformität |
 | **1 – MVP** | Wissensbasis mit Annahmen-Register und Evidenz-Overlay; gemeinsamer Canvas mit Präsenz, Kommentaren, Soft-Locks und Vorschlags-Queue; DS-Manifest mit Patterns, DS-Audit und DS-Insights; Journey, pattern-gesteuerter Wireflow, Hi-Fi, Prototyp mit Variablen; Gates für DS, Patterns, A11y, Flow; „Version sichern“ als Commit; Browser-Zugang für Stakeholder | Ein Produktteam gestaltet einen echten Flow gemeinsam – von Research bis zum getesteten Prototyp, ohne Umweg über ein Design-Tool |
-| **2 – Brücken** | Recherche zu ähnlichen Lösungen (`research-scout`), Anbindung bestehender Research-Repositories, Figma-Import und -Export, visueller Diff und Preview-Link im Pull Request, `@claude` im PR über die GitHub Action, Merge-Driver, Testmodus, Ist-Flow aus Code, Companion-Pane, Code- und Playwright-Export; Storybook als Renderer (bestehende Stories ohne Migration), Verbindungen aus dem Router-Code lesen, Entwürfe sammeln und gesammelt in Code übernehmen, Kontrastprüfung mit Vorschlägen, Varianten von weiteren Modellen | Ein bestehendes Redesign läuft vollständig über den Canvas; Reviews finden im Pull Request statt |
+| **2 – Brücken** | Recherche zu ähnlichen Lösungen (`research-scout`), Anbindung bestehender Research-Repositories, Figma-Import und -Export, visueller Diff und Preview-Link im Pull Request, `@claude` im PR über die GitHub Action, Merge-Driver, Testmodus, Ist-Flow aus Code, Companion-Pane, Code- und Playwright-Export; Verbindungen aus dem Router-Code lesen (auch zwischen Storybook-Stories), Entwürfe sammeln und gesammelt in Code übernehmen, Kontrastprüfung mit Vorschlägen, Varianten von weiteren Modellen | Ein bestehendes Redesign läuft vollständig über den Canvas; Reviews finden im Pull Request statt |
 | **3 – Skalierung** | mehrere Design Systems und Marken, DS-Beiträge als Pull Request ans DS-Repo, weitere Renderer (Vue, Web Components), Enterprise-Funktionen (SSO, Audit-Log, Ende-zu-Ende-Verschlüsselung) | Mehrere Teams arbeiten auf demselben Manifest; das DS-Team plant mit DS-Insights |
 
 **Bewusst nicht im Umfang:** Vektor-Illustration, freies Pixel-Design, Marketing- und Markengestaltung. Dafür gibt es gute Werkzeuge – das Plugin verbindet sich mit ihnen, statt sie nachzubauen.

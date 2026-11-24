@@ -22,6 +22,7 @@ Ziel: Am Ende rendert der Canvas Screens aus den **echten Komponenten** des Desi
    - `tokens.files` und `tokens.modes`: `wireframe` (Graustufen) und, falls das DS ihn hat, `dark` (Dunkelmodus der Screens)
    - Patterns als Karten unter `.wireflow/ds/patterns/*.md` (Frontmatter: `id`, `name`, `status`, `ausloeser`, `regeln`; Text: wann welche Komponente, welche Zustände der Flow braucht)
 5. **Renderer prüfen.** Im Terminal `wireflow doctor` ausführen. `esbuild`, `react` und `react-dom` müssen aus dem Projekt auflösbar sein. Fehlt esbuild, der Person `npm i -D esbuild` vorschlagen (nicht ungefragt installieren).
+   - Hat das Projekt Storybook, zeigt der Canvas dessen Stories ohne Migration (Storybook-Brett). Läuft es auf einem anderen Port als 6006–6008 oder sind die Screens anders benannt als `Screens/…`, `Pages/…` bzw. Ordner `screens/`, `pages/`, in `project.json` ergänzen: `"storybook": { "url": "http://localhost:6010", "screens": ["App/Seiten/"] }`.
 6. **Bericht.** Kurz zusammenfassen: gefundene Komponenten, Patterns, Tokens, erkannte Lücken. Nächste Schritte nennen: `/wireflow:research` (Wissen erfassen), `/wireflow:journey`, `/wireflow:flow`, `/wireflow:canvas`.
 
 ## Regeln

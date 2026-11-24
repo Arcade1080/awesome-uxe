@@ -42,7 +42,7 @@ test('MCP: Handshake, Werkzeuge und Aufrufe über stdio', async () => {
     const names = list.result.tools.map(t => t.name);
     for (const n of ['project_status', 'ds_search', 'flow_edit', 'screen_edit', 'screen_write', 'knowledge_upsert', 'canvas_open', 'canvas_selection', 'canvas_reply', 'canvas_inbox', 'variant_create', 'export', 'undo']) assert.ok(names.includes(n), n);
     for (const t of list.result.tools) assert.equal(t.inputSchema.type, 'object', t.name);
-    assert.equal(names.length, 26);
+    assert.equal(names.length, 27);
 
     const status = await c.tool('project_status');
     assert.equal(status.data.designSystem.komponenten, 14);

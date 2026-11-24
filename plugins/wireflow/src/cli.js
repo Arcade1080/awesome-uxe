@@ -10,6 +10,7 @@ import { flowKnowledge, openAssumptions } from './core/knowledge.js';
 import { initProject, packageDir } from './core/init.js';
 import { loadScreen } from './core/project.js';
 import { readInbox, monitorAlive, monitorLine, writeHeartbeat, clearHeartbeat } from './mcp/bridge.js';
+import { storybookDirs, storybookStatus } from './core/storybook.js';
 
 const HELP = `wireflow – Wireflow Studio für Claude Code
 
@@ -161,7 +162,7 @@ async function monitor(args) {
 }
 
 // ---------- Doctor ----------
-function doctor(brief) {
+async function doctor(brief) {
   const root = findRoot(process.env.WIREFLOW_ROOT || undefined);
   if (!root) {
     if (!brief) console.log('Kein Wireflow-Projekt in diesem Repository. Mit /wireflow:init anlegen.');
@@ -183,6 +184,7 @@ function doctor(brief) {
   ];
   const flows = m.flows.map(f => ({ f, issues: flowIssues(f, m) }));
   const open = openAssumptions(m.knowledge);
+  const sbDirs = storybookDirs(root);
   if (brief) {
     const missing = checks.filter(c => !c[1]).map(c => c[0]);
     const issues = flows.reduce((n, x) => n + x.issues.filter(i => i.level !== 'info').length, 0);
@@ -190,6 +192,7 @@ function doctor(brief) {
       `Wireflow-Projekt „${m.project.name}“: Design System ${m.manifest.name || '–'} (${(m.manifest.components || []).length} Komponenten, ${m.patterns.length} Patterns),`,
       `${m.flows.length} Flow(s) mit ${issues} Befund(en), ${Object.keys(m.screens).length} Screens, ${m.knowledge.insights.length} Insights, ${open.length} offene Annahmen.`,
       'Screens sind Code aus echten DS-Komponenten (.wireflow/screens/*.screen.tsx). Werkzeuge: MCP-Server „wireflow“; Canvas: /wireflow:canvas.',
+      sbDirs.length ? 'Das Projekt hat Storybook: Der Canvas zeigt laufende Stories im Storybook-Brett (storybook_status).' : '',
       missing.length ? `Einrichtung unvollständig: ${missing.join(', ')} – /wireflow:init prüft das.` : '',
     ].filter(Boolean).join(' '));
     return 0;
@@ -197,6 +200,10 @@ function doctor(brief) {
   console.log(`Projekt: ${m.project.name} (${root})`);
   for (const [name, ok, detail] of checks) console.log(`${ok ? '✓' : '✗'} ${name} – ${detail}`);
   for (const { f, issues } of flows) console.log(`Flow ${f.id}: ${issues.length ? issues.map(i => `${i.level}: ${i.message}`).join('; ') : 'ohne Befund'}`);
+  if (sbDirs.length) {
+    const sb = await storybookStatus(root, m);
+    console.log(sb.verbunden ? `✓ Storybook – läuft auf ${sb.url}: ${sb.stories} Stories, ${sb.screens.length} als Screens erkannt` : `· Storybook – ${sb.hinweis}`);
+  }
   return checks.every(c => c[1]) ? 0 : 1;
 }
 
@@ -271,7 +278,7 @@ export async function main(argv) {
       return;
     }
     case 'doctor':
-      process.exitCode = doctor(args.includes('--brief'));
+      process.exitCode = await doctor(args.includes('--brief'));
       return;
     case 'hook-validate':
       process.exitCode = await hookValidate();

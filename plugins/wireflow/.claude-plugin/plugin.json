@@ -1,7 +1,7 @@
 {
   "name": "wireflow",
   "displayName": "Wireflow Studio",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Journeys, Wireflows und Prototypen aus echtem Code des eigenen Design Systems – mit Canvas, Wissensbasis zu Nutzer:innen und Claude als Co-Designer.",
   "author": {
     "name": "awesome-uxe"
