@@ -36,7 +36,7 @@
 
 1. **Der Nutzerkontext ist der Kern.** Research, Domainwissen und die Situation der Nutzer:innen bilden das Warum. Flows werden abgebildet, und jede Annahme darin wird auf User Research gegründet – oder ausdrücklich als ungeprüft markiert. Der Canvas zeigt, was bekannt ist, was nur angenommen wird und was niemand weiß. Kontext und menschliches Urteilsvermögen entscheiden über Nutzerzentrierung; Claude sammelt, verknüpft und fragt nach, erfindet aber kein Nutzerwissen.
 2. **Ein Canvas für das ganze Team, mit KI als Impulsgeber.** Design, Produkt, Entwicklung, Research und Fachexpert:innen arbeiten live auf demselben Canvas. Claude ist Teammitglied und öffnet den Blick: Es recherchiert ähnliche Lösungen und Analogien aus anderen Domains und entwickelt bewusst unterschiedliche Konzeptrichtungen – mit Quellen.
-3. **Das Design System ist die Basis, Designs sind echter Code.** Man verknüpft sein Design System; daraus entsteht ein kuratiertes DS-Manifest aus Foundations, Tokens, Komponenten und Patterns. Jeder Screen ist ein Screen-Modul – TSX aus den echten Komponenten, so wie es auch in der App laufen kann. Patterns bestimmen, welche Zustände ein Flow braucht.
+3. **Das Design System ist die Basis, Designs sind echter Code.** Man verknüpft sein Design System; daraus entsteht ein kuratiertes DS-Manifest aus Foundations, Tokens, Komponenten und Patterns. Jeder Screen ist ein Screen-Modul – TSX aus den echten Komponenten, so wie es auch in der App laufen kann. Gestaltet wird direkt mit diesen Komponenten: von Hand auf dem Canvas angeordnet oder von Claude komponiert. Patterns bestimmen, welche Zustände ein Flow braucht.
 
 **Der Grundablauf:** Design System verknüpfen → explorieren → Flows erstellen → prototypen. Ab dem ersten Schritt ist alles auf dem Canvas echter Code, und jeder Schritt ist im Nutzerkontext begründet.
 
@@ -211,6 +211,7 @@ Dazu kommen:
 Der Canvas ist der gemeinsame Arbeitsort des Teams. Alle sehen live denselben Stand – Menschen im Browser oder über Claude Code, Claude-Sitzungen als Teilnehmende.
 
 - **Team live:** Avatare, Live-Cursor, Auswahl in Personenfarben, „Folgen“-Modus, Soft-Locks („Lisa bearbeitet …“), Kommentar-Pins mit Erwähnungen und eine gemeinsame Vorschlags-Queue für alle Claude-Vorschläge. Details in [Kapitel 11](#11-zusammenarbeit-im-team).
+- **Mit dem Design System gestalten:** Komponenten aus der Bibliothek auf einen Screen ziehen, anordnen, duplizieren und im Inspector einstellen – jede Aktion ist eine Änderung am echten Code. Ablagezonen zeigen nur erlaubte Stellen, Patterns lassen sich als fertige Bausteine einfügen, und Richtlinien des Design Systems melden sich live (etwa „höchstens eine primäre Aktion pro Screen“). Details in der [Vertiefung Design als Code](design-als-code.md#6-mit-dem-design-system-gestalten).
 - Unendlicher Canvas mit Zoom und Pan, Frames, Sections, Verbindungen, Kommentaren und Minimap.
 - **Links:** Ebenen (Flow → Screens → Komponentenbaum), Komponenten (aus dem DS-Manifest, per Drag & Drop), Tokens.
 - **Rechts – Inspector** mit vier Tabs:
@@ -321,7 +322,7 @@ Der [Click-Dummy](prototype/index.html) zeigt die Oberfläche interaktiv: Modi w
 |---|---|---|---|
 | **Journey** | Wissensbasis, Phasen × Lanes, Emotionskurve, Pain Points mit Belegen, Annahmen und offene Fragen | Karte, Lane, Verknüpfen | „Synthetisiere die Interviews“, „Was wissen wir nicht?“, „Wie lösen andere das?“ |
 | **Wireflow** | Screens im Token-Modus „wireframe“, Verbindungen, Entscheidungen | Screen, Verbindung, Entscheidung, Notiz | „Ergänze Fehlerzustände“, „Prüfe auf Sackgassen“, „Ordne neu an“ |
-| **Design** | dieselben Screens in Hi-Fi mit echten DS-Komponenten | Komponente einfügen, Auto-Layout, Tokens | „Erzeuge Hi-Fi“, „Variante B“, „Prüfe den Dark Mode“ |
+| **Design** | dieselben Screens in Hi-Fi mit echten DS-Komponenten | Komponenten ziehen und anordnen, Props, Auto-Layout, Tokens, Patterns als Bausteine | „Erzeuge Hi-Fi“, „Variante B“, „Prüfe den Dark Mode“ |
 | **Prototyp** | Gerät mit klickbarem Flow, Variablen | Abspielen, Hotspots, Testaufgabe | „Spiele den Walkthrough als Persona“, „Erstelle Testaufgaben“ |
 
 Wireflow und Design teilen sich Layout, Positionen und Code: Der Wechsel tauscht nur den Token-Modus, keine Datei.
@@ -893,6 +894,7 @@ Die Rechte am Repo sind die Quelle der Wahrheit: Wer das Repo lesen darf, darf e
 | Uneinheitliche oder schlecht dokumentierte Design Systems | schwache Zuordnung Intent → Komponente | Kuratierungsschritt, Konfidenzwerte, manuelle Zuordnung im Manifest, Storybook als Referenz |
 | Projektcode zu rendern ist komplex (Monorepos, Provider, CSS-in-JS, Fonts) | Renderer startet nicht | Adapter-Konfiguration, Provider-Wrapper, `wireflow doctor`, Token-Renderer als Fallback |
 | Viele Live-Frames bremsen den Canvas | träge Bedienung | Level of Detail mit Screenshots, Virtualisierung, Rendern bei Bedarf |
+| Gewohnheiten aus Zeichen-Tools (frei platzieren, Komponenten auflösen) | Frust beim Umstieg | Skizzen-Ebene für freie Ideen, Layout-Komponenten mit guten Voreinstellungen, Claude ordnet auf Zuruf an |
 | Rundreise Canvas ↔ Code bricht bei freiem Code | Teile sind auf dem Canvas nicht bearbeitbar | Regeln für Screen-Module; Code-Blöcke werden angezeigt und markiert, aber nicht verändert |
 | Bauzeiten bei vielen Screen-Modulen | träger Canvas | inkrementelle Builds, Caching, Rendern nur sichtbarer Screens |
 | Qualität, Kosten, Latenz der Generierung | Frust, Budget | validierte IR, inkrementelle Updates, Caching, Budget pro Aktion |

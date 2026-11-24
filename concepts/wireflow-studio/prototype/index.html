@@ -75,10 +75,14 @@ svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-wid
 .tree .l1{padding-left:20px}.tree .l2{padding-left:38px}
 .tree em{margin-left:auto;font-style:normal;color:var(--muted)}
 .tree .aiTxt{color:var(--ai)}
-.comp{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:6px 8px;border:1px solid transparent;border-radius:7px;background:none;text-align:left}
+.comp{display:flex;align-items:center;gap:6px;width:100%;padding:2px 4px 2px 4px;border:1px solid transparent;border-radius:7px;cursor:grab}
 .comp:hover{background:var(--panel2)}
-.comp[aria-pressed=true]{border-color:var(--sel);background:var(--sel-soft)}
-.comp em{font-style:normal;color:var(--muted)}
+.comp.on{border-color:var(--sel);background:var(--sel-soft)}
+.comp .cn{flex:1;display:flex;align-items:center;gap:6px;min-height:32px;padding:0 2px;border:0;background:none;text-align:left}
+.comp .cn .ic{color:var(--muted)}
+.comp em{font-style:normal;color:var(--muted);white-space:nowrap}
+.cadd{display:grid;place-items:center;width:28px;height:28px;flex:none;border:1px solid var(--line);border-radius:6px;background:var(--panel);font-size:16px;line-height:1}
+.cadd:hover{border-color:var(--sel);color:var(--sel)}
 .gapc{padding:8px 10px;margin-top:6px;border:1px dashed var(--warn);border-radius:8px;color:var(--warn);background:var(--warn-soft)}
 .search{width:100%;height:34px;margin:4px 0 2px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:16px}
 .tokrow{display:flex;align-items:center;gap:10px;padding:4px 0}
@@ -315,6 +319,16 @@ blockquote small{display:block;font-style:normal}
 .issue>span{flex:none}
 .ptask .pdesc{display:block}
 .btn .ic,.sug .ic{width:15px;height:15px}
+.fld2{display:grid;gap:4px;margin:8px 0}
+.fld2 label{color:var(--muted)}
+.fld2 input,.fld2 select{width:100%;height:34px;padding:0 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:16px}
+.acts2{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.dropline{position:absolute;left:12px;right:12px;height:calc(3px*var(--iz));margin-top:calc(-1.5px*var(--iz));border-radius:2px;background:var(--sel);box-shadow:0 0 0 calc(2px*var(--iz)) rgb(47 107 255/.25);pointer-events:none;z-index:6}
+.el.dragging{opacity:.35}
+.stage.dropok{box-shadow:inset 0 0 0 2px var(--sel)}
+.hifi .alert.info{border-color:#bcd8f0;background:#eef6fd;color:#1d3b57}
+.hifi .alert.info svg{color:#1f6fb2}
+.hifi .alert.info b{color:#16416a}
 [hidden]{display:none!important}
 @media (max-width:1180px){.work{grid-template-columns:220px minmax(0,1fr) 272px}.crumb{display:none}}
 @media (max-width:900px){
@@ -466,13 +480,14 @@ const PATHS = {
   journey: '<path d="M2.5 14c3 0 3-8 7.5-8s4.5 8 7.5 8"/>',
   comp: '<path d="M10 2.5l2.8 2.8L10 8.1 7.2 5.3zM10 11.9l2.8 2.8-2.8 2.8-2.8-2.8zM5.3 7.2l2.8 2.8-2.8 2.8L2.5 10zM14.7 7.2l2.8 2.8-2.8 2.8-2.8-2.8z"/>',
   layer: '<path d="M3 6.5h14M3 10h14M3 13.5h9"/>',
+  grip: '<g fill="currentColor" stroke="none"><circle cx="7.5" cy="5" r="1.3"/><circle cx="12.5" cy="5" r="1.3"/><circle cx="7.5" cy="10" r="1.3"/><circle cx="12.5" cy="10" r="1.3"/><circle cx="7.5" cy="15" r="1.3"/><circle cx="12.5" cy="15" r="1.3"/></g>',
 };
 const ic = n => `<svg class="ic" viewBox="0 0 20 20" aria-hidden="true">${PATHS[n] || ''}</svg>`;
 const SBI = '<svg width="17" height="11" viewBox="0 0 17 11" aria-hidden="true"><rect y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" width="3" height="11" rx="1" fill="currentColor"/></svg><svg width="15" height="11" viewBox="0 0 15 11" aria-hidden="true"><path d="M7.5 10.6l2-2.3a3 3 0 0 0-4 0z" fill="currentColor"/><path d="M3.6 6.3a5.6 5.6 0 0 1 7.8 0M1.3 3.8a9 9 0 0 1 12.4 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><svg width="25" height="12" viewBox="0 0 25 12" aria-hidden="true"><rect x=".5" y=".5" width="21" height="11" rx="3" fill="none" stroke="currentColor" opacity=".45"/><rect x="2" y="2" width="16" height="8" rx="2" fill="currentColor"/><rect x="22.5" y="4" width="1.8" height="4" rx=".9" fill="currentColor" opacity=".45"/></svg>';
 
 /* Design System „Acme UI“ – Auszug aus dem DS-Manifest (fiktiv) */
 const TOK = {
-  color: [['color.action.primary', '#0B6E79'], ['color.action.primary-subtle', '#E6F2F3'], ['color.text.default', '#0F1A1C'], ['color.text.muted', '#5B6B70'], ['color.text.subtle', '#7C8A8E'], ['color.surface.default', '#FFFFFF'], ['color.border.default', '#C9D4D6'], ['color.border.subtle', '#E1E8EA'], ['color.feedback.success', '#1F7A4D'], ['color.feedback.success-subtle', '#E7F5EE'], ['color.feedback.danger', '#B42318'], ['color.feedback.danger-subtle', '#FDECEA']],
+  color: [['color.action.primary', '#0B6E79'], ['color.action.primary-subtle', '#E6F2F3'], ['color.text.default', '#0F1A1C'], ['color.text.muted', '#5B6B70'], ['color.text.subtle', '#7C8A8E'], ['color.surface.default', '#FFFFFF'], ['color.border.default', '#C9D4D6'], ['color.border.subtle', '#E1E8EA'], ['color.feedback.success', '#1F7A4D'], ['color.feedback.success-subtle', '#E7F5EE'], ['color.feedback.danger', '#B42318'], ['color.feedback.danger-subtle', '#FDECEA'], ['color.feedback.info', '#1F6FB2'], ['color.feedback.info-subtle', '#EEF6FD']],
   space: [['space.1', 4], ['space.2', 8], ['space.3', 12], ['space.4', 16], ['space.6', 24]],
   radius: [['radius.sm', 10], ['radius.md', 12], ['radius.lg', 14], ['radius.full', 999]],
   type: [['text.title', '22/28 · 700'], ['text.heading', '17/22 · 600'], ['text.body', '15/22 · 400'], ['text.label', '13/18 · 600']],
@@ -622,7 +637,7 @@ function elHTML(e, sid, o) {
     case 'chips': h = `${e.label ? `<label>${esc(e.label)}</label>` : ''}<div class="chips">${e.options.map(x => `<span class="chip${x === e.value ? ' on' : ''}">${esc(x)}</span>`).join('')}</div>`; break;
     case 'bt': h = `<div class="bt ${e.variant}">${esc(e.label)}</div>`; break;
     case 'card': h = `<div class="card"><div class="av">${esc(e.initials)}</div><div class="grow"><b>${esc(e.title)}</b><div class="sub">${esc(e.sub)}</div>${e.meta ? `<div class="meta">${esc(e.meta)}</div>` : ''}${e.badge ? `<span class="badge">${esc(e.badge)}</span>` : ''}</div></div>`; break;
-    case 'alert': h = `<div class="alert">${ic('warn')}<div><b>${esc(e.title)}</b>${esc(e.text)}</div></div>`; break;
+    case 'alert': h = `<div class="alert${e.tone === 'info' ? ' info' : ''}">${ic('warn')}<div><b>${esc(e.title)}</b>${esc(e.text)}</div></div>`; break;
     case 'sum': h = `<div class="sum">${e.rows.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>`; break;
     case 'cb': h = `<div class="cb"><i>${ic('check')}</i><span>${esc(e.label)}</span></div>`; break;
     case 'ok': h = `<div class="okx"><i>${ic('check')}</i><h2>${esc(e.title)}</h2><div class="tx"><span>${esc(e.text)}</span></div></div>`; break;
@@ -778,7 +793,7 @@ function compsList() {
   let h = '';
   for (const [g, list] of COMPS) {
     const items = list.filter(c => !f || c.toLowerCase().includes(f));
-    if (items.length) h += `<div class="grp">${g}</div>` + items.map(c => `<button class="comp" data-comp="${c}" aria-pressed="${state.comp === c}"><span>${c}</span><em>${m[c] ? m[c] + '×' : 'ungenutzt'}</em></button>`).join('');
+    if (items.length) h += `<div class="grp">${g}</div>` + items.map(c => `<div class="comp${state.comp === c ? ' on' : ''}" draggable="true" data-dragcomp="${c}"><button class="cn" data-comp="${c}" aria-pressed="${state.comp === c}" title="Alle Instanzen markieren">${ic('grip')}<span>${c}</span></button><em>${m[c] ? m[c] + '×' : 'ungenutzt'}</em><button class="cadd" data-insert="${c}" aria-label="${c} einfügen" title="Nach der Auswahl einfügen">+</button></div>`).join('');
   }
   if (!h) h = '<p class="hint">Keine Komponente gefunden.</p>';
   const gaps = {};
@@ -786,7 +801,7 @@ function compsList() {
   return h + '<div class="grp">DS-Lücken</div>' + Object.entries(gaps).map(([k, v]) => `<div class="gapc">${esc(k)} · ${v}×</div>`).join('');
 }
 function compsPanel() {
-  return `<p class="hint">Acme UI (Auszug aus 48 Komponenten) – gelesen aus Code, Storybook und Tokens.</p><input class="search" id="cfilter" type="search" placeholder="Komponente suchen" value="${esc(state.filter)}" aria-label="Komponente suchen"><div id="clist">${compsList()}</div><p class="hint">Klick markiert alle Instanzen auf dem Canvas.</p>`;
+  return `<p class="hint">Acme UI (Auszug aus 48 Komponenten) – gelesen aus Code, Storybook und Tokens.</p><input class="search" id="cfilter" type="search" placeholder="Komponente suchen" value="${esc(state.filter)}" aria-label="Komponente suchen"><div id="clist">${compsList()}</div><p class="hint">Komponente auf einen Screen ziehen oder mit + nach der Auswahl einfügen. Klick auf den Namen markiert alle Instanzen.</p>`;
 }
 function tokensPanel() {
   const row = (lead, n, v) => `<div class="tokrow">${lead}<div class="tk"><code>${n}</code><small>${v}</small></div></div>`;
@@ -844,6 +859,7 @@ function qaHTML(ids, flowLevel) {
   const hasA = ids.some(id => SCR[id].els.some(x => x.a11y));
   if (hasA && state.a11y === 'flagged') issues.push(['warn', 'Kontrast', `Metatext in Karten: ${sub}:1, nötig sind 4,5:1.`, '<button class="lnk" data-cact="fix">Fix übernehmen</button>']);
   ids.forEach(id => SCR[id].els.filter(x => x.gap).forEach(x => issues.push([x.free ? 'warn' : 'info', 'DS-Lücke', `${esc(SCR[id].title)}: ${esc(x.gap)}`, ''])));
+  ids.forEach(id => { const n = SCR[id].els.filter(x => x.t === 'bt' && x.variant === 'primary').length; if (n > 1) issues.push(['warn', 'Button-Richtlinie', `${esc(SCR[id].title)}: ${n} primäre Aktionen – Acme UI empfiehlt höchstens eine pro Screen.`, '']); });
   let h = `<div class="sec"><h3>DS-Konformität <span class="tag ${ds.pct >= 95 ? 'ok' : 'warn'}">${ds.pct} %</span></h3><div class="meter"><i style="width:${ds.pct}%"></i></div><p class="hint">${ds.d} von ${ds.n} Elementen sind Komponenten aus Acme UI.</p></div>`;
   const at = { fixed: '<span class="tag ok">bestanden</span>', flagged: '<span class="tag warn">1 Befund</span>', ignored: '<span class="tag warn">1 ignoriert</span>', open: '<span class="tag">nicht geprüft</span>' }[state.a11y];
   h += `<div class="sec"><h3>Barrierefreiheit ${at}</h3>${state.a11y === 'open' ? `<p class="hint">WCAG 2.2 AA: Kontrast, Zielgrößen, Fokus, Labels.</p><button class="btn sm ai" data-run="a11y">${ic('spark')}Prüfen lassen</button>` : `<div class="row"><span>Kontrast</span><span>${state.a11y === 'fixed' ? 'ok' : sub + ':1 bei Metatext'}</span></div><div class="row"><span>Zielgrößen</span><span>ok (mind. 24 px)</span></div><div class="row"><span>Fokus</span><span>ok</span></div>`}</div>`;
@@ -862,6 +878,7 @@ function screenDesign(sid) {
 const ETOK = { ab: ['text.heading', 'color.text.default', 'color.action.primary'], h: ['text.title', 'color.text.default'], tx: ['text.body', 'color.text.muted'], field: ['text.label', 'color.border.default', 'radius.sm'], select: ['text.label', 'color.border.default', 'radius.sm'], chips: ['color.action.primary', 'color.border.default', 'radius.full'], card: ['color.border.subtle', 'radius.lg', 'space.3', 'color.feedback.success-subtle'], alert: ['color.feedback.danger-subtle', 'color.feedback.danger', 'radius.md'], sum: ['color.border.subtle', 'radius.lg', 'color.text.muted'], cb: ['color.action.primary', 'radius.sm'] };
 function etoks(e) {
   if (e.t === 'bt') return e.variant === 'primary' ? ['color.action.primary', 'radius.md', 'text.body'] : e.variant === 'secondary' ? ['color.action.primary-subtle', 'color.action.primary', 'radius.md'] : ['color.action.primary', 'text.body'];
+  if (e.t === 'alert' && e.tone === 'info') return ['color.feedback.info-subtle', 'color.feedback.info', 'radius.md'];
   if (e.t === 'card' && e.meta) return ETOK.card.concat(metaTok());
   return ETOK[e.t] || [];
 }
@@ -880,9 +897,21 @@ function propsOf(e) {
   if (e.t === 'ok') r.push(['title', e.title], ['text', e.text]);
   return r;
 }
+const EDIT = { bt: [['variant', 'enum', ['primary', 'secondary', 'ghost']], ['label', 'text']], h: [['text', 'text']], tx: [['text', 'text']], field: [['label', 'text'], ['value', 'text']], select: [['label', 'text'], ['value', 'text']], chips: [['label', 'text'], ['options', 'list'], ['value', 'option']], card: [['title', 'text'], ['sub', 'text'], ['meta', 'text'], ['badge', 'text']], alert: [['tone', 'enum', ['danger', 'info']], ['title', 'text'], ['text', 'text']], cb: [['label', 'text']], ab: [['title', 'text'], ['sub', 'text']], ok: [['title', 'text'], ['text', 'text']] };
+function propControls(e) {
+  const spec = EDIT[e.t];
+  if (!spec) return '<p class="hint">Keine bearbeitbaren Props.</p>';
+  return spec.map(([k, kind, opts]) => {
+    const id = `p_${k}`, lab = `<label for="${id}">${k === 'sub' ? 'subtitle' : k}</label>`;
+    if (kind === 'enum') { const cur = e[k] || opts[0]; return `<div class="fld2">${lab}<select id="${id}" data-prop="${k}">${opts.map(o => `<option${o === cur ? ' selected' : ''}>${o}</option>`).join('')}</select></div>`; }
+    if (kind === 'option') return `<div class="fld2">${lab}<select id="${id}" data-prop="${k}">${e.options.map(o => `<option${o === e.value ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+    const v = kind === 'list' ? (e[k] || []).join(', ') : e[k] == null ? '' : e[k];
+    return `<div class="fld2">${lab}<input id="${id}" data-prop="${k}" data-kind="${kind}" value="${esc(v)}" autocomplete="off"></div>`;
+  }).join('');
+}
 function elDesign(sid, e) {
   const inDS = e.c && !e.free, ts = etoks(e);
-  let h = `<div class="sec"><h3>${ic(inDS ? 'comp' : 'warn')}${esc(e.c || 'Freies Element')}<span class="tag ${inDS ? 'ok' : 'warn'}">${inDS ? 'Acme UI' : 'nicht im DS'}</span></h3><div class="row"><span>Screen</span><button class="lnk" data-node="${sid}">${esc(SCR[sid].title)}</button></div><div class="row"><span>Intent</span><span class="tok">${esc(e.intent)}</span></div>${propsOf(e).map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}</div>`;
+  let h = `<div class="sec"><h3>${ic(inDS ? 'comp' : 'warn')}${esc(e.c || 'Freies Element')}<span class="tag ${inDS ? 'ok' : 'warn'}">${inDS ? 'Acme UI' : 'nicht im DS'}</span></h3><div class="row"><span>Screen</span><button class="lnk" data-node="${sid}">${esc(SCR[sid].title)}</button></div><div class="row"><span>Intent</span><span class="tok">${esc(e.intent)}</span></div></div><div class="sec"><h3>Props</h3>${propControls(e)}</div><div class="sec"><h3>Anordnen</h3><div class="acts2"><button class="btn sm" data-move="-1">Nach oben</button><button class="btn sm" data-move="1">Nach unten</button><button class="btn sm" data-dup="1">Duplizieren</button><button class="btn sm" data-del="1">Löschen</button></div><p class="hint">Im Screen ziehen ordnet um · Alt + ↑/↓ · Strg/⌘ + D · Entf · Strg/⌘ + Z</p></div>`;
   h += `<div class="sec"><h3>Tokens</h3>${ts.length ? ts.map(t => `<div style="margin:4px 0">${tok(t)}</div>`).join('') : '<p class="hint">Freie Werte, keine Tokens.</p>'}</div>`;
   if (e.gap) h += `<div class="sec"><h3>DS-Lücke</h3><div class="gapc">${esc(e.gap)}</div><p class="hint">Landet im Lücken-Report für das DS-Team.</p></div>`;
   if (e.a11y && state.a11y === 'flagged') h += `<div class="sec"><h3><span style="color:var(--warn)">${ic('warn')}</span>Kontrast</h3><p style="margin:0 0 8px">Metatext ${fmt(ratio(HEX['color.text.subtle']))}:1 auf Weiß, nötig sind 4,5:1.</p><button class="btn sm ai" data-cact="fix">Token tauschen: color.text.muted (${fmt(ratio(HEX['color.text.muted']))}:1)</button></div>`;
@@ -917,7 +946,7 @@ function jsxRaw(e, ind, acts) {
     case 'chips': return `${ind}<ChipGroup${e.label ? a('label', e.label) : ''}${a('value', e.value)}\n${ind}  options={[${e.options.map(o => `'${o}'`).join(', ')}]} />`;
     case 'bt': return `${ind}<Button${a('variant', e.variant)} size="lg"${acts && acts[e.id] ? ` onPress={flow.trigger('${e.id}')}` : ''}>${e.label}</Button>`;
     case 'card': return `${ind}<Card${a('title', e.title)}${a('subtitle', e.sub)}${e.meta ? a('meta', e.meta) : ''}${e.badge ? a('badge', e.badge) : ''}\n${ind}  media={<Avatar initials="${e.initials}" />} />`;
-    case 'alert': return `${ind}<Alert tone="danger"${a('title', e.title)}>${e.text}</Alert>`;
+    case 'alert': return `${ind}<Alert tone="${e.tone || 'danger'}"${a('title', e.title)}>${e.text}</Alert>`;
     case 'sum': return `${ind}<SummaryList items={[\n${e.rows.map(([k, v]) => `${ind}  ['${k}', '${v}'],`).join('\n')}\n${ind}]} />`;
     case 'cb': return `${ind}<Checkbox${a('label', e.label)} defaultChecked />`;
     case 'ok': return `${ind}{/* Freies Element – DS-Lücke */}\n${ind}<SuccessIllustration${a('title', e.title)} />`;
@@ -1040,14 +1069,14 @@ function renderWorld(anim) {
   refreshSel();
 }
 function select(s) { state.sel = s; refreshSel(); }
-function refreshSel() {
+function refreshSel() { applySel(); drawEdges(); renderLeft(); renderRight(); renderCtx(); renderSugs(); }
+function applySel() {
   const s = state.sel;
   $$('.node', world).forEach(n => n.classList.toggle('sel', !!s && s.k !== 'card' && s.id === n.dataset.id));
   $$('.esel', world).forEach(x => x.classList.remove('esel'));
   if (s && s.k === 'el') { const x = world.querySelector(`.node[data-id="${s.id}"] [data-el="${s.el}"]`); if (x) x.classList.add('esel'); }
   $$('.jc.sel', world).forEach(x => x.classList.remove('sel'));
   if (s && s.k === 'card') { const x = world.querySelector(`[data-card="${s.id}"]`); if (x) x.classList.add('sel'); }
-  drawEdges(); renderLeft(); renderRight(); renderCtx(); renderSugs();
 }
 function setMode(m) {
   if (state.mode === m) return;
@@ -1086,6 +1115,11 @@ stage.addEventListener('pointerdown', e => {
   const v = curView(), nodeEl = e.target.closest('.node');
   if (!v) return;
   const pan = state.tool === 'hand' || spaceDown || e.button === 1 || state.mode === 'journey' || !nodeEl;
+  const elEl = e.target.closest('.el'), s0 = state.sel, se = s0 && s0.k === 'el' ? elOf(s0.id, s0.el) : null;
+  if (!pan && elEl && se && se.t !== 'ab' && s0.id === nodeEl.dataset.id && s0.el === elEl.dataset.el) {
+    drag = { sx: e.clientX, sy: e.clientY, vx: v.x, vy: v.y, moved: false, elMove: { sid: s0.id, id: s0.el }, target: e.target };
+    return;
+  }
   drag = { sx: e.clientX, sy: e.clientY, vx: v.x, vy: v.y, moved: false, pan, node: pan ? null : nodeEl.dataset.id, target: e.target };
   if (drag.node) { drag.nx = NODE[drag.node].x; drag.ny = NODE[drag.node].y; }
 });
@@ -1102,6 +1136,7 @@ stage.addEventListener('pointermove', e => {
   const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
   if (!drag.moved && Math.hypot(dx, dy) < 4) return;
   drag.moved = true;
+  if (drag.elMove) { const x = world.querySelector(`.node[data-id="${drag.elMove.sid}"] [data-el="${drag.elMove.id}"]`); if (x) x.classList.add('dragging'); drag.idx = showDropAt(drag.elMove.sid, e.clientY, drag.elMove.id); return; }
   if (drag.pan) { stage.classList.add('grabbing'); setView({ z: curView().z, x: drag.vx + dx, y: drag.vy + dy }); }
   else if (drag.node) {
     const z = curView().z, n = NODE[drag.node], el = world.querySelector(`.node[data-id="${n.id}"]`);
@@ -1117,10 +1152,11 @@ function endPtr(e) {
   stage.classList.remove('grabbing');
   const d = drag;
   drag = null;
+  if (d && d.elMove) { clearDrop(); if (d.moved && d.idx != null) moveTo(d.elMove.sid, d.elMove.id, d.idx); else if (!d.moved) clickAt(d.target); return; }
   if (d && !d.moved) clickAt(d.target);
 }
 stage.addEventListener('pointerup', endPtr);
-stage.addEventListener('pointercancel', e => { pts.delete(e.pointerId); drag = null; pinch = null; stage.classList.remove('grabbing'); });
+stage.addEventListener('pointercancel', e => { pts.delete(e.pointerId); drag = null; pinch = null; stage.classList.remove('grabbing'); clearDrop(); });
 stage.addEventListener('wheel', e => {
   if (state.mode === 'proto') return;
   e.preventDefault();
@@ -1335,6 +1371,10 @@ function panelClick(e) {
   const b = e.target.closest('button');
   if (!b) return;
   const d = b.dataset;
+  if (d.insert) { insertFromPanel(d.insert); return; }
+  if (d.move) { moveSel(+d.move); return; }
+  if (d.dup) { dupSel(); return; }
+  if (d.del) { delSel(); return; }
   if ('node' in d) { if (!d.node) select(null); else { if (state.mode !== 'wire' && state.mode !== 'design') setMode('design'); select(d.el ? { k: 'el', id: d.node, el: d.el } : { k: 'node', id: d.node }); revealNode(d.node); } return; }
   if (d.gomode) { setMode(d.gomode); return; }
   if (d.todo) { toast('„Folgetermin buchen“ ist ein Entwurf – im Plugin öffnet er sich als eigener Flow.'); return; }
@@ -1398,6 +1438,10 @@ $('#tgR').addEventListener('click', () => toggleDrawer('r'));
 document.addEventListener('keydown', e => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('#cin').focus(); return; }
+  const board = state.mode === 'wire' || state.mode === 'design';
+  if (!typing && board && (e.metaKey || e.ctrlKey) && !e.altKey) { const kk = e.key.toLowerCase(); if (kk === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; } if (kk === 'd') { e.preventDefault(); dupSel(); return; } }
+  if (!typing && board && e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); moveSel(e.key === 'ArrowUp' ? -1 : 1); return; }
+  if (!typing && board && (e.key === 'Delete' || e.key === 'Backspace') && state.sel && state.sel.k === 'el') { e.preventDefault(); delSel(); return; }
   if (e.key === 'Escape') {
     if (!$('#dlgw').hidden) { closeDlg(); return; }
     if (!menu.hidden) { closeMenu(); return; }
@@ -1425,6 +1469,158 @@ const stageRO = new ResizeObserver(() => {
 });
 stageRO.observe(stage);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (state.mode === 'wire' || state.mode === 'design') drawEdges(); });
+
+/* ---------- Mit dem Design System gestalten ---------- */
+let uid = 0, dragComp = null, dropTarget = null;
+const hist = [];
+const NEWEL = {
+  Button: () => ({ t: 'bt', c: 'Button', intent: 'action.secondary', label: 'Neue Aktion', variant: 'secondary' }),
+  TextField: () => ({ t: 'field', c: 'TextField', intent: 'input.text', label: 'Neues Feld', value: 'Eingabe' }),
+  Select: () => ({ t: 'select', c: 'Select', intent: 'input.choice', label: 'Auswahl', value: 'Bitte wählen' }),
+  ChipGroup: () => ({ t: 'chips', c: 'ChipGroup', intent: 'input.choice.single', label: 'Optionen', options: ['Eins', 'Zwei', 'Drei'], value: 'Eins' }),
+  Checkbox: () => ({ t: 'cb', c: 'Checkbox', intent: 'input.toggle', label: 'Option' }),
+  Card: () => ({ t: 'card', c: 'Card', intent: 'entity.summary', initials: 'NK', title: 'Neue Karte', sub: 'Untertitel' }),
+  SummaryList: () => ({ t: 'sum', c: 'SummaryList', intent: 'content.summary', rows: [['Feld', 'Wert'], ['Feld', 'Wert']] }),
+  Alert: () => ({ t: 'alert', c: 'Alert', intent: 'feedback.info', tone: 'info', title: 'Hinweis', text: 'Kurze Erklärung.' }),
+  Heading: () => ({ t: 'h', c: 'Heading', intent: 'content.title', text: 'Überschrift' }),
+  Text: () => ({ t: 'tx', c: 'Text', intent: 'content.text', text: 'Kurzer Text' }),
+  AppBar: () => ({ t: 'ab', c: 'AppBar', intent: 'navigation.back', title: 'Titel' }),
+};
+function newEl(name) { const f = NEWEL[name]; if (!f) return null; const e = f(); e.id = `${e.t}_${++uid}`; return e; }
+function snapshot() { const j = JSON.stringify(SCR); if (hist[hist.length - 1] !== j) { hist.push(j); if (hist.length > 60) hist.shift(); } }
+function undo() {
+  const cur = JSON.stringify(SCR);
+  let prev = null;
+  while (hist.length && (prev = hist.pop()) === cur) prev = null;
+  if (!prev) { toast('Nichts zum Rückgängigmachen.'); return; }
+  const o = JSON.parse(prev);
+  Object.keys(SCR).forEach(k => { SCR[k] = o[k]; });
+  if (state.sel && state.sel.k === 'el' && !elOf(state.sel.id, state.sel.el)) state.sel = { k: 'node', id: state.sel.id };
+  renderWorld();
+  toast('Rückgängig gemacht.');
+}
+const bodyEls = sid => SCR[sid].els.filter(x => x.t !== 'ab');
+function redrawBoard() { if (state.mode !== 'wire' && state.mode !== 'design') return; renderBoard(); applySel(); drawEdges(); }
+function clearDrop() { $$('.dropline', world).forEach(x => x.remove()); $$('.el.dragging', world).forEach(x => x.classList.remove('dragging')); }
+function showDropAt(sid, y, exclude) {
+  const node = world.querySelector(`.node[data-id="${sid}"]`), fr = node && node.querySelector('.frame'), body = fr && fr.querySelector('.body');
+  if (!body) return null;
+  const kids = [...body.children].filter(c => !(c.dataset && c.dataset.el === exclude && exclude));
+  let idx = kids.length;
+  for (let i = 0; i < kids.length; i++) { const r = kids[i].getBoundingClientRect(); if (y < r.top + r.height / 2) { idx = i; break; } }
+  const last = kids[kids.length - 1];
+  const top = idx < kids.length ? offIn(kids[idx], fr).y - 6 : last ? offIn(last, fr).y + last.offsetHeight + 6 : offIn(body, fr).y + 8;
+  let line = fr.querySelector('.dropline');
+  if (!line) { line = document.createElement('div'); line.className = 'dropline'; fr.appendChild(line); }
+  line.style.top = top + 'px';
+  return idx;
+}
+function insertAt(sid, name, idx) {
+  const e = newEl(name), els = SCR[sid].els;
+  if (!e) { toast(`„${name}“ hat im Click-Dummy keine Vorschau – im Plugin kommt jede Komponente aus dem Design System.`); return; }
+  if (e.t === 'ab' && els.some(x => x.t === 'ab')) { toast('Dieser Screen hat schon eine AppBar.'); return; }
+  snapshot();
+  if (e.t === 'ab') els.unshift(e);
+  else { const be = bodyEls(sid); els.splice(idx >= be.length ? els.length : els.indexOf(be[idx]), 0, e); }
+  state.sel = { k: 'el', id: sid, el: e.id }; state.rtab = 'design';
+  renderWorld(); revealNode(sid);
+  toast(`${name} eingefügt – im Code jetzt <${name}> aus @acme/ui.`);
+}
+function insertFromPanel(name) {
+  if (state.mode !== 'wire' && state.mode !== 'design') setMode('design');
+  const s = state.sel;
+  if (!s || s.k === 'card' || NODE[s.id].type !== 'screen') { toast('Zuerst einen Screen auswählen – oder die Komponente direkt auf einen Screen ziehen.'); return; }
+  const be = bodyEls(s.id);
+  let idx;
+  if (s.k === 'el') { const i = be.findIndex(x => x.id === s.el); idx = i < 0 ? 0 : i + 1; }
+  else { const g = be.findIndex(x => x.t === 'grow'); idx = g < 0 ? be.length : g; }
+  insertAt(s.id, name, idx);
+}
+function moveTo(sid, id, idx) {
+  const els = SCR[sid].els, i = els.findIndex(x => x.id === id);
+  if (i < 0) return;
+  snapshot();
+  const it = els.splice(i, 1)[0], be = els.filter(x => x.t !== 'ab');
+  els.splice(idx >= be.length ? els.length : els.indexOf(be[idx]), 0, it);
+  renderWorld();
+}
+function moveSel(dir) {
+  const s = state.sel;
+  if (!s || s.k !== 'el') return;
+  const els = SCR[s.id].els, i = els.findIndex(x => x.id === s.el), j = i + dir;
+  if (i < 0 || els[i].t === 'ab' || j < 0 || j >= els.length || els[j].t === 'ab') return;
+  snapshot();
+  [els[i], els[j]] = [els[j], els[i]];
+  renderWorld();
+}
+function dupSel() {
+  const s = state.sel;
+  if (!s || s.k !== 'el') return;
+  const els = SCR[s.id].els, i = els.findIndex(x => x.id === s.el);
+  if (i < 0) return;
+  if (els[i].t === 'ab') { toast('Pro Screen gibt es nur eine AppBar.'); return; }
+  snapshot();
+  const c = JSON.parse(JSON.stringify(els[i]));
+  c.id = `${c.t}_${++uid}`;
+  els.splice(i + 1, 0, c);
+  state.sel = { k: 'el', id: s.id, el: c.id };
+  renderWorld();
+}
+function delSel() {
+  const s = state.sel;
+  if (!s || s.k !== 'el') return;
+  if (visibleEdges().some(x => x.f === s.id && x.el === s.el) || (EXTRA[s.id] && EXTRA[s.id][s.el])) { toast('Dieses Element löst eine Verbindung im Flow aus. Erst die Verbindung entfernen.'); return; }
+  const els = SCR[s.id].els, i = els.findIndex(x => x.id === s.el);
+  if (i < 0) return;
+  snapshot();
+  els.splice(i, 1);
+  state.sel = { k: 'node', id: s.id };
+  renderWorld();
+  toast('Gelöscht – Strg/⌘ + Z macht es rückgängig.');
+}
+function onProp(e) {
+  const t = e.target;
+  if (!t.matches || !t.matches('[data-prop]')) return;
+  const s = state.sel, el = s && s.k === 'el' ? elOf(s.id, s.el) : null;
+  if (!el) return;
+  const k = t.dataset.prop;
+  if (t.dataset.kind === 'list') {
+    const list = t.value.split(',').map(x => x.trim()).filter(Boolean);
+    if (!list.length) return;
+    el.options = list;
+    if (!list.includes(el.value)) el.value = list[0];
+  } else el[k] = t.value;
+  redrawBoard();
+  if (k === 'options') { const vs = $('#p_value'); if (vs) vs.innerHTML = el.options.map(o => `<option${o === el.value ? ' selected' : ''}>${esc(o)}</option>`).join(''); }
+}
+$('#rpane').addEventListener('focusin', e => { if (e.target.matches && e.target.matches('[data-prop]')) snapshot(); });
+$('#rpane').addEventListener('input', onProp);
+$('#rpane').addEventListener('change', onProp);
+$('#lpane').addEventListener('dragstart', e => {
+  const r = e.target.closest && e.target.closest('[data-dragcomp]');
+  if (!r) return;
+  dragComp = r.dataset.dragcomp;
+  e.dataTransfer.setData('text/plain', dragComp);
+  e.dataTransfer.effectAllowed = 'copy';
+});
+$('#lpane').addEventListener('dragend', () => { dragComp = null; dropTarget = null; clearDrop(); stage.classList.remove('dropok'); });
+stage.addEventListener('dragover', e => {
+  if (!dragComp || (state.mode !== 'wire' && state.mode !== 'design')) return;
+  const n = e.target.closest && e.target.closest('.node');
+  clearDrop();
+  if (!n || NODE[n.dataset.id].type !== 'screen') { stage.classList.remove('dropok'); dropTarget = null; return; }
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  stage.classList.add('dropok');
+  dropTarget = { sid: n.dataset.id, idx: showDropAt(n.dataset.id, e.clientY, null) };
+});
+stage.addEventListener('drop', e => {
+  if (!dragComp) return;
+  e.preventDefault();
+  const t = dropTarget, name = dragComp;
+  dragComp = null; dropTarget = null; clearDrop(); stage.classList.remove('dropok');
+  if (t && t.idx != null) insertAt(t.sid, name, t.idx);
+});
 
 /* ---------- Start ---------- */
 const HOT = window.claude && window.claude.hot;

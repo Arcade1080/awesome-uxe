@@ -12,7 +12,7 @@
 - **Jeder Screen ist ein Screen-Modul:** eine TSX-Datei, die nur Komponenten und Tokens des verknüpften Design Systems nutzt. Was der Canvas zeigt, ist genau dieser Code, gerendert mit den echten Komponenten.
 - **Zustände sind Stories:** Leer, Laden, Fehler und Standard liegen als Storybook-Stories mit typisierten Testdaten neben dem Screen.
 - **Navigation bleibt im Flow:** Ein Screen löst nur Trigger aus; wohin es geht, steht im Flow-Modell. So bleibt der Wireflow auf dem Canvas bearbeitbar, ohne Code anzufassen.
-- **Der Canvas bearbeitet Code strukturell:** Der Inspector kennt die TypeScript-Typen der Komponenten, Änderungen werden als Code-Transformation geschrieben. Entwickler:innen bearbeiten dieselben Dateien in ihrer IDE.
+- **Mit dem Design System gestalten:** Komponenten aus der Bibliothek auf den Canvas ziehen, anordnen und im Inspector einstellen – jede Aktion ist eine Code-Änderung. Entwickler:innen bearbeiten dieselben Dateien in ihrer IDE.
 - **Übernahme statt Handoff:** Screen-Module wandern in die App; Testdaten werden durch echte Daten ersetzt, Trigger durch Router-Navigation.
 
 ---
@@ -31,7 +31,7 @@ flowchart LR
 | Schritt | Was passiert | Warum es echter Code ist |
 |---|---|---|
 | **1. Design System verknüpfen** | Repo, Paket, Storybook, Tokens, Figma oder den MCP-Server des Design Systems anbinden ([Design-System-Integration](design-system-integration.md)); das Plugin baut Manifest und Renderer-Bundle | Ab hier rendert jeder Canvas die echten Komponenten in der freigegebenen Version. |
-| **2. Explorieren** | Komponenten und Patterns erkunden; mit Claude mehrere Richtungen für Screens und Flows nebeneinander entwickeln | Varianten sind Screen-Module – sofort klickbar, vergleichbar, verwerfbar. |
+| **2. Explorieren** | Komponenten und Patterns erkunden; Screens von Hand aus Komponenten zusammensetzen oder mit Claude mehrere Richtungen nebeneinander entwickeln | Varianten sind Screen-Module – sofort klickbar, vergleichbar, verwerfbar. |
 | **3. Flows erstellen** | gewählte Richtungen zu Wireflows verbinden: Screens, Entscheidungen, Zustände nach Patterns, begründet aus dem [Nutzerkontext](nutzerkontext-und-research.md) | Jeder Screen im Flow ist ein Screen-Modul, jeder Zustand eine Story. |
 | **4. Prototypen** | den Flow klickbar machen, mit Variablen und Testaufgaben, und mit echten Menschen testen | Der Prototyp läuft mit denselben Komponenten wie später die App. |
 
@@ -134,14 +134,37 @@ Der Wechsel zwischen Wireframe und Hi-Fi tauscht nur den Token-Modus. IDs, Komme
 
 ---
 
-## 6. Bearbeiten auf dem Canvas
+## 6. Mit dem Design System gestalten
+
+Gestalten heißt hier: echte Komponenten auf dem Canvas anordnen – von Hand, mit Claude oder beides im Wechsel. Jede Aktion ist eine Änderung am Screen-Modul.
+
+| Aktion | So funktioniert es | Was im Code passiert |
+|---|---|---|
+| **Einfügen** | Komponente aus der Bibliothek auf einen Screen oder in einen Slot ziehen; eine Linie zeigt die Position. Ohne Maus: mit + nach der Auswahl einfügen | neues JSX-Element mit Import aus dem DS-Paket |
+| **Anordnen** | im Screen oder im Ebenenbaum ziehen, Alt + ↑/↓, in einen Stack einpacken oder auspacken | Elemente wandern im Syntaxbaum |
+| **Einstellen** | Inspector aus den TypeScript-Typen: Varianten als Auswahl, boolesche Props als Schalter, Texte als Felder, Slots als Ablagezonen, Abstände und Farben nur als Tokens | Props im JSX ändern sich |
+| **Texte** | per Doppelklick direkt im Screen bearbeiten | Text-Kinder oder Props ändern sich |
+| **Duplizieren, Löschen, Rückgängig** | Strg/⌘ + D, Entf, Strg/⌘ + Z; auch über Screens hinweg kopieren | Elemente werden kopiert oder entfernt; die Historie gilt für Canvas und Code |
+| **Patterns als Bausteine** | ein Pattern wie „Leerzustand“ einfügen; die Komposition folgt der Pattern-Karte | mehrere Komponenten auf einmal, regelkonform |
+| **Zustände und Breakpoints** | zwischen Stories (Standard, Leer, Fehler …) und Viewports wechseln; Props pro Breakpoint setzen | Stories und responsive Props |
+
+**Leitplanken beim Gestalten**
+
+- **Nur erlaubte Stellen:** Ablagezonen zeigen nur Positionen, an denen eine Komponente laut Manifest stehen darf – etwa ein Listeneintrag nur in einer Liste.
+- **Richtlinien melden sich live:** zum Beispiel „höchstens eine primäre Aktion pro Screen“ oder ein fehlendes Label – direkt am Element und im Qualität-Tab.
+- **Kein Auflösen von Komponenten:** Anders als in Zeichen-Tools lässt sich eine Komponente nicht in Einzelteile zerlegen. Fehlt etwas, entsteht eine Produkt-Komponente oder eine DS-Lücke, die das DS-Team sieht.
+- **Verbindungen sind geschützt:** Ein Element, das einen Trigger im Flow auslöst, lässt sich erst löschen, wenn die Verbindung gelöst ist.
+
+**Mensch und Claude im Wechsel:** Menschen ordnen an, Claude füllt realistische Inhalte, ergänzt Zustände oder macht einen Screen responsive – auf derselben Datei, sichtbar als Vorschlag.
+
+Im [Click-Dummy](prototype/index.html) lässt sich das im Design-Modus ausprobieren: Komponenten aus dem Tab „Komponenten“ auf einen Screen ziehen oder mit + einfügen, im Screen umordnen, Props im Inspector ändern, duplizieren, löschen und rückgängig machen.
+
+**Technisch**
 
 - **Ebenen aus dem Code:** Das Ebenen-Panel zeigt den Komponentenbaum des Screen-Moduls.
-- **Inspector aus den Typen:** Props, Varianten, Pflichtfelder und erlaubte Werte kommen aus den TypeScript-Typen der Komponente. Der Inspector ist dadurch immer auf dem Stand des Design Systems.
 - **Änderungen als Code-Transformation:** Verschieben, Props ändern, Komponenten einfügen – jede Aktion wird als Transformation am Syntaxbaum geschrieben (zum Beispiel über die TypeScript-Compiler-API) und mit Prettier formatiert. Die Diffs bleiben lesbar.
 - **Live im Team:** Im Raum liegt der Komponentenbaum als CRDT, damit gleichzeitige Änderungen sauber zusammengeführt werden. „Version sichern“ schreibt ihn deterministisch als TSX; beim Laden wird das TSX wieder eingelesen. Innerhalb der Regeln aus Kapitel 3 geht dabei nichts verloren.
 - **IDE und Canvas:** Ändern Entwickler:innen ein Screen-Modul in der IDE, übernimmt der Canvas das. Liegt die Änderung außerhalb der Regeln, wird sie zum Code-Block.
-
 ---
 
 ## 7. Claude schreibt Code
