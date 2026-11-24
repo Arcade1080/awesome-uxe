@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireflow Studio</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="app" id="app" data-mode="design">
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="7" height="11" rx="1.5"/><rect x="14.5" y="9" width="7" height="11" rx="1.5"/><path d="M9.5 9.5h2.5a2.5 2.5 0 0 1 2.5 2.5v2"/></svg>
+      <b>Wireflow Studio</b>
+    </div>
+    <span class="crumb" id="crumb"></span>
+    <label class="flowsel"><span class="sr">Flow</span><select id="flowSel"></select></label>
+    <nav class="modes" aria-label="Modus">
+      <button type="button" data-mode="design" aria-pressed="true">Design <kbd>D</kbd></button>
+      <button type="button" data-mode="prototype" aria-pressed="false">Prototyp <kbd>P</kbd></button>
+      <button type="button" data-mode="journey" aria-pressed="false">Journey <kbd>J</kbd></button>
+      <button type="button" data-mode="knowledge" aria-pressed="false">Wissen <kbd>W</kbd></button>
+    </nav>
+    <div class="tr">
+      <div class="seg" role="group" aria-label="Darstellung der Screens">
+        <button type="button" data-fid="wireframe" aria-pressed="false">Wireframe</button>
+        <button type="button" data-fid="hifi" aria-pressed="true">Hi-Fi</button>
+      </div>
+      <span class="pill off" id="live" title="Verbindung zum Projekt"><i></i><span>Verbinde …</span></span>
+    </div>
+  </header>
+  <div class="work">
+    <aside class="side l" id="left" aria-label="Ebenen und Design System"></aside>
+    <main class="stage" id="stage" aria-label="Canvas">
+      <div class="world" id="world">
+        <svg class="edges" id="edges" aria-hidden="true"></svg>
+        <div class="labels" id="labels"></div>
+      </div>
+      <div class="proto" id="proto" hidden></div>
+      <div class="doc" id="doc" hidden></div>
+      <div class="zoom" id="zoom" role="group" aria-label="Zoom">
+        <button type="button" data-z="-" aria-label="Verkleinern">−</button>
+        <button type="button" data-z="fit" id="zoomPct" aria-label="Alles zeigen">50 %</button>
+        <button type="button" data-z="+" aria-label="Vergrößern">+</button>
+      </div>
+    </main>
+    <aside class="side r" id="right" aria-label="Eigenschaften"></aside>
+  </div>
+  <footer class="status" id="status"></footer>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="ghost" id="ghost" hidden></div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

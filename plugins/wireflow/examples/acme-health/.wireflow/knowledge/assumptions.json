@@ -1,0 +1,27 @@
+[
+  {
+    "id": "ann_slot_5min",
+    "aussage": "Fünf Minuten Reservierung reichen, um die Buchung abzuschließen.",
+    "kategorie": "wünschenswert",
+    "wichtigkeit": "hoch",
+    "evidenz": "keine",
+    "herkunft": "Inspiration: Ticketing (Platz mit Zeitlimit)",
+    "test": {
+      "methode": "Prototyp-Test",
+      "frage": "Wie lange brauchen Neupatient:innen bis zur Buchung?"
+    },
+    "status": "offen"
+  },
+  {
+    "id": "ann_konto",
+    "aussage": "Praxen brauchen ein Konto, um Termine zuzuordnen.",
+    "kategorie": "machbar",
+    "wichtigkeit": "mittel",
+    "evidenz": "keine",
+    "test": {
+      "methode": "Gespräch mit Fachexpert:innen",
+      "frage": "Welche Daten braucht die Praxis zwingend?"
+    },
+    "status": "offen"
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "name": "awesome-uxe",
+  "description": "Werkzeuge für UX Engineering und Design Engineering",
+  "owner": { "name": "awesome-uxe" },
+  "plugins": [
+    {
+      "name": "wireflow",
+      "source": "./plugins/wireflow",
+      "description": "Wireflow Studio: Journeys, Wireflows und Prototypen aus echtem Code des eigenen Design Systems – mit Canvas und Wissensbasis."
+    }
+  ]
+}

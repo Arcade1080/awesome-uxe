@@ -1,0 +1,26 @@
+{
+  "name": "wireflow-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Wireflow Studio – Claude-Code-Plugin: Journeys, Wireflows und Prototypen aus echtem Code des Design Systems",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "wireflow": "bin/wireflow"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "files": [
+    ".claude-plugin",
+    ".mcp.json",
+    "bin",
+    "hooks",
+    "skills",
+    "agents",
+    "src",
+    "README.md"
+  ]
+}

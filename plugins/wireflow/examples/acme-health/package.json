@@ -1,0 +1,12 @@
+{
+  "name": "acme-health-demo",
+  "private": true,
+  "type": "module",
+  "description": "Beispielprojekt für Wireflow Studio (fiktiv)",
+  "workspaces": ["packages/*"],
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

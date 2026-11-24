@@ -4,6 +4,7 @@
 
 > Status: Konzeptentwurf v0.4 · Stand: 23.11.2026 · „Wireflow Studio“ ist ein Arbeitstitel
 > Click-Dummy der Canvas-Oberfläche: [`prototype/index.html`](prototype/index.html) (im Browser öffnen)
+> Umsetzung, Stufe 1 (Einzelmodus): [`plugins/wireflow`](../../plugins/wireflow/README.md) – installierbar mit `/plugin marketplace add arcade1080/awesome-uxe` und `/plugin install wireflow@awesome-uxe`
 
 ---
 

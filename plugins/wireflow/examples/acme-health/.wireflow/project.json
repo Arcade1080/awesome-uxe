@@ -1,0 +1,21 @@
+{
+  "schema": "wireflow/project@1",
+  "name": "Acme Health – Arzttermin buchen",
+  "description": "Fiktives Beispielprojekt für Wireflow Studio",
+  "designSystem": {
+    "manifest": "ds/manifest.json"
+  },
+  "renderer": {
+    "framework": "react",
+    "viewport": {
+      "width": 360,
+      "height": 740
+    }
+  },
+  "screens": {
+    "allowedImports": [
+      "../../src/components/"
+    ],
+    "allowExperimental": false
+  }
+}

@@ -1,0 +1,8 @@
+#!/usr/bin/env node
+// Startet die Wireflow-CLI (funktioniert als CommonJS- und als ES-Modul).
+import('../src/cli.js')
+  .then(m => m.main(process.argv.slice(2)))
+  .catch(e => {
+    console.error(e && e.message ? e.message : e);
+    process.exit(1);
+  });

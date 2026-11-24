@@ -1,0 +1,183 @@
+{
+  "schema": "wireflow/flow@1",
+  "id": "flw_buchung",
+  "title": "Termin buchen",
+  "journey": "jrn_termin",
+  "entry": "scr_suche",
+  "variables": {
+    "angemeldet": false,
+    "slotFrei": true
+  },
+  "nodes": [
+    {
+      "id": "scr_suche",
+      "type": "screen",
+      "title": "Suche",
+      "ref": "screens/suche.screen.tsx",
+      "x": 0,
+      "y": 0,
+      "basis": {
+        "insights": [
+          "ins_frei"
+        ]
+      }
+    },
+    {
+      "id": "scr_ergebnisse",
+      "type": "screen",
+      "title": "Ergebnisse",
+      "ref": "screens/ergebnisse.screen.tsx",
+      "x": 520,
+      "y": 0,
+      "basis": {
+        "insights": [
+          "ins_frei"
+        ]
+      }
+    },
+    {
+      "id": "scr_profil",
+      "type": "screen",
+      "title": "Profil & Termine",
+      "ref": "screens/profil.screen.tsx",
+      "x": 1040,
+      "y": 0,
+      "basis": {
+        "insights": [
+          "ins_slot_weg"
+        ],
+        "assumptions": [
+          "ann_slot_5min"
+        ]
+      }
+    },
+    {
+      "id": "dec_login",
+      "type": "decision",
+      "label": "Angemeldet?",
+      "var": "angemeldet",
+      "x": 1560,
+      "y": 300
+    },
+    {
+      "id": "scr_login",
+      "type": "screen",
+      "title": "Anmelden",
+      "ref": "screens/login.screen.tsx",
+      "x": 1560,
+      "y": 1000,
+      "basis": {
+        "assumptions": [
+          "ann_konto"
+        ]
+      }
+    },
+    {
+      "id": "scr_pruefen",
+      "type": "screen",
+      "title": "Angaben prüfen",
+      "ref": "screens/pruefen.screen.tsx",
+      "x": 1880,
+      "y": 0
+    },
+    {
+      "id": "dec_slot",
+      "type": "decision",
+      "label": "Slot noch frei?",
+      "var": "slotFrei",
+      "x": 2400,
+      "y": 300,
+      "basis": {
+        "insights": [
+          "ins_slot_weg"
+        ]
+      }
+    },
+    {
+      "id": "scr_bestaetigung",
+      "type": "screen",
+      "title": "Bestätigung",
+      "ref": "screens/bestaetigung.screen.tsx",
+      "x": 2720,
+      "y": 0,
+      "exit": true,
+      "basis": {
+        "insights": [
+          "ins_erinnerung"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "scr_suche",
+      "el": "btn_suchen",
+      "to": "scr_ergebnisse",
+      "label": "Tippen"
+    },
+    {
+      "from": "scr_ergebnisse",
+      "el": "card_klein",
+      "to": "scr_profil",
+      "label": "Praxis tippen"
+    },
+    {
+      "from": "scr_profil",
+      "el": "btn_weiter",
+      "to": "dec_login",
+      "label": "Weiter"
+    },
+    {
+      "from": "dec_login",
+      "to": "scr_pruefen",
+      "label": "Ja",
+      "when": "angemeldet"
+    },
+    {
+      "from": "dec_login",
+      "to": "scr_login",
+      "label": "Nein",
+      "when": "else",
+      "route": {
+        "fs": "b",
+        "ts": "t",
+        "tx": 70
+      }
+    },
+    {
+      "from": "scr_login",
+      "el": "btn_login",
+      "to": "scr_pruefen",
+      "label": "Anmelden",
+      "set": {
+        "angemeldet": true
+      },
+      "route": {
+        "ts": "b",
+        "tx": 120
+      }
+    },
+    {
+      "from": "scr_login",
+      "el": "btn_gast",
+      "to": "scr_pruefen",
+      "label": "Als Gast",
+      "route": {
+        "ts": "b",
+        "tx": 240
+      }
+    },
+    {
+      "from": "scr_pruefen",
+      "el": "btn_buchen",
+      "to": "dec_slot",
+      "label": "Buchen"
+    },
+    {
+      "from": "dec_slot",
+      "to": "scr_bestaetigung",
+      "label": "Ja",
+      "when": "slotFrei"
+    }
+  ]
+}

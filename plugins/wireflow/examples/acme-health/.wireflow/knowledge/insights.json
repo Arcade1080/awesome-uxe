@@ -1,0 +1,38 @@
+[
+  {
+    "id": "ins_slot_weg",
+    "aussage": "Slots werden zwischen Auswahl und Absenden vergeben; Eingaben gehen verloren.",
+    "fakten": [
+      "p03#41-44",
+      "p07#18",
+      "p11#63-65"
+    ],
+    "wissensstand": "belegt"
+  },
+  {
+    "id": "ins_frei",
+    "aussage": "Freie Termine und Kassenzulassung müssen auf einen Blick sichtbar sein.",
+    "fakten": [
+      "p04#22-25",
+      "p07#9"
+    ],
+    "wissensstand": "belegt"
+  },
+  {
+    "id": "ins_erinnerung",
+    "aussage": "Erinnerungen kommen zu spät, um umzuplanen.",
+    "fakten": [
+      "p05#30"
+    ],
+    "wissensstand": "hinweis"
+  },
+  {
+    "id": "ins_fach",
+    "aussage": "Unklar, welche Fachrichtung zuständig ist.",
+    "fakten": [
+      "p02#12-14",
+      "p09#7"
+    ],
+    "wissensstand": "belegt"
+  }
+]

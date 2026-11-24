@@ -1,0 +1,103 @@
+{
+  "schema": "wireflow/journey@1",
+  "id": "jrn_termin",
+  "title": "Arzttermin online buchen",
+  "variant": "ist",
+  "persona": "Berufstätig, wenig Zeit",
+  "scenario": "Hautausschlag seit einer Woche – möchte noch diese Woche einen Termin.",
+  "phases": [
+    {
+      "id": "ph_bedarf",
+      "title": "Bedarf bemerken",
+      "actions": [
+        "Ausschlag bemerkt",
+        "Dringlichkeit einschätzen"
+      ],
+      "emotion": -1,
+      "painPoints": [
+        {
+          "text": "Unklar, welche Fachrichtung zuständig ist",
+          "insight": "ins_fach"
+        }
+      ],
+      "opportunities": [
+        "Symptom-Check schlägt die passende Fachrichtung vor"
+      ]
+    },
+    {
+      "id": "ph_finden",
+      "title": "Praxis finden",
+      "actions": [
+        "Praxen suchen",
+        "Bewertungen vergleichen",
+        "Kassenzulassung prüfen"
+      ],
+      "emotion": -1,
+      "painPoints": [
+        {
+          "text": "Freie Termine und Kassenzulassung nicht auf einen Blick",
+          "insight": "ins_frei"
+        }
+      ],
+      "opportunities": [
+        "Ergebnisliste zeigt den nächsten freien Termin"
+      ],
+      "flow": "flw_buchung"
+    },
+    {
+      "id": "ph_buchen",
+      "title": "Termin buchen",
+      "actions": [
+        "Slot wählen",
+        "Daten eingeben",
+        "Absenden"
+      ],
+      "emotion": -2,
+      "painPoints": [
+        {
+          "text": "Slot beim Absenden vergeben, Eingaben weg",
+          "insight": "ins_slot_weg"
+        }
+      ],
+      "opportunities": [
+        "Slot 5 Minuten reservieren, Eingaben behalten"
+      ],
+      "flow": "flw_buchung"
+    },
+    {
+      "id": "ph_vorbereiten",
+      "title": "Vorbereiten",
+      "actions": [
+        "Bestätigung lesen",
+        "Termin eintragen"
+      ],
+      "emotion": 1,
+      "painPoints": [
+        {
+          "text": "Erinnerung kommt erst am Morgen des Termins",
+          "insight": "ins_erinnerung"
+        }
+      ],
+      "opportunities": [
+        "Erinnerung 24 h vorher und Kalender-Export"
+      ]
+    },
+    {
+      "id": "ph_besuch",
+      "title": "Besuch & Nachsorge",
+      "actions": [
+        "Einchecken",
+        "Folgetermin vereinbaren"
+      ],
+      "emotion": 0,
+      "painPoints": [
+        {
+          "text": "Folgetermin nur telefonisch möglich"
+        }
+      ],
+      "opportunities": [
+        "Folgetermin direkt in der App buchen"
+      ]
+    }
+  ]
+}

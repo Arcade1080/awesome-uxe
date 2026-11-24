@@ -1,0 +1,23 @@
+---
+name: canvas
+description: Öffnet den Wireflow-Canvas – eine lokale Web-App, in der Screens aus echten DS-Komponenten gerendert, angeordnet, verbunden und als Prototyp durchgeklickt werden. Verwenden, wenn die Person Flows oder Screens sehen, mit der Maus gestalten oder Claude auf eine Auswahl im Canvas ansetzen will.
+argument-hint: "[flow-id]"
+---
+
+# Canvas öffnen
+
+1. `canvas_open` aufrufen. Das Werkzeug startet den Canvas (nur auf `127.0.0.1`, mit Zugangstoken im Link) und gibt die URL zurück.
+2. Der Person den Link nennen und in einem Satz sagen, was sie dort tun kann.
+3. Läuft Claude Code in der Cloud oder auf einem anderen Rechner, ist `127.0.0.1` dort nicht erreichbar: Dann im Terminal der Person `wireflow serve --open` im Repository vorschlagen.
+
+## Was der Canvas kann
+
+- **Design:** Screens als echte Komponenten; Elemente anklicken und im Inspector Props, Text und Interaktion ändern; Komponenten aus der Liste auf Screens ziehen; Elemente per Drag & Drop umordnen; Screens am Titel verschieben; Wireframe/Hi-Fi umschalten. Alles wird als Code in die Screen-Module geschrieben.
+- **Prototyp:** den Flow durchklicken; Variablen steuern Entscheidungen; fehlende Pfade werden gemeldet.
+- **Journey** und **Wissen:** Pain Points mit Wissensstand, Insights, Annahmen nach Risiko, offene Fragen.
+
+## Zusammenarbeit mit Claude
+
+- Änderungen von Claude (`screen_edit`, `flow_edit` …) erscheinen sofort im Canvas.
+- Was die Person auswählt, liest Claude mit `canvas_selection` – „ändere das Ausgewählte“ funktioniert ohne IDs.
+- Rückgängig: Strg/⌘+Z im Canvas oder das Werkzeug `undo`.

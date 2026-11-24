@@ -1,0 +1,533 @@
+{
+  "schema": "wireflow/ds-manifest@1",
+  "name": "Acme UI",
+  "package": "@acme/ui",
+  "version": "1.4.0",
+  "styles": [
+    "@acme/ui/styles.css"
+  ],
+  "tokens": {
+    "files": [
+      "packages/acme-ui/tokens/acme.tokens.json"
+    ],
+    "modes": {
+      "wireframe": {
+        "color.action.primary": "#52525b",
+        "color.action.primary-subtle": "#e4e4e7",
+        "color.action.on-primary": "#ffffff",
+        "color.text.default": "#3f3f46",
+        "color.text.muted": "#71717a",
+        "color.border.default": "#a1a1aa",
+        "color.border.subtle": "#d4d4d8",
+        "color.feedback.success": "#52525b",
+        "color.feedback.success-subtle": "#e4e4e7",
+        "color.feedback.danger": "#52525b",
+        "color.feedback.danger-subtle": "#e4e4e7",
+        "color.feedback.info": "#52525b",
+        "color.feedback.info-subtle": "#e4e4e7",
+        "font.family.base": "system-ui, sans-serif"
+      }
+    }
+  },
+  "components": [
+    {
+      "name": "Page",
+      "category": "Layout",
+      "status": "stable",
+      "description": "Seitenrahmen mit vertikalem Auto-Layout",
+      "props": {
+        "padding": {
+          "type": "token",
+          "group": "space"
+        },
+        "gap": {
+          "type": "token",
+          "group": "space"
+        },
+        "children": {
+          "type": "node"
+        }
+      },
+      "intents": [
+        "page"
+      ],
+      "guidelines": [
+        "Genau eine Page pro Screen-Modul"
+      ],
+      "a11y": []
+    },
+    {
+      "name": "AppBar",
+      "category": "Navigation",
+      "status": "stable",
+      "description": "Kopfzeile mit Titel und optionalem Zurück",
+      "props": {
+        "title": {
+          "type": "string",
+          "required": true
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "onBack": {
+          "type": "handler"
+        }
+      },
+      "intents": [
+        "navigation.top",
+        "navigation.back"
+      ],
+      "defaults": {
+        "props": {
+          "title": "Titel"
+        }
+      },
+      "guidelines": [
+        "Titel beschreibt die Aufgabe, nicht die App"
+      ],
+      "a11y": [
+        "Zurück-Schaltfläche hat ein Label"
+      ]
+    },
+    {
+      "name": "Heading",
+      "category": "Text",
+      "status": "stable",
+      "description": "Überschrift",
+      "props": {
+        "level": {
+          "type": "number",
+          "enum": [
+            1,
+            2
+          ]
+        },
+        "children": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "intents": [
+        "content.title"
+      ],
+      "defaults": {
+        "props": {
+          "level": {
+            "expr": "2"
+          }
+        },
+        "text": "Überschrift"
+      },
+      "guidelines": [
+        "Pro Screen höchstens eine Überschrift der Ebene 1"
+      ],
+      "a11y": []
+    },
+    {
+      "name": "Text",
+      "category": "Text",
+      "status": "stable",
+      "description": "Fließtext, optional mit Icon",
+      "props": {
+        "tone": {
+          "type": "string",
+          "enum": [
+            "default",
+            "muted"
+          ]
+        },
+        "icon": {
+          "type": "string",
+          "enum": [
+            "clock",
+            "info",
+            "search",
+            "pin",
+            "check",
+            "warn"
+          ]
+        },
+        "children": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "intents": [
+        "content.text",
+        "content.meta",
+        "content.reassurance"
+      ],
+      "defaults": {
+        "props": {
+          "tone": "muted"
+        },
+        "text": "Kurzer Text"
+      },
+      "guidelines": [],
+      "a11y": []
+    },
+    {
+      "name": "TextField",
+      "category": "Eingabe",
+      "status": "stable",
+      "description": "Einzeiliges Eingabefeld mit Label",
+      "props": {
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "defaultValue": {
+          "type": "string"
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "text",
+            "email",
+            "password",
+            "tel"
+          ]
+        },
+        "icon": {
+          "type": "string",
+          "enum": [
+            "clock",
+            "info",
+            "search",
+            "pin",
+            "check",
+            "warn"
+          ]
+        }
+      },
+      "intents": [
+        "input.text",
+        "input.search",
+        "input.email",
+        "input.password",
+        "input.location"
+      ],
+      "defaults": {
+        "props": {
+          "label": "Neues Feld"
+        }
+      },
+      "guidelines": [
+        "Label immer sichtbar, Platzhalter ersetzen kein Label"
+      ],
+      "a11y": [
+        "Label ist mit dem Feld verknüpft"
+      ]
+    },
+    {
+      "name": "Select",
+      "category": "Eingabe",
+      "status": "stable",
+      "description": "Auswahlliste mit Label",
+      "props": {
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "value": {
+          "type": "string"
+        },
+        "options": {
+          "type": "string[]"
+        }
+      },
+      "intents": [
+        "input.choice"
+      ],
+      "defaults": {
+        "props": {
+          "label": "Auswahl",
+          "value": "Bitte wählen"
+        }
+      },
+      "guidelines": [],
+      "a11y": []
+    },
+    {
+      "name": "ChipGroup",
+      "category": "Eingabe",
+      "status": "stable",
+      "description": "Einfachauswahl als Chips",
+      "props": {
+        "label": {
+          "type": "string"
+        },
+        "options": {
+          "type": "string[]",
+          "required": true
+        },
+        "defaultValue": {
+          "type": "string"
+        }
+      },
+      "intents": [
+        "input.choice.single",
+        "input.sort",
+        "input.choice.date",
+        "input.choice.time"
+      ],
+      "defaults": {
+        "props": {
+          "label": "Optionen",
+          "options": [
+            "Eins",
+            "Zwei",
+            "Drei"
+          ],
+          "defaultValue": "Eins"
+        }
+      },
+      "guidelines": [
+        "Für 2–7 kurze Optionen; mehr Optionen als Select"
+      ],
+      "a11y": []
+    },
+    {
+      "name": "Button",
+      "category": "Aktion",
+      "status": "stable",
+      "description": "Schaltfläche",
+      "props": {
+        "variant": {
+          "type": "string",
+          "enum": [
+            "primary",
+            "secondary",
+            "ghost"
+          ]
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "md",
+            "lg"
+          ]
+        },
+        "onPress": {
+          "type": "handler"
+        },
+        "children": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "intents": [
+        "action.primary",
+        "action.secondary"
+      ],
+      "defaults": {
+        "props": {
+          "variant": "secondary",
+          "size": "lg"
+        },
+        "text": "Neue Aktion"
+      },
+      "guidelines": [
+        "Beschriftung als Verb: „Termin buchen“",
+        "Höchstens eine primäre Aktion pro Screen"
+      ],
+      "a11y": [
+        "Mindestgröße 44 × 44 px"
+      ],
+      "rules": [
+        {
+          "type": "max-per-screen",
+          "where": {
+            "variant": "primary"
+          },
+          "max": 1,
+          "message": "{n} primäre Aktionen – Acme UI empfiehlt höchstens eine pro Screen."
+        }
+      ]
+    },
+    {
+      "name": "Avatar",
+      "category": "Anzeige",
+      "status": "stable",
+      "description": "Initialen in einem Kreis",
+      "props": {
+        "initials": {
+          "type": "string",
+          "required": true
+        }
+      },
+      "intents": [
+        "entity.media"
+      ],
+      "defaults": {
+        "props": {
+          "initials": "AB"
+        }
+      },
+      "guidelines": [],
+      "a11y": []
+    },
+    {
+      "name": "Card",
+      "category": "Anzeige",
+      "status": "stable",
+      "description": "Karte mit Titel, Untertitel, Meta und Badge",
+      "props": {
+        "title": {
+          "type": "string",
+          "required": true
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "meta": {
+          "type": "string"
+        },
+        "badge": {
+          "type": "string"
+        },
+        "media": {
+          "type": "node"
+        },
+        "onPress": {
+          "type": "handler"
+        }
+      },
+      "intents": [
+        "entity.summary"
+      ],
+      "defaults": {
+        "props": {
+          "title": "Neue Karte",
+          "subtitle": "Untertitel"
+        }
+      },
+      "guidelines": [
+        "Ganze Karte klickbar, wenn sie zu Details führt"
+      ],
+      "a11y": []
+    },
+    {
+      "name": "SummaryList",
+      "category": "Anzeige",
+      "status": "stable",
+      "description": "Liste aus Bezeichnung und Wert",
+      "props": {
+        "items": {
+          "type": "[string, string][]",
+          "required": true
+        }
+      },
+      "intents": [
+        "content.summary"
+      ],
+      "defaults": {
+        "props": {
+          "items": [
+            [
+              "Feld",
+              "Wert"
+            ]
+          ]
+        }
+      },
+      "guidelines": [],
+      "a11y": []
+    },
+    {
+      "name": "Checkbox",
+      "category": "Eingabe",
+      "status": "stable",
+      "description": "Kontrollkästchen mit Label",
+      "props": {
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "defaultChecked": {
+          "type": "boolean"
+        }
+      },
+      "intents": [
+        "input.toggle"
+      ],
+      "defaults": {
+        "props": {
+          "label": "Option"
+        }
+      },
+      "guidelines": [],
+      "a11y": []
+    },
+    {
+      "name": "Alert",
+      "category": "Feedback",
+      "status": "stable",
+      "description": "Meldung zu Seite oder Abschnitt",
+      "props": {
+        "tone": {
+          "type": "string",
+          "enum": [
+            "info",
+            "danger",
+            "success"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "required": true
+        },
+        "children": {
+          "type": "string"
+        }
+      },
+      "intents": [
+        "feedback.info",
+        "feedback.error",
+        "feedback.success"
+      ],
+      "defaults": {
+        "props": {
+          "tone": "info",
+          "title": "Hinweis"
+        },
+        "text": "Kurze Erklärung."
+      },
+      "guidelines": [
+        "Erfolg sparsam melden",
+        "Fehler erklären und einen Ausweg anbieten"
+      ],
+      "a11y": [
+        "danger-Meldungen werden als alert angesagt"
+      ]
+    },
+    {
+      "name": "Spacer",
+      "category": "Layout",
+      "status": "stable",
+      "description": "Schiebt folgende Elemente ans Ende",
+      "props": {},
+      "intents": [
+        "layout.spacer"
+      ],
+      "defaults": {
+        "props": {}
+      },
+      "guidelines": [],
+      "a11y": []
+    }
+  ],
+  "gaps": [
+    {
+      "intent": "input.choice.time",
+      "note": "Kein Zeit-Slot-Picker – aus ChipGroup komponiert"
+    },
+    {
+      "intent": "feedback.success.illustration",
+      "note": "Keine Erfolgs-Illustration – Produkt-Komponente SuccessMark"
+    }
+  ]
+}

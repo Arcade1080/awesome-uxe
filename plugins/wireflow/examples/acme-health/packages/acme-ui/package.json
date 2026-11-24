@@ -1,0 +1,10 @@
+{
+  "name": "@acme/ui",
+  "version": "1.4.0",
+  "private": true,
+  "description": "Acme UI – fiktives Design System für das Wireflow-Studio-Beispiel",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": { ".": "./src/index.ts", "./styles.css": "./src/styles.css", "./tokens.json": "./tokens/acme.tokens.json" },
+  "peerDependencies": { "react": ">=18" }
+}
