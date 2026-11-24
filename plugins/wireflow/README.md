@@ -88,7 +88,8 @@ Regeln: nur Komponenten aus dem Manifest, kein HTML, kein `style`/`className`, P
 | Subagents | `agents/*.md` | `ds-curator`, `journey-analyst`, `flow-architect`, `ui-composer`, `ux-critic`, `research-scout` |
 | MCP-Server | `.mcp.json` → `wireflow mcp` | 26 Werkzeuge: Projekt, DS, Journeys, Flows, Screens, Varianten, Wissen, Canvas und Chat, Export, Rückgängig; zugleich Kanal für den Chat im Canvas |
 | Hooks | `hooks/hooks.json` | `SessionStart`: Projektstatus als Kontext; `PostToolUse`: prüft jede Datei unter `.wireflow/` – Fehler gehen an Claude zurück; `UserPromptSubmit` und `Stop`: wartende Nachrichten aus dem Canvas-Chat, falls kein Kanal läuft |
-| Kanal | `plugin.json` → `channels` | Chat und Aufträge aus dem Canvas erscheinen sofort in der Sitzung (Research Preview) |
+| Monitor | `plugin.json` → `experimental.monitors` | `canvas-chat`: stellt Chat-Nachrichten und Aufträge aus dem Canvas sofort in der Sitzung zu |
+| Kanal | `plugin.json` → `channels` | optionaler zweiter Weg (Research Preview), still, solange der Monitor läuft |
 | CLI | `bin/wireflow` | `init`, `serve`, `status`, `validate`, `lint`, `export`, `doctor` – im Plugin auf dem `PATH`, ohne Plugin für CI |
 | Canvas | `src/canvas/` | lokaler Server (nur `127.0.0.1`, Token im Link) und Web-App ohne Build |
 
@@ -126,15 +127,13 @@ Keine Laufzeit-Abhängigkeiten: Das Plugin nutzt nur Node.js; React und esbuild 
 
 ![Zwei strikte Varianten unter dem Original; Auftrag, Werkzeug-Aufrufe und Antwort im Chat](docs/varianten-und-chat.png)
 
-Öffnet Claude den Canvas (`/wireflow:canvas`), ist der Chat mit genau dieser Sitzung verbunden. Werkzeug-Aufrufe erscheinen als Zeilen im Chat, der bearbeitete Screen leuchtet violett.
+Öffnet Claude den Canvas (`/wireflow:canvas`), ist der Chat mit genau dieser Sitzung verbunden. Werkzeug-Aufrufe erscheinen als Zeilen im Chat, der bearbeitete Screen leuchtet violett. Zugestellt wird auf drei Wegen – der Chat zeigt oben, welcher gerade greift:
 
-- **Sofort per Kanal (Research Preview):** Claude Code mit
-  ```bash
-  claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe
-  ```
-  starten. Kanäle brauchen die Anmeldung über claude.ai oder einen API-Schlüssel der Console (nicht Bedrock oder Vertex); in Team- und Enterprise-Organisationen müssen sie freigeschaltet sein.
-- **Ohne Kanal:** Nachrichten warten in einer Inbox außerhalb des Repos. Beim nächsten Prompt im Terminal (oder am Ende des laufenden Schritts) holt Claude sie mit `canvas_inbox` ab und antwortet mit `canvas_reply`.
-- Ein mit `wireflow serve` gestarteter Canvas hat keine Sitzung; dort ist der Chat deaktiviert.
+1. **Plugin-Monitor `canvas-chat` (Standard):** Claude Code startet ihn mit der Sitzung (`experimental.monitors` in `plugin.json`). Er druckt jede neue Nachricht als Zeile; Claude Code reicht sie als Benachrichtigung an Claude weiter – Claude reagiert sofort, ohne Flag und auch über Amazon Bedrock oder Vertex (dort ab Claude Code 2.1.310). Monitore laufen nur interaktiv, nicht mit `-p`.
+2. **Kanal (Research Preview, optional):** mit `claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe` (Anmeldung über claude.ai oder Console-API-Schlüssel). Läuft der Monitor, bleibt der Kanal still – nichts kommt doppelt an.
+3. **Hooks (Rückfall ohne Monitor):** `UserPromptSubmit` gibt offene Nachrichten beim nächsten Prompt mit, `Stop` lässt Claude sie am Ende eines Schritts noch erledigen. Gelesene, aber unbeantwortete Nachrichten hält der Stop-Hook immer offen, bis Claude mit `canvas_reply` antwortet.
+
+Die Nachrichten liegen in einer Inbox außerhalb des Repos (nur für die Person). Ein mit `wireflow serve` gestarteter Canvas hat keine Sitzung; dort ist der Chat deaktiviert.
 
 ## Entwicklung
 

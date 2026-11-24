@@ -736,8 +736,9 @@ Weil Wireframe und Hi-Fi derselbe Code sind und die IDs (`data-wf`) stabil bleib
 
 **Canvas und Sitzung im Gespräch**
 
-- **Kanal:** Der MCP-Server meldet sich als Kanal (`claude/channel`). Nachrichten aus dem Chat und Aufträge aus Kontextmenü oder Lückenkarten erscheinen in der laufenden Sitzung als `<channel … chat_id=… screen=… element=…>`; Claude antwortet mit `canvas_reply`. Kanäle sind eine Research Preview: eigene Kanäle laufen mit `claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe` und mit Anmeldung über claude.ai oder einen API-Schlüssel der Console, nicht über Bedrock oder Vertex.
-- **Rückfallweg ohne Kanal:** Offene Nachrichten liegen in einer Inbox (außerhalb des Repos, nur für die Person). Der Hook `UserPromptSubmit` gibt sie beim nächsten Prompt als Kontext mit, der Hook `Stop` lässt Claude sie vor dem Ende eines Schritts noch erledigen; abgeholt wird mit `canvas_inbox`.
+- **Monitor (Standard):** Das Plugin bringt einen Plugin-Monitor mit (`experimental.monitors`, Name `canvas-chat`). Claude Code startet ihn mit der Sitzung; er druckt jede neue Nachricht aus dem Chat oder aus Kontextmenü und Lückenkarten als Zeile, und Claude Code reicht sie als Benachrichtigung an Claude weiter – sofort, ohne Flag, auch über Bedrock oder Vertex. Claude holt die Nachricht mit `canvas_inbox` ab und antwortet mit `canvas_reply`.
+- **Kanal (optional):** Der MCP-Server meldet sich zusätzlich als Kanal (`claude/channel`, Research Preview, Start mit `claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe`). Er bleibt still, solange der Monitor läuft.
+- **Rückfallweg ohne Monitor:** Offene Nachrichten liegen in einer Inbox (außerhalb des Repos, nur für die Person). Der Hook `UserPromptSubmit` gibt sie beim nächsten Prompt als Kontext mit, der Hook `Stop` lässt Claude sie vor dem Ende eines Schritts noch erledigen – und hält gelesene, unbeantwortete Nachrichten offen, bis Claude antwortet.
 - **Sicherheit:** Nachrichten kommen nur aus dem Canvas mit Zugangstoken (127.0.0.1, Host- und Origin-Prüfung); Attribute des Kanals enthalten nur Auswahl-Kontext.
 - **Weitere Modelle (später):** Varianten auch von anderen Modellen als zusätzlichen Agents – nebeneinander auf dem Canvas, an denselben Regeln geprüft.
 

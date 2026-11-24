@@ -16,6 +16,7 @@ import { applyOpRecorded, handlerProp, changeLog, revertChange } from '../core/s
 import { applyFlowOp } from '../core/flows.js';
 import { getAttr, textOf, walk } from '../core/jsx.js';
 import { packageDir } from '../core/init.js';
+import { monitorAlive } from '../mcp/bridge.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.join(HERE, 'app');
@@ -327,9 +328,9 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
       if (p === '/app.js' || p === '/app.css' || p === '/frame.js') return staticFile(res, p.slice(1));
       if (p === '/api/project') {
         const changes = changeLog().slice(-40).map(({ inverse, ...c }) => ({ ...c, revertible: !!inverse && !c.reverted }));
-        return send(res, 200, { ...projectJson(root, st.v), changes });
+        return send(res, 200, { ...projectJson(root, st.v), changes, delivery: bridge ? (monitorAlive(root) ? 'monitor' : bridge.channel ? 'kanal' : 'hooks') : null });
       }
-      if (p === '/api/chat') return send(res, 200, { connected: !!bridge, channel: !!bridge?.channel, messages: bridge?.log || [] });
+      if (p === '/api/chat') return send(res, 200, { connected: !!bridge, channel: !!bridge?.channel, monitor: monitorAlive(root), messages: bridge?.log || [] });
       if (p === '/api/source') {
         const ref = u.searchParams.get('ref') || '';
         const s = modelNow().screens[ref];

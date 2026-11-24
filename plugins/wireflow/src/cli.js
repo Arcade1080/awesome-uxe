@@ -9,7 +9,7 @@ import { flowIssues, toMermaid } from './core/flow.js';
 import { flowKnowledge, openAssumptions } from './core/knowledge.js';
 import { initProject, packageDir } from './core/init.js';
 import { loadScreen } from './core/project.js';
-import { readInbox } from './mcp/bridge.js';
+import { readInbox, monitorAlive, monitorLine, writeHeartbeat, clearHeartbeat } from './mcp/bridge.js';
 
 const HELP = `wireflow – Wireflow Studio für Claude Code
 
@@ -23,6 +23,7 @@ const HELP = `wireflow – Wireflow Studio für Claude Code
   wireflow mcp                                  MCP-Server (stdio) – startet Claude Code selbst
   wireflow hook-validate                        PostToolUse-Hook (liest JSON von stdin)
   wireflow hook-inbox                           UserPromptSubmit-/Stop-Hook: offene Canvas-Nachrichten
+  wireflow monitor                              Plugin-Monitor: Canvas-Nachrichten als Zeilen an Claude
 `;
 
 function flag(args, name, fallback) {
@@ -108,7 +109,13 @@ async function hookInbox() {
   try { input = JSON.parse((await readStdin()) || '{}'); } catch { /* ohne Eingabe */ }
   const root = findRoot(process.env.WIREFLOW_ROOT || input.cwd || undefined);
   if (!root) return 0;
-  const pending = readInbox(root);
+  let pending = readInbox(root);
+  // Läuft der Monitor, stellt er neue Nachrichten zu. Dann bleibt nur: gelesene beantworten.
+  const viaMonitor = monitorAlive(root);
+  if (viaMonitor) {
+    if (input.hook_event_name !== 'Stop') return 0;
+    pending = pending.filter(p => p.status === 'gelesen');
+  }
   if (!pending.length) return 0;
   const list = pending.slice(0, 5).map(p => {
     const a = p.meta || {};
@@ -123,6 +130,34 @@ async function hookInbox() {
   }
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: msg } }));
   return 0;
+}
+
+// Plugin-Monitor „canvas-chat“: läuft im Hintergrund der Sitzung und druckt jede neue
+// Nachricht aus dem Canvas als eine Zeile – Claude Code reicht sie als Benachrichtigung weiter.
+async function monitor(args) {
+  const arg = flag(args, '--root');
+  const start = typeof arg === 'string' && !arg.includes('${') ? arg : process.env.WIREFLOW_ROOT || process.cwd();
+  const seen = new Set();
+  let root = null;
+  const stop = () => { if (root) clearHeartbeat(root); process.exit(0); };
+  process.on('SIGTERM', stop);
+  process.on('SIGINT', stop);
+  process.on('SIGHUP', stop);
+  setInterval(() => { if (root) writeHeartbeat(root); }, 5000).unref();
+  for (;;) {
+    if (!root) {
+      root = findRoot(start);
+      if (root) writeHeartbeat(root);
+    }
+    if (root) {
+      for (const p of readInbox(root)) {
+        if (seen.has(p.id) || p.status !== 'gesendet') continue;
+        seen.add(p.id);
+        process.stdout.write(`${monitorLine(p)}\n`);
+      }
+    }
+    await new Promise(r => setTimeout(r, root ? 600 : 5000));
+  }
 }
 
 // ---------- Doctor ----------
@@ -243,6 +278,9 @@ export async function main(argv) {
       return;
     case 'hook-inbox':
       process.exitCode = await hookInbox();
+      return;
+    case 'monitor':
+      await monitor(args);
       return;
     case undefined:
     case 'help':

@@ -1896,10 +1896,17 @@ function chatItem(m) {
 }
 function chatPane(pane) {
   const c = S.chat;
+  const via = S.data.delivery;
+  const viaInfo = {
+    monitor: ['Monitor', 'Der Plugin-Monitor „canvas-chat“ stellt Nachrichten sofort zu.'],
+    kanal: ['Kanal oder nächster Schritt', 'Kein Monitor aktiv (braucht Claude Code ab 2.1.310, nicht mit -p). Mit Kanal (claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe) kommen Nachrichten sofort an, sonst beim nächsten Schritt.'],
+    hooks: ['nächster Schritt', 'Kein Monitor aktiv – Claude liest Nachrichten beim nächsten Prompt im Terminal oder am Ende des laufenden Schritts.'],
+  }[via];
   pane.append(h('div', { class: 'chathead' },
     c.connected
-      ? h('span', { class: 'pill', title: 'Mit Kanal (Research Preview) kommen Nachrichten sofort an: claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe – sonst liest Claude sie beim nächsten Schritt.' }, h('i'), h('span', {}, 'Claude Code verbunden'))
-      : h('span', { class: 'pill off' }, h('i'), h('span', {}, 'Ohne Claude-Sitzung'))));
+      ? h('span', { class: 'pill', title: viaInfo?.[1] || '' }, h('i'), h('span', {}, 'Claude Code verbunden'))
+      : h('span', { class: 'pill off' }, h('i'), h('span', {}, 'Ohne Claude-Sitzung')),
+    c.connected && viaInfo ? h('small', { class: `hint via ${via}`, title: viaInfo[1] }, `Zustellung: ${viaInfo[0]}`) : null));
   const list = h('div', { class: 'chatlist', role: 'log', 'aria-live': 'polite' });
   if (!c.messages.length) {
     list.append(h('p', { class: 'hint' }, c.connected
@@ -1909,7 +1916,7 @@ function chatPane(pane) {
   for (const m of c.messages) list.append(chatItem(m));
   const last = [...c.messages].reverse().find(m => m.role === 'user');
   if (last && last.status === 'gesendet' && Date.now() - Date.parse(last.time) > 15000 && !c.messages.some(m => m.role !== 'user' && Date.parse(m.time) > Date.parse(last.time))) {
-    list.append(h('div', { class: 'chatnote' }, 'Claude hat noch nicht reagiert. Mit Kanal kommen Nachrichten sofort an: ', h('code', {}, 'claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe'), '. Ohne Kanal liest Claude sie beim nächsten Schritt – schreib im Terminal zum Beispiel „weiter“.'));
+    list.append(h('div', { class: 'chatnote' }, 'Claude hat noch nicht reagiert. Sofort zugestellt wird über den Plugin-Monitor „canvas-chat“ (Claude Code ab 2.1.310, interaktiv – nicht mit -p) oder den Kanal ', h('code', {}, 'claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe'), '. Sonst liest Claude die Nachricht beim nächsten Schritt – schreib im Terminal zum Beispiel „weiter“.'));
   }
   const sel = selectionLabel();
   const chip = !sel ? null : c.attach

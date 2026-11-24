@@ -10,7 +10,7 @@ import { CLI, tempProject, read } from './helpers.js';
 // MCP-Server als Kindprozess; sammelt Antworten und Benachrichtigungen (Kanal).
 function mcp(root, dataDir) {
   const proc = spawn(process.execPath, [CLI, 'mcp'], {
-    env: { ...process.env, WIREFLOW_ROOT: root, CLAUDE_PLUGIN_DATA: dataDir, WIREFLOW_PORT: '0' },
+    env: { ...process.env, WIREFLOW_ROOT: root, WIREFLOW_INBOX_DIR: dataDir, WIREFLOW_PORT: '0' },
     stdio: ['pipe', 'pipe', 'inherit'],
   });
   const pending = new Map();
@@ -72,7 +72,7 @@ test('Chat im Canvas: Kanal-Nachricht an Claude, Antwort zurück, Inbox und Hook
     // Rückfallweg: Hooks sehen die offene Nachricht
     const hook = event => spawnSync(process.execPath, [CLI, 'hook-inbox'], {
       input: JSON.stringify({ hook_event_name: event, cwd: root, stop_hook_active: false }),
-      env: { ...process.env, CLAUDE_PLUGIN_DATA: data, WIREFLOW_ROOT: root },
+      env: { ...process.env, WIREFLOW_INBOX_DIR: data, WIREFLOW_ROOT: root },
       encoding: 'utf8',
     });
     const ups = JSON.parse(hook('UserPromptSubmit').stdout);
@@ -190,5 +190,44 @@ test('Canvas im Browser: Kontextmenü schickt Auftrag an Claude, Antwort erschei
   } finally {
     await browser.close();
     c.close();
+  }
+});
+
+
+test('Plugin-Monitor „canvas-chat“: druckt neue Canvas-Nachrichten als Zeile, Kanal und Hooks halten sich zurück', async () => {
+  const root = tempProject();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wireflow-data-'));
+  process.env.WIREFLOW_INBOX_DIR = dir;
+  const { createBridge, monitorAlive } = await import('../src/mcp/bridge.js');
+  const mon = spawn(process.execPath, [CLI, 'monitor', '--root', root], { env: { ...process.env, WIREFLOW_INBOX_DIR: dir }, stdio: ['ignore', 'pipe', 'inherit'] });
+  const lines = [];
+  readline.createInterface({ input: mon.stdout }).on('line', l => lines.push(l));
+  const until = async (fn, ms = 4000) => { const t = Date.now(); while (!fn()) { if (Date.now() - t > ms) throw new Error('Zeitüberschreitung'); await new Promise(r => setTimeout(r, 50)); } };
+  const hook = event => spawnSync(process.execPath, [CLI, 'hook-inbox'], { input: JSON.stringify({ hook_event_name: event, cwd: root }), env: { ...process.env, WIREFLOW_INBOX_DIR: dir, WIREFLOW_ROOT: root }, encoding: 'utf8' });
+  try {
+    await until(() => monitorAlive(root));
+    const sent = [];
+    const b = createBridge({ root, notify: (method, params) => sent.push(params) });
+    const m = b.userMessage({ text: 'Zeig mir\nzwei Varianten', selection: { titel: 'Profil & Termine', screen: 'screens/profil.screen.tsx', element: 'btn_weiter', komponente: 'Button' } });
+    await until(() => lines.length > 0);
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], new RegExp(`^Nachricht aus dem Wireflow-Canvas \\(chat_id ${m.id}\\): „Zeig mir ⏎ zwei Varianten“ – Auswahl: „Profil & Termine“ · screens/profil.screen.tsx · Element btn_weiter <Button> – `));
+    assert.deepEqual(sent, [], 'kein doppelter Kanal, solange der Monitor zustellt');
+    assert.equal(hook('UserPromptSubmit').stdout, '', 'Hook schweigt, der Monitor hat zugestellt');
+    assert.equal(hook('Stop').stdout, '', 'noch nicht gelesen – Stop blockiert nicht');
+    b.inbox();
+    assert.equal(JSON.parse(hook('Stop').stdout).decision, 'block', 'gelesen, aber nicht beantwortet');
+    b.reply({ text: 'Erledigt.', chat_id: m.id });
+    assert.equal(hook('Stop').stdout, '');
+    await new Promise(r => setTimeout(r, 800));
+    assert.equal(lines.length, 1, 'jede Nachricht nur einmal');
+    mon.kill('SIGTERM');
+    await until(() => !monitorAlive(root));
+    b.userMessage({ text: 'Ohne Monitor' });
+    assert.equal(sent.length, 1, 'ohne Monitor geht die Nachricht über den Kanal');
+    b.close();
+  } finally {
+    mon.kill();
+    delete process.env.WIREFLOW_INBOX_DIR;
   }
 });

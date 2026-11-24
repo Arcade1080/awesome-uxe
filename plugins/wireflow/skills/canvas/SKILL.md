@@ -26,6 +26,7 @@ argument-hint: "[flow-id]"
 
 Die rechte Spalte hat drei Reiter: **Design** (Inspector), **Code** (Screen-Modul und Stories, markiertes Element) und **Chat**. Chat-Nachrichten, Aufträge aus dem **Kontextmenü** (Rechtsklick, Taste `.`: Varianten Strikt/Geführt/Frei, Review mit Persona, Weiter, Zustände) und aus **Lückenkarten** gehen an diese Sitzung:
 
-- **Mit Kanal** (Research Preview) kommen sie sofort als `<channel … chat_id="…" screen="…" element="…">`. Dafür Claude Code so starten: `claude --dangerously-load-development-channels plugin:wireflow@awesome-uxe` (Anmeldung über claude.ai oder Console-API-Schlüssel; nicht über Bedrock oder Vertex).
-- **Ohne Kanal** erinnern die Hooks beim nächsten Prompt bzw. am Ende eines Schritts; dann `canvas_inbox` aufrufen.
+- **Über den Plugin-Monitor `canvas-chat`** (Standard) kommt jede Nachricht sofort als Benachrichtigung: „Nachricht aus dem Wireflow-Canvas (chat_id …): „…“ – Auswahl: …“. Dann `canvas_inbox` aufrufen.
+- **Mit Kanal** (Research Preview, optional) als `<channel … chat_id="…" screen="…" element="…">` – nur, wenn kein Monitor läuft.
+- **Ohne beides** erinnern die Hooks beim nächsten Prompt bzw. am Ende eines Schritts; dann `canvas_inbox` aufrufen.
 - **Immer** mit `canvas_reply` antworten (chat_id übernehmen), kurz und konkret. Varianten mit `variant_create` anlegen, Reviews nur berichten, nichts ändern.

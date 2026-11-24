@@ -385,3 +385,7 @@ code,.code{font-family:var(--mono);font-size:12px}
 .row.stack{grid-template-columns:minmax(0,1fr);gap:4px;margin:8px 0}
 .rlabel{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:22px;color:var(--muted)}
 .rlabel small{color:var(--muted);opacity:.8}
+
+.chathead .via{margin-left:auto}
+.chathead .via.monitor{color:var(--ok)}
+.chathead .via.hooks,.chathead .via.kanal{color:var(--warn)}

@@ -1,7 +1,7 @@
 {
   "name": "wireflow",
   "displayName": "Wireflow Studio",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Journeys, Wireflows und Prototypen aus echtem Code des eigenen Design Systems – mit Canvas, Wissensbasis zu Nutzer:innen und Claude als Co-Designer.",
   "author": {
     "name": "awesome-uxe"
@@ -22,5 +22,14 @@
       "server": "wireflow",
       "displayName": "Wireflow Canvas"
     }
-  ]
+  ],
+  "experimental": {
+    "monitors": [
+      {
+        "name": "canvas-chat",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/wireflow\" monitor --root \"${CLAUDE_PROJECT_DIR}\"",
+        "description": "Nachrichten aus dem Chat des Wireflow-Canvas"
+      }
+    ]
+  }
 }

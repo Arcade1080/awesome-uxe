@@ -7,7 +7,7 @@ const INSTRUCTIONS = [
   'Wireflow Studio: Journeys, Wireflows und Prototypen aus echtem Code des verknüpften Design Systems.',
   'Zuerst project_status. Screens sind TSX-Screen-Module unter .wireflow/screens – nur DS-Komponenten (ds_search, ds_component),',
   'Patterns beachten (ds_patterns), Änderungen über screen_edit oder screen_write. Nutzerwissen nie erfinden: ohne Quelle ist es eine Annahme (knowledge_upsert).',
-  'Chat im Canvas: Nachrichten kommen als <channel … chat_id="…" screen="…" element="…"> (Kanal) oder über canvas_inbox.',
+  'Chat im Canvas: Nachrichten kommen als Benachrichtigung „Nachricht aus dem Wireflow-Canvas (chat_id …)“ vom Plugin-Monitor, als <channel … chat_id="…"> (Kanal) oder über Hooks; abholen mit canvas_inbox.',
   'Sie beziehen sich auf die Auswahl im Canvas. Erledige die Bitte mit den Wireflow-Werkzeugen und antworte immer mit canvas_reply (chat_id übernehmen).',
   'Jede chat_id nur einmal beantworten; was schon beantwortet ist, zeigt canvas_inbox nicht mehr. Varianten mit variant_create anlegen.',
 ].join(' ');
@@ -34,7 +34,7 @@ export function startMcp({ input = process.stdin, output = process.stdout } = {}
           protocolVersion: params?.protocolVersion || FALLBACK,
           // claude/channel: Nachrichten aus dem Canvas-Chat in die Sitzung schieben (Research Preview).
           capabilities: { tools: { listChanged: false }, experimental: { 'claude/channel': {} } },
-          serverInfo: { name: 'wireflow', title: 'Wireflow Studio', version: '0.3.0' },
+          serverInfo: { name: 'wireflow', title: 'Wireflow Studio', version: '0.3.1' },
           instructions: INSTRUCTIONS,
         };
       } else if (method === 'ping') {
