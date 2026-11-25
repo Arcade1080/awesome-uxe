@@ -12,6 +12,8 @@ import { initProject } from '../core/init.js';
 import { walk, getAttr, textOf, findById } from '../core/jsx.js';
 import { createBridge } from './bridge.js';
 import { storybookStatus } from '../core/storybook.js';
+import { journeyGaps } from '../core/journey.js';
+import { saveJourney } from '../core/journeys.js';
 
 const rootDir = () => findRoot(process.env.WIREFLOW_ROOT || undefined);
 const model = () => loadProject(rootDir());
@@ -132,25 +134,24 @@ export const TOOLS = [
   },
   {
     name: 'journey_get',
-    description: 'Liest eine User Journey (ohne id: alle).',
+    description: 'Liest eine User Journey als Story Map (wireflow/journey@2) samt offenen Punkten (ohne id: alle, ohne Befunde).',
     inputSchema: obj({ id: str('Journey-ID') }),
     run: ({ id }) => {
       const m = model();
-      return id ? m.journeys.find(j => j.id === id) || (() => { throw new Error('Journey nicht gefunden'); })() : m.journeys;
+      if (!id) return m.journeys;
+      const j = m.journeys.find(x => x.id === id);
+      if (!j) throw new Error('Journey nicht gefunden');
+      return { ...j, offen: journeyGaps(j, m) };
     },
   },
   {
     name: 'journey_upsert',
-    description: 'Legt eine Journey an oder ersetzt sie. Pain Points mit Beleg (insight-ID) verknüpfen; Unbelegtes als Annahme anlegen (knowledge_upsert).',
+    description: 'Legt eine Journey an oder ersetzt sie (Story Map, wireflow/journey@2): phases[] → steps[] { text, painPoints[] { text, insight? }, needs[] { text, insight?, solves[painPointId], requirements[] { text, screens[Knoten-ID], partial? } } }. Bis zu den Bedarfen ohne Lösung formulieren; erst Anforderungen nennen Screens. Das alte Format (actions[], painPoints[] je Phase) wird übernommen. Gibt die offenen Punkte zurück.',
     inputSchema: obj({ journey: { type: 'object', description: 'Journey-Objekt mit id, title, phases[]' } }, ['journey']),
     run: ({ journey }) => {
-      if (!journey.id || !Array.isArray(journey.phases)) throw new Error('journey braucht id und phases[]');
       const m = model();
-      const existing = m.journeys.find(j => j.id === journey.id);
-      const file = path.join(m.wf, existing?.file || `journeys/${slug(journey.title || journey.id)}.journey.json`);
-      const { file: _f, ...data } = journey;
-      writeJson(file, { schema: 'wireflow/journey@1', ...data });
-      return { gespeichert: path.relative(m.root, file) };
+      const r = saveJourney(m, journey);
+      return { gespeichert: path.join(WF, r.file), offen: journeyGaps(r.journey, m) };
     },
   },
   {

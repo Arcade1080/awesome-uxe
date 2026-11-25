@@ -202,19 +202,80 @@ code,.code{font-family:var(--mono);font-size:12px}
 .doc{position:absolute;inset:0;overflow:auto;padding:24px 28px 40px;user-select:text;-webkit-user-select:text;background:var(--bg)}
 .doc h1{margin:0 0 4px;font-size:20px}
 .doc .sub{color:var(--muted);margin:0 0 18px}
-.jgrid{display:grid;gap:10px;align-items:start}
-.jcol{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;min-height:100%}
-.jcol h3{margin:0 0 8px;font-size:14px}
-.jcol h4{margin:12px 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
-.jcol ul{margin:0;padding-left:16px}
-.jcol .pp{list-style:none;padding:0;display:grid;gap:6px}
-.jcol .pp li{padding:7px 9px;border-radius:8px;background:var(--panel2)}
-.jcol .pp li .kchip{margin-top:4px}
-.emo{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 0;margin-bottom:10px}
-.emo svg{display:block;width:100%;height:86px}
-.emo polyline{fill:none;stroke:var(--sel);stroke-width:2}
-.emo circle{fill:var(--panel);stroke:var(--sel);stroke-width:2}
-.emo line{stroke:var(--line)}
+/* Journey: Story Map (Phasen → Schritte → Pain Points → Bedarfe | Anforderungen → Screens) */
+.app[data-mode=journey] .doc{padding:0;overflow:hidden}
+.jroot{position:absolute;inset:0;display:grid;grid-template-rows:auto minmax(0,1fr);--jcw:208px;--jlab:104px;--sticky:light-dark(#fde68a,#e9cf63)}
+.jhead{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:flex-end;justify-content:space-between;padding:14px 20px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
+.jhead h1{margin:0;font-size:20px}.jhead .sub{margin:2px 0 0}
+.jbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.jbar select{height:30px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:0 8px;max-width:220px}
+.jbar label.btn{cursor:pointer}
+.jstat{color:var(--muted);font-size:12px;white-space:nowrap}.jstat b{color:var(--bad);font-weight:600}.jsave{opacity:.8}
+.jbody{display:grid;grid-template-columns:minmax(0,1fr) 340px;min-height:0}
+.jwall{overflow:auto;padding:14px 16px 28px 20px;background:var(--bg)}
+.jboard{display:grid;gap:10px;align-items:start;width:max-content}
+.jlab{font-size:12px;font-weight:600;color:var(--muted);padding-top:8px;line-height:1.3}
+.jlab small{display:block;font-weight:400}.jlab.sys{color:var(--sel)}
+.jrule{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--sel);font-weight:600;padding:2px 0}
+.jrule::before,.jrule::after{content:"";flex:1;border-top:2px dashed var(--sel);opacity:.5}
+.jc{position:relative;border-radius:8px;padding:8px 24px 8px 10px;font-size:13px;line-height:1.35;cursor:grab;outline:none;box-shadow:0 1px 2px rgb(0 0 0/.12);user-select:none;-webkit-user-select:none}
+.jc:focus-visible,.jc.sel{box-shadow:0 0 0 2px var(--sel)}
+.jc.rel{box-shadow:0 0 0 2px color-mix(in srgb,var(--sel) 45%,transparent)}
+.jc.over{box-shadow:-4px 0 0 var(--sel)}.jc.dragging{opacity:.4}
+.jc-act{background:light-dark(#26262c,#3b3b46);color:#fff;font-weight:600;font-size:14px;min-height:38px}
+.jc-step{background:var(--sticky);color:#1b1b1f;font-weight:600;min-height:58px}
+.jc-pain{background:var(--bad-soft);border:1px solid color-mix(in srgb,var(--bad) 30%,transparent);box-shadow:none}
+.jc-need{background:var(--panel);border:1px solid var(--line);box-shadow:none}
+.jc-req{background:var(--sel-soft);border:1px solid color-mix(in srgb,var(--sel) 30%,transparent);box-shadow:none;cursor:pointer}
+.jc textarea{width:100%;border:0;background:transparent;color:inherit;font:inherit;resize:none;outline:none;padding:0;min-height:2.6em;field-sizing:content}
+.jnum{font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:2px}.jc-pain .jnum{color:var(--bad)}
+.jx,.jderive{position:absolute;top:4px;height:22px;border:0;border-radius:5px;background:transparent;color:inherit;opacity:0;cursor:pointer}
+.jx{right:3px;width:22px;font-size:15px;line-height:1}
+.jderive{right:26px;padding:0 6px;font-size:11.5px;font-weight:600;color:var(--bad)}
+.jc:hover .jx,.jc.sel .jx,.jc:hover .jderive,.jc.sel .jderive{opacity:.75}
+.jx:hover,.jderive:hover{opacity:1;background:rgb(127 127 127/.2)}
+.jins{position:absolute;top:50%;width:24px;height:24px;margin-top:-12px;border-radius:50%;border:2px solid var(--bg);background:var(--sel);color:var(--on-sel);font:600 15px/1 system-ui;padding:0;opacity:0;z-index:3;cursor:pointer;transition:opacity .12s,transform .12s}
+.jins-r{right:-17px}.jins-l{left:-17px}
+.jc-step:hover .jins,.jins:focus-visible{opacity:1}.jins:hover{transform:scale(1.15)}
+@media(hover:none){.jx,.jderive{opacity:.6}.jins{opacity:.7}}
+.jmeta{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.jchip{display:inline-block;font-size:11.5px;line-height:1.3;padding:1px 7px;border-radius:999px;font-weight:500;background:var(--panel2);color:var(--muted)}
+.jchip.k-belegt{background:var(--k-belegt-soft);color:var(--k-belegt)}.jchip.k-hinweis{background:var(--k-hinweis-soft);color:var(--k-hinweis)}
+.jchip.k-annahme{background:var(--k-annahme-soft);color:var(--k-annahme);border:1px dashed currentColor}.jchip.k-offen{border:1px dashed var(--line)}
+.jchip.k-widerspruch{background:var(--k-widerspruch-soft);color:var(--k-widerspruch)}
+.jchip.t-info{background:var(--k-hinweis-soft);color:var(--k-hinweis)}.jchip.t-ent{background:var(--warn-soft);color:var(--warn)}.jchip.t-hand{background:var(--ok-soft);color:var(--ok)}
+.jchip.gap{background:var(--bad-soft);color:var(--bad)}.jchip.part{background:var(--warn-soft);color:var(--warn)}
+.jchip.solv{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+.jchip.lint{background:#fff4e5;color:#b54708;font-weight:600}
+.jscr{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:2px 7px 2px 4px;border-radius:6px;background:var(--panel);border:1px solid var(--line);color:var(--ink);cursor:pointer}
+.jscr:hover{border-color:var(--sel)}.jscr i{width:9px;height:14px;border:1.5px solid var(--sel);border-radius:2px}
+.jstack{display:flex;flex-direction:column;gap:8px;min-height:36px;border-radius:8px}
+.jstack.over{background:var(--sel-soft)}
+.jrg{display:flex;flex-direction:column;gap:6px}.jrg+.jrg{padding-top:6px;border-top:1px dashed var(--line)}
+.jmiss{border:1.5px dashed var(--bad);color:var(--bad);border-radius:8px;padding:5px 9px;font-size:12px}
+.jghost{border:1.5px dashed var(--line);background:transparent;color:var(--muted);border-radius:8px;font:inherit;font-size:12.5px;min-height:32px;padding:4px 10px;text-align:left}
+.jghost.sm{min-height:26px;padding:2px 8px;font-size:12px}
+.jghost:hover,.jghost:focus-visible{border-color:var(--sel);color:var(--sel)}
+.jinsp{background:var(--panel);border-left:1px solid var(--line);padding:16px;overflow:auto;user-select:text}
+.jkind{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.jinsp h3{font-size:14px;margin:14px 0 6px}
+.jfld{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;margin-bottom:10px}
+.jfld small{font-weight:400;color:var(--muted)}
+.jfld ul{margin:0;padding-left:16px;font-weight:400}
+.jrow2{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px}
+.jinsp input:not([type=checkbox]),.jinsp select,.jinsp textarea{font:inherit;font-size:14px;font-weight:400;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);width:100%}
+.jinsp input:not([type=checkbox]),.jinsp select{height:34px}
+.jinsp textarea{resize:vertical}
+.jchecks{display:flex;flex-direction:column;gap:2px;font-weight:400}
+.jchecks label{display:flex;gap:8px;align-items:flex-start;min-height:26px;line-height:1.35}
+.jchecks input{margin-top:2px}
+.jhelp{margin:6px 0 12px;font-size:12.5px}.jhelp summary{cursor:pointer;font-weight:600}.jhelp ul{margin:4px 0 8px;padding-left:18px}
+.jtodo{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.jtodo button{all:unset;box-sizing:border-box;width:100%;cursor:pointer;font-size:12.5px;line-height:1.35;padding:6px 8px;border-radius:6px;background:var(--panel2)}
+.jtodo button:hover,.jtodo button:focus-visible{outline:2px solid var(--sel)}
+.jtodo b{color:var(--bad);font-weight:600}
+.jinsp .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+@media(max-width:900px){.jbody{grid-template-columns:minmax(0,1fr)}.jinsp{border-left:0;border-top:1px solid var(--line);max-height:45vh}.jbody{grid-template-rows:minmax(0,1fr) auto}}
 .kgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
 .kcol{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
 .kcol h2{margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:8px}

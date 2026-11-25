@@ -14,7 +14,8 @@ argument-hint: "[flow-id]"
 
 - **Design:** Screens als echte Komponenten; Elemente anklicken und im Inspector Props, Text und Interaktion ändern; Komponenten aus der Liste auf Screens ziehen; Elemente per Drag & Drop umordnen; Screens am Titel verschieben; Wireframe/Hi-Fi umschalten. Alles wird als Code in die Screen-Module geschrieben.
 - **Prototyp:** den Flow durchklicken; Variablen steuern Entscheidungen; fehlende Pfade werden gemeldet.
-- **Journey** und **Wissen:** Pain Points mit Wissensstand, Insights, Annahmen nach Risiko, offene Fragen.
+- **Journey:** Story Map – Phasen, Schritte, Pain Points und Bedarfe ohne Lösung; darunter Anforderungen mit Screens. Bearbeitbar; speichert in die Journey-Datei. Offene Punkte liefert auch `journey_get`.
+- **Wissen:** Insights, Annahmen nach Risiko, offene Fragen.
 
 ## Storybook-Brett
 

@@ -1759,39 +1759,417 @@ function protoPanel(pane) {
   pane.append(h('div', { class: 'grp' }, 'Pfad'), h('ol', { class: 'path' }, ...[...S.proto.history, S.proto.node].map((id, i, a) => h('li', { class: i === a.length - 1 ? 'cur' : '' }, nodeName(id)))));
 }
 
-// ---------- Journey ----------
+// ---------- Journey (Story Map) ----------
+// Phasen → Schritte → Pain Points → Bedarfe | ab hier mit Produkt | Anforderungen → Screens.
+// Arbeitskopie im Client, gespeichert über /api/journey (wireflow/journey@2). Eigene Rückgängig-Liste.
+const J = { id: null, data: null, base: '', hist: [], fut: [], sel: null, edit: null, fresh: null, focus: null, pending: false, timer: 0, lint: true, drag: null, pre: null, refocus: false, saved: true };
+const J_TERMS = [[/tipp/i, 'tippen', 'wählen, sich entscheiden'], [/klick/i, 'klicken', 'wählen, bestätigen'], [/button|knopf/i, 'Button', 'das Ziel dahinter'], [/screen|bildschirm|\bseite\b|maske/i, 'Screen', 'was dort erreicht wird'], [/formular|feld\b|felder/i, 'Feld', 'was angegeben wird'], [/dropdown|menü|popup|\bliste\b|filter/i, 'Bauteil', 'was gefunden oder entschieden wird'], [/eingeben|ausfüllen/i, 'eingeben', 'angeben, mitteilen'], [/\bslot/i, 'Slot', 'Termin, Zeit'], [/log ?in|anmelden|registrier/i, 'Login', 'sich ausweisen, nur wenn nötig'], [/\bapp\b|website|portal/i, 'App', 'offen lassen, wo es passiert']];
+const J_TYPES = [
+  ['info', 'Information', /\b(wissen|erkennen|verstehen|sehen|erfahren|nachvollziehen)\b/i, ['Vor der Wahl einer Praxis wissen, ob sie meine Versicherung annimmt.', 'Erkennen, dass mein Termin für mich zurückgehalten wird.']],
+  ['ent', 'Entscheidung', /\b(vergleichen|auswählen|wählen|entscheiden|abwägen|einschätzen)\b/i, ['Praxen nach dem nächsten freien Termin vergleichen.', 'Einen Termin auswählen, der zu meinen Arbeitszeiten passt.']],
+  ['hand', 'Handlung', /\b(angeben|ändern|korrigieren|erledigen|absagen|verschieben|mitteilen|bezahlen)\b/i, ['Angeben, wie ich versichert bin.', 'Einen Termin kurzfristig absagen oder verschieben.']],
+];
+const jTerm = t => { if (!J.lint) return null; for (const [r, w, b] of J_TERMS) if (r.test(t || '')) return { w, b }; return null; };
+const jType = t => { let best = null, pos = Infinity; for (const [k, , r] of J_TYPES) { const m = (t || '').match(r); if (m && m.index < pos) { pos = m.index; best = k; } } return best; };
+const jTypeLabel = k => J_TYPES.find(x => x[0] === k)?.[1];
+const jUid = p => `${p}_${Math.random().toString(36).slice(2, 8)}`;
+const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).filter(y => y !== 'file').sort().map(y => [y, x[y]])) : x));
+const jSnap = () => JSON.stringify(J.data);
+const jSteps = () => J.data.phases.flatMap(p => p.steps);
+const jPains = () => jSteps().flatMap(s => s.painPoints);
+const jNeeds = () => jSteps().flatMap(s => s.needs);
+const jPnum = p => `P${jPains().indexOf(p) + 1}`;
+const jPain = id => jPains().find(p => p.id === id);
+const jSolvers = p => jNeeds().filter(n => n.solves.includes(p.id));
+const jInsight = id => S.data.knowledge.insights.find(i => i.id === id);
+const jLevel = id => (id ? jInsight(id)?.wissensstand || 'offen' : null);
+function jScreens() {
+  const fl = S.data.flows.filter(f => f.journey === J.id);
+  const list = (fl.length ? fl : S.data.flows).flatMap(f => f.nodes.filter(n => n.type === 'screen').map(n => ({ id: n.id, title: n.title || n.id, flow: f })));
+  return list;
+}
+const jScreenTitle = id => jScreens().find(x => x.id === id)?.title || id;
+function jLocate(id) {
+  for (const [ai, a] of J.data.phases.entries()) {
+    if (a.id === id) return { kind: 'act', a, ai };
+    for (const [si, s] of a.steps.entries()) {
+      if (s.id === id) return { kind: 'step', a, ai, s, si };
+      for (const [pi, p] of s.painPoints.entries()) if (p.id === id) return { kind: 'pain', a, ai, s, si, p, pi };
+      for (const [ni, n] of s.needs.entries()) {
+        if (n.id === id) return { kind: 'need', a, ai, s, si, n, ni };
+        for (const [ri, r] of n.requirements.entries()) if (r.id === id) return { kind: 'req', a, ai, s, si, n, ni, r, ri };
+      }
+    }
+  }
+  return null;
+}
+function jClean(j) {
+  const d = JSON.parse(JSON.stringify(j));
+  for (const p of d.phases) for (const s of p.steps) {
+    for (const x of s.painPoints) if (!x.insight) delete x.insight;
+    for (const n of s.needs) { if (!n.insight) delete n.insight; for (const r of n.requirements) if (!r.partial) delete r.partial; }
+  }
+  return d;
+}
+
+function jSync() {
+  const list = S.data.journeys;
+  const want = J.id && list.find(x => x.id === J.id) || list.find(x => x.id === flow()?.journey) || list[0];
+  if (!want) { J.id = null; J.data = null; return 'none'; }
+  const { file: _f, ...fresh } = want;
+  if (J.id !== want.id || !J.data) {
+    Object.assign(J, { id: want.id, data: JSON.parse(JSON.stringify(fresh)), base: canon(fresh), hist: [], fut: [], sel: null, edit: null });
+    return 'reset';
+  }
+  if (!J.pending && canon(fresh) !== J.base) {
+    Object.assign(J, { data: JSON.parse(JSON.stringify(fresh)), base: canon(fresh), hist: [], fut: [], edit: null });
+    if (J.sel && !jLocate(J.sel)) J.sel = null;
+    return 'reset';
+  }
+  return 'same';
+}
+function jSave() {
+  J.saved = false;
+  J.pending = true;
+  jStat();
+  clearTimeout(J.timer);
+  J.timer = setTimeout(async () => {
+    const body = jClean(J.data);
+    try {
+      const r = await api('/api/journey', { journey: body });
+      J.base = canon(body);
+      J.saved = true;
+      J.pending = false;
+      jStat();
+      scheduleReload(r.files || [], r.v);
+    } catch (e) {
+      J.pending = false;
+      toast(`Journey nicht gespeichert: ${e.message}`, 'bad');
+      jStat();
+    }
+  }, 350);
+}
+function jChange(fn) { J.hist.push(jSnap()); if (J.hist.length > 100) J.hist.shift(); J.fut = []; fn(); jRender(); jSave(); }
+function jUndo() { if (!J.hist.length) return; J.fut.push(jSnap()); J.data = JSON.parse(J.hist.pop()); J.edit = J.fresh = null; if (J.sel && !jLocate(J.sel)) J.sel = null; jRender(); jSave(); }
+function jRedo() { if (!J.fut.length) return; J.hist.push(jSnap()); J.data = JSON.parse(J.fut.pop()); J.edit = J.fresh = null; if (J.sel && !jLocate(J.sel)) J.sel = null; jRender(); jSave(); }
+
+function jAddAct(i) { jChange(() => { const a = { id: jUid('ph'), title: '', steps: [] }; J.data.phases.splice(i, 0, a); J.sel = J.edit = J.fresh = a.id; }); }
+function jAddStep(a, i) { jChange(() => { const s = { id: jUid('st'), text: '', painPoints: [], needs: [] }; a.steps.splice(i, 0, s); J.sel = J.edit = J.fresh = s.id; }); }
+function jAddPain(s) { jChange(() => { const p = { id: jUid('pp'), text: '' }; s.painPoints.push(p); J.sel = p.id; J.focus = 'jf-pain'; }); }
+function jAddNeed(s) { jChange(() => { const n = { id: jUid('bd'), text: '', solves: [], requirements: [] }; s.needs.push(n); J.sel = n.id; J.focus = 'jf-need'; }); }
+function jAddReq(n) { jChange(() => { const r = { id: jUid('an'), text: '', screens: [] }; n.requirements.push(r); J.sel = r.id; J.focus = 'jf-req'; }); }
+function jDerive(id) { const L = jLocate(id); if (!L) return; jChange(() => { const n = { id: jUid('bd'), text: '', insight: L.p.insight, solves: [L.p.id], requirements: [] }; L.s.needs.push(n); J.sel = n.id; J.focus = 'jf-need'; }); toast(`Bedarf zu ${jPnum(L.p)} angelegt – Beleg übernommen.`); }
+function jSibling(id) { const L = jLocate(id); if (L?.kind === 'act') jAddAct(L.ai + 1); else if (L?.kind === 'step') jAddStep(L.a, L.si + 1); }
+function jRemove(id) {
+  const L = jLocate(id);
+  if (!L) return;
+  const what = { act: () => `Phase „${L.a.title}“`, step: () => `Schritt „${L.s.text}“`, pain: () => `Pain Point ${jPnum(L.p)}`, need: () => `Bedarf B${L.ni + 1}`, req: () => 'Anforderung' }[L.kind]();
+  jChange(() => {
+    if (L.kind === 'act') J.data.phases.splice(L.ai, 1);
+    else if (L.kind === 'step') L.a.steps.splice(L.si, 1);
+    else if (L.kind === 'pain') L.s.painPoints.splice(L.pi, 1);
+    else if (L.kind === 'need') L.s.needs.splice(L.ni, 1);
+    else L.n.requirements.splice(L.ri, 1);
+    const pains = new Set(jPains().map(p => p.id));
+    for (const n of jNeeds()) n.solves = n.solves.filter(x => pains.has(x));
+    J.sel = null;
+  });
+  toast(`${what} gelöscht – ⌘Z macht es rückgängig.`);
+}
+function jMoveIn(list, from, item, toList, toI) { list.splice(from, 1); if (list === toList && from < toI) toI--; toList.splice(toI ?? toList.length, 0, item); }
+function jMove(id, target, before) {
+  const L = jLocate(id), T = target && jLocate(target);
+  jChange(() => {
+    if (L.kind === 'act') jMoveIn(J.data.phases, L.ai, L.a, J.data.phases, T.ai);
+    else if (L.kind === 'step') { if (T.kind === 'act') jMoveIn(L.a.steps, L.si, L.s, T.a.steps, T.a.steps.length); else jMoveIn(L.a.steps, L.si, L.s, T.a.steps, T.si); }
+    else if (L.kind === 'pain') jMoveIn(L.s.painPoints, L.pi, L.p, T.s.painPoints, T.kind === 'pain' ? T.pi : undefined);
+    else if (L.kind === 'need') jMoveIn(L.s.needs, L.ni, L.n, T.s.needs, T.kind === 'need' ? T.ni : undefined);
+  });
+}
+function jNudge(id, dir) {
+  const L = jLocate(id);
+  if (!L) return;
+  J.refocus = true;
+  const fs = jSteps(), k = L.s ? fs.indexOf(L.s) : -1;
+  const lists = { act: [J.data.phases, L.ai, L.a], pain: [L.s?.painPoints, L.pi, L.p], need: [L.s?.needs, L.ni, L.n], req: [L.n?.requirements, L.ri, L.r] };
+  if (L.kind === 'step') {
+    if (dir === 'r') { if (L.si < L.a.steps.length - 1) jChange(() => jMoveIn(L.a.steps, L.si, L.s, L.a.steps, L.si + 2)); else if (J.data.phases[L.ai + 1]) jChange(() => jMoveIn(L.a.steps, L.si, L.s, J.data.phases[L.ai + 1].steps, 0)); }
+    if (dir === 'l') { if (L.si > 0) jChange(() => jMoveIn(L.a.steps, L.si, L.s, L.a.steps, L.si - 1)); else if (J.data.phases[L.ai - 1]) jChange(() => jMoveIn(L.a.steps, L.si, L.s, J.data.phases[L.ai - 1].steps)); }
+    return;
+  }
+  const [list, i, item] = lists[L.kind];
+  const step = L.kind === 'act' ? (dir === 'r' ? 1 : dir === 'l' ? -1 : 0) : (dir === 'd' ? 1 : dir === 'u' ? -1 : 0);
+  if (step) { const j = i + step; if (j >= 0 && j < list.length) jChange(() => { list.splice(i, 1); list.splice(j, 0, item); }); return; }
+  if ((L.kind === 'pain' || L.kind === 'need') && (dir === 'l' || dir === 'r')) {
+    const to = fs[k + (dir === 'r' ? 1 : -1)];
+    if (to) jChange(() => jMoveIn(list, i, item, L.kind === 'pain' ? to.painPoints : to.needs));
+  }
+}
+
+function jFinish(ta, o, field, keep, next) {
+  if (ta._done) return;
+  ta._done = true;
+  const v = ta.value.replace(/\s+/g, ' ').trim(), wasFresh = J.fresh === o.id;
+  J.edit = J.fresh = null;
+  J.refocus = true;
+  if (!keep || !v) { if (wasFresh) { J.data = JSON.parse(J.hist.pop()); J.sel = null; jSave(); } jRender(); return; }
+  if (v !== o[field]) { if (!wasFresh) { J.hist.push(jSnap()); J.fut = []; } o[field] = v; jSave(); }
+  if (next) jSibling(o.id); else jRender();
+}
+function jCard(kind, o, body, extra) {
+  const field = kind === 'act' ? 'title' : 'text';
+  const isEdit = J.edit === o.id, L = J.sel && jLocate(J.sel);
+  const rel = L && ((kind === 'req' && L.kind === 'need' && L.n.requirements.includes(o)) || (kind === 'need' && L.kind === 'req' && L.n === o) || (kind === 'pain' && L.kind === 'need' && L.n.solves.includes(o.id)) || (kind === 'need' && L.kind === 'pain' && o.solves.includes(L.p.id)));
+  const label = { act: 'Phase', step: 'Schritt', pain: 'Pain Point', need: 'Bedarf', req: 'Anforderung' }[kind];
+  const inline = kind === 'act' || kind === 'step';
+  const el = h('div', {
+    class: `jc jc-${kind}${J.sel === o.id ? ' sel' : ''}${rel ? ' rel' : ''}`, tabindex: '0', role: 'button', draggable: isEdit || kind === 'req' ? null : 'true', 'data-jid': o.id, 'aria-label': `${label}: ${o[field] || 'leer'}`,
+    onclick: e => { if (e.target.closest('button,textarea')) return; J.sel = o.id; jRender(); },
+    ondblclick: e => { if (e.target.closest('button') || !inline) return; J.sel = J.edit = o.id; jRender(); },
+    onkeydown: e => {
+      if (e.target.tagName === 'TEXTAREA') return;
+      const ar = { ArrowLeft: 'l', ArrowRight: 'r', ArrowUp: 'u', ArrowDown: 'd' };
+      if (e.altKey && ar[e.key]) { e.preventDefault(); e.stopPropagation(); J.sel = o.id; jNudge(o.id, ar[e.key]); }
+      else if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); J.sel = o.id; if (inline) J.edit = o.id; else J.focus = { pain: 'jf-pain', need: 'jf-need', req: 'jf-req' }[kind]; jRender(); }
+      else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); jRemove(o.id); }
+    },
+    ondragstart: e => { J.drag = { kind, id: o.id }; e.dataTransfer.setData('text/plain', o.id); e.dataTransfer.effectAllowed = 'move'; el.classList.add('dragging'); },
+    ondragend: () => { J.drag = null; el.classList.remove('dragging'); },
+  });
+  if (isEdit) {
+    const ta = h('textarea', { 'aria-label': label, rows: '2', placeholder: kind === 'act' ? 'Phase, z. B. Praxis finden' : 'Was wollen Menschen erreichen?' });
+    ta.value = o[field];
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); jFinish(ta, o, field, true); }
+      else if (e.key === 'Tab') { e.preventDefault(); jFinish(ta, o, field, true, true); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); jFinish(ta, o, field, false); }
+    });
+    ta.addEventListener('blur', () => jFinish(ta, o, field, true));
+    el.append(ta);
+    requestAnimationFrame(() => { ta.focus(); ta.select(); });
+  } else el.append(...body.filter(Boolean));
+  if (extra && !isEdit) el.append(...[].concat(extra).filter(Boolean));
+  el.append(h('button', { type: 'button', class: 'jx', title: 'Löschen', 'aria-label': `${label} löschen`, onclick: e => { e.stopPropagation(); jRemove(o.id); } }, '×'));
+  const accepts = d => d && d.id !== o.id && (d.kind === kind || (kind === 'act' && d.kind === 'step'));
+  el.addEventListener('dragover', e => { if (!accepts(J.drag)) return; e.preventDefault(); e.stopPropagation(); el.classList.add('over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('over'));
+  el.addEventListener('drop', e => { el.classList.remove('over'); if (!accepts(J.drag)) return; e.preventDefault(); e.stopPropagation(); const d = J.drag; J.drag = null; jMove(d.id, o.id); });
+  return el;
+}
+const jChip = (cls, text, title) => h('span', { class: `jchip ${cls}`, title }, text);
+function jEvidence(id) {
+  if (!id) return jChip('k-annahme', 'Annahme', 'Ohne Beleg – Kandidat für /wireflow:research');
+  const i = jInsight(id), lv = i?.wissensstand || 'offen';
+  return jChip(`k-${lv}`, `${KLABEL[lv] || lv} · ${id}`, i ? `${i.aussage}${i.fakten?.length ? ` (${i.fakten.join(', ')})` : ''}` : 'Insight nicht gefunden');
+}
+function jStepCard(s, a, si) {
+  const t = jTerm(s.text);
+  const ins = (side, at) => h('button', { type: 'button', class: `jins jins-${side}`, title: 'Schritt einfügen', 'aria-label': `Schritt ${side === 'l' ? 'vor' : 'nach'} „${s.text}“ einfügen`, onclick: e => { e.stopPropagation(); jAddStep(a, at); } }, '+');
+  return jCard('step', s, [h('span', {}, s.text), t ? h('div', {}, jChip('lint', `Lösung? ${t.w}`, `„${t.w}“ beschreibt eine Lösung. Besser: ${t.b}`)) : null], [si === 0 ? ins('l', 0) : null, ins('r', si + 1)]);
+}
+function jPainCard(p) {
+  const sv = jSolvers(p);
+  return jCard('pain', p, [h('div', { class: 'jnum' }, jPnum(p)), h('span', {}, p.text),
+    h('div', { class: 'jmeta' }, p.insight ? jEvidence(p.insight) : jChip('k-offen', 'ohne Beleg'), sv.length ? jChip('solv', `→ ${sv.map(n => { const N = jLocate(n.id); return `B${N.ni + 1}${N.s === jLocate(p.id).s ? '' : ` (${N.s.text})`}`; }).join(', ')}`) : jChip('gap', 'kein Bedarf'))],
+  h('button', { type: 'button', class: 'jderive', title: 'Bedarf aus diesem Pain Point ableiten', onclick: e => { e.stopPropagation(); jDerive(p.id); } }, '→ B'));
+}
+function jNeedCard(n, i) {
+  const ty = jType(n.text), t = jTerm(n.text);
+  return jCard('need', n, [h('div', { class: 'jnum' }, `B${i + 1}`), h('span', {}, n.text),
+    h('div', { class: 'jmeta' }, ty ? jChip(`t-${ty}`, jTypeLabel(ty)) : null, jEvidence(n.insight),
+      n.solves.length ? jChip('solv', `löst ${n.solves.map(jPain).filter(Boolean).map(jPnum).join(', ')}`) : null,
+      t ? jChip('lint', `Lösung? ${t.w}`, `„${t.w}“ klingt nach Lösung. Besser: ${t.b}`) : null)]);
+}
+function jReqCard(r) {
+  const scr = jScreens();
+  return jCard('req', r, [h('span', {}, r.text || '(leer)'), h('div', { class: 'jmeta' },
+    r.screens.length ? r.screens.map(id => { const x = scr.find(y => y.id === id); return h('button', { type: 'button', class: 'jscr', title: x ? `Im Flow „${x.flow.title}“ öffnen` : 'Screen nicht gefunden', onclick: e => { e.stopPropagation(); if (!x) return; S.flowId = x.flow.id; setMode('design'); select({ node: id }); centerOn(id); } }, h('i'), x?.title || id); }) : jChip('gap', 'kein Screen'),
+    r.partial ? jChip('part', 'teilweise', r.partial) : null)]);
+}
+function jStack(kind, s, items, add, addLabel) {
+  const el = h('div', { class: 'jstack' }, items, h('button', { type: 'button', class: `jghost${kind === 'pain' ? ' sm' : ''}`, onclick: add }, addLabel));
+  el.addEventListener('dragover', e => { if (J.drag?.kind !== kind) return; e.preventDefault(); el.classList.add('over'); });
+  el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('over'); });
+  el.addEventListener('drop', e => { el.classList.remove('over'); if (J.drag?.kind !== kind) return; e.preventDefault(); const d = J.drag; J.drag = null; jMove(d.id, s.id); });
+  return el;
+}
+
+function jMap() {
+  const b = $('#jboard');
+  if (!b || !J.data) return;
+  const wall = b.parentElement, sx = wall.scrollLeft, sy = wall.scrollTop;
+  b.textContent = '';
+  let col = 2;
+  const tpl = ['var(--jlab)'];
+  const pos = J.data.phases.map(a => { const n = Math.max(1, a.steps.length), p = { c: col, n }; col += n; for (let i = 0; i < n; i++) tpl.push('var(--jcw)'); return p; });
+  tpl.push('var(--jcw)');
+  b.style.gridTemplateColumns = tpl.join(' ');
+  const place = (el, c, r, span = 1) => { el.style.gridColumn = `${c} / span ${span}`; el.style.gridRow = r; b.append(el); };
+  place(h('div', { class: 'jlab' }, 'Phasen'), 1, 1);
+  place(h('div', { class: 'jlab' }, 'Schritte'), 1, 2);
+  place(h('div', { class: 'jlab' }, 'Pain Points', h('small', {}, 'mit Beleg')), 1, 3);
+  place(h('div', { class: 'jlab' }, 'Bedarfe', h('small', {}, 'was Menschen brauchen')), 1, 4);
+  place(h('div', { class: 'jrule' }, 'ab hier mit Produkt'), 1, 5, col);
+  place(h('div', { class: 'jlab sys' }, 'Anforderungen', h('small', {}, 'ans Produkt, mit Screens')), 1, 6);
+  J.data.phases.forEach((a, ai) => {
+    place(jCard('act', a, [h('span', {}, a.title)]), pos[ai].c, 1, pos[ai].n);
+    if (!a.steps.length) {
+      const g = h('button', { type: 'button', class: 'jghost', onclick: () => jAddStep(a, 0) }, '+ Schritt');
+      g.addEventListener('dragover', e => { if (J.drag?.kind === 'step') e.preventDefault(); });
+      g.addEventListener('drop', e => { if (J.drag?.kind !== 'step') return; e.preventDefault(); const d = J.drag; J.drag = null; jMove(d.id, a.id); });
+      place(g, pos[ai].c, 2);
+    }
+    a.steps.forEach((s, si) => {
+      const c = pos[ai].c + si;
+      place(jStepCard(s, a, si), c, 2);
+      place(jStack('pain', s, s.painPoints.map(jPainCard), () => jAddPain(s), '+ Pain Point'), c, 3);
+      place(jStack('need', s, s.needs.map(jNeedCard), () => jAddNeed(s), '+ Bedarf'), c, 4);
+      place(h('div', { class: 'jstack' }, s.needs.map((n, i) => h('div', { class: 'jrg' }, h('div', { class: 'jnum' }, `zu B${i + 1}`),
+        n.requirements.length ? n.requirements.map(jReqCard) : h('div', { class: 'jmiss' }, 'Noch keine Anforderung'),
+        h('button', { type: 'button', class: 'jghost sm', onclick: () => jAddReq(n), 'aria-label': `Anforderung zu B${i + 1}` }, '+ Anforderung')))), c, 6);
+    });
+  });
+  place(h('button', { type: 'button', class: 'jghost', onclick: () => jAddAct(J.data.phases.length) }, '+ Phase'), col, 1);
+  wall.scrollLeft = sx;
+  wall.scrollTop = sy;
+  if (J.refocus && J.sel && !J.edit) b.querySelector(`[data-jid="${J.sel}"]`)?.focus({ preventScroll: false });
+  J.refocus = false;
+}
+function jGaps() {
+  const out = [];
+  for (const p of jPains()) if (!jSolvers(p).length) out.push([p.id, `${jPnum(p)} „${p.text}“`, 'noch kein Bedarf dazu']);
+  for (const a of J.data.phases) for (const s of a.steps) {
+    const t = jTerm(s.text);
+    if (t) out.push([s.id, `„${s.text}“`, `klingt nach Lösung (${t.w})`]);
+    if (!s.needs.length) out.push([s.id, `„${s.text}“`, 'hat noch keine Bedarfe']);
+    s.needs.forEach((n, i) => {
+      const lab = `${s.text}, B${i + 1}`, nt = jTerm(n.text);
+      if (nt) out.push([n.id, lab, `klingt nach Lösung (${nt.w})`]);
+      if (!n.insight) out.push([n.id, lab, 'ohne Beleg (Annahme)']);
+      if (!n.requirements.length) out.push([n.id, lab, 'noch keine Anforderung']);
+      for (const r of n.requirements) { if (!r.screens.length) out.push([r.id, lab, 'Anforderung ohne Screen']); else if (r.partial) out.push([r.id, lab, `nur teilweise gelöst: ${r.partial}`]); }
+    });
+  }
+  return out;
+}
+function jStat() {
+  const el = $('#jstat');
+  if (!el || !J.data) return;
+  const ns = jNeeds();
+  const gaps = ns.filter(n => !n.requirements.length).length + ns.flatMap(n => n.requirements).filter(r => !r.screens.length).length + jPains().filter(p => !jSolvers(p).length).length;
+  fill(el, `${jSteps().length} Schritte · ${jPains().length} Pain Points · ${ns.length} Bedarfe, ${ns.filter(n => n.insight).length} belegt`, gaps ? h('b', {}, ` · ${gaps} Lücken`) : null, h('span', { class: 'jsave' }, J.pending ? ' · speichert …' : J.saved ? ' · gespeichert' : ''));
+  const u = $('#jundo'), r = $('#jredo');
+  if (u) u.disabled = !J.hist.length;
+  if (r) r.disabled = !J.fut.length;
+}
+
+let jLive = () => {};
+function jBind(el, get, set) {
+  el.value = get() ?? '';
+  el.addEventListener('focus', () => { J.pre = jSnap(); });
+  el.addEventListener('input', () => { set(el.value); jMap(); jStat(); jLive(); jSave(); });
+  el.addEventListener('change', () => { if (J.pre && J.pre !== jSnap()) { J.hist.push(J.pre); J.fut = []; jStat(); } J.pre = null; });
+  return el;
+}
+const jFld = (label, ctl, hint) => h('label', { class: 'jfld' }, label, ctl, hint ? h('small', {}, hint) : null);
+function jInsightSelect(id, get, set, none) {
+  return jBind(h('select', { id }, h('option', { value: '' }, none), S.data.knowledge.insights.map(i => h('option', { value: i.id }, `${i.id} · ${KLABEL[i.wissensstand] || i.wissensstand} · ${i.aussage}`))), get, v => set(v || undefined));
+}
+function jInsp() {
+  const p = $('#jinsp');
+  if (!p) return;
+  jLive = () => {};
+  const L = J.sel && jLocate(J.sel);
+  const del = h('button', { type: 'button', class: 'btn danger', onclick: () => jRemove(J.sel) }, 'Löschen');
+  const btns = (...b) => h('div', { class: 'btns' }, ...b, del);
+  if (!L) {
+    const j = J.data, items = jGaps();
+    fill(p, h('div', { class: 'jkind' }, 'Journey'),
+      jFld('Titel', jBind(h('input', { id: 'jf-title' }), () => j.title, v => { j.title = v; })),
+      h('div', { class: 'jrow2' }, jFld('Persona', jBind(h('input', { id: 'jf-persona' }), () => j.persona, v => { j.persona = v; })), jFld('Art', jBind(h('select', { id: 'jf-variant' }, h('option', { value: 'ist' }, 'Ist'), h('option', { value: 'soll' }, 'Soll')), () => j.variant || 'ist', v => { j.variant = v; }))),
+      jFld('Szenario', jBind(h('textarea', { id: 'jf-scenario', rows: '2' }), () => j.scenario, v => { j.scenario = v; })),
+      h('h3', {}, `Offene Punkte (${items.length})`),
+      h('p', { class: 'hint' }, 'Annahmen sind kein Fehler, aber Kandidaten für /wireflow:research.'),
+      h('ul', { class: 'jtodo' }, items.slice(0, 60).map(([id, lab, t]) => h('li', {}, h('button', { type: 'button', onclick: () => { J.sel = id; J.refocus = true; jRender(); } }, lab, ': ', h('b', {}, t))))));
+    return;
+  }
+  if (L.kind === 'act') {
+    const f = L.a.flow && S.data.flows.find(x => x.id === L.a.flow);
+    fill(p, h('div', { class: 'jkind' }, 'Phase'), jFld('Titel', jBind(h('input', { id: 'jf-act' }), () => L.a.title, v => { L.a.title = v; })),
+      (L.a.opportunities || []).length ? h('div', { class: 'jfld' }, 'Chancen', h('ul', {}, L.a.opportunities.map(o => h('li', {}, o)))) : null,
+      btns(h('button', { type: 'button', class: 'btn', onclick: () => jAddStep(L.a, L.a.steps.length) }, '+ Schritt'), f ? h('button', { type: 'button', class: 'btn', onclick: () => { S.flowId = f.id; setMode('design'); } }, `Flow „${f.title}“ öffnen`) : null));
+    return;
+  }
+  if (L.kind === 'step') {
+    const s = L.s, box = h('div', {});
+    jLive = () => { const t = jTerm(s.text); fill(box, t ? h('p', { class: 'hint' }, `„${t.w}“ klingt nach Lösung. Besser: ${t.b}.`) : null); };
+    fill(p, h('div', { class: 'jkind' }, `Schritt in „${L.a.title}“`), jFld('Was wollen Menschen erreichen?', jBind(h('input', { id: 'jf-step' }), () => s.text, v => { s.text = v; })), box,
+      h('h3', {}, `Pain Points (${s.painPoints.length}) · Bedarfe (${s.needs.length})`),
+      h('ul', { class: 'jtodo' }, s.painPoints.map(x => h('li', {}, h('button', { type: 'button', onclick: () => { J.sel = x.id; jRender(); } }, `${jPnum(x)}: ${x.text}`))), s.needs.map((n, i) => h('li', {}, h('button', { type: 'button', onclick: () => { J.sel = n.id; jRender(); } }, `B${i + 1}: ${n.text}`)))),
+      btns(h('button', { type: 'button', class: 'btn', onclick: () => jAddPain(s) }, '+ Pain Point'), h('button', { type: 'button', class: 'btn', onclick: () => jAddNeed(s) }, '+ Bedarf')));
+    jLive();
+    return;
+  }
+  if (L.kind === 'pain') {
+    const x = L.p, sv = jSolvers(x);
+    fill(p, h('div', { class: 'jkind' }, `Pain Point ${jPnum(x)} bei „${L.s.text}“`),
+      jFld('Was geht schief?', jBind(h('textarea', { id: 'jf-pain', rows: '3', placeholder: 'z. B. Termin beim Absenden weg, Angaben verloren' }), () => x.text, v => { x.text = v; }), 'Aus Sicht der Menschen, ohne Lösung'),
+      jFld('Beleg', jInsightSelect('jf-pins', () => x.insight, v => { x.insight = v; }, 'ohne Beleg')),
+      h('h3', {}, sv.length ? `Gelöst durch (${sv.length})` : 'Noch kein Bedarf'),
+      h('ul', { class: 'jtodo' }, sv.map(n => { const N = jLocate(n.id); return h('li', {}, h('button', { type: 'button', onclick: () => { J.sel = n.id; jRender(); } }, `B${N.ni + 1} (${N.s.text}): ${n.text}`)); })),
+      btns(h('button', { type: 'button', class: 'btn', onclick: () => jDerive(x.id) }, 'Bedarf ableiten')));
+    return;
+  }
+  if (L.kind === 'need') {
+    const n = L.n, info = h('div', { 'aria-live': 'polite' });
+    const aps = L.a.steps.flatMap(s => s.painPoints);
+    jLive = () => { const ty = jType(n.text), t = jTerm(n.text); fill(info, h('div', { class: 'jmeta' }, ty ? jChip(`t-${ty}`, jTypeLabel(ty)) : jChip('k-offen', 'Art nicht erkannt'), t ? jChip('lint', `Lösung? ${t.w}`, `Besser: ${t.b}`) : null)); };
+    fill(p, h('div', { class: 'jkind' }, `Bedarf B${L.ni + 1} bei „${L.s.text}“`),
+      jFld('Was brauchen Menschen?', jBind(h('textarea', { id: 'jf-need', rows: '3', placeholder: 'z. B. Wissen, bis wann ich kostenlos absagen kann.' }), () => n.text, v => { n.text = v; })), info,
+      h('details', { class: 'jhelp', open: !n.text }, h('summary', {}, 'Beispiele'), J_TYPES.map(([k, lab, , ex]) => h('div', {}, jChip(`t-${k}`, lab), h('ul', {}, ex.map(e => h('li', {}, e))))), h('p', { class: 'hint' }, 'Aus Sicht der Menschen, mit einem Verb. Ein „um …“ oder „weil …“ hilft, ist aber kein Muss.')),
+      jFld('Beleg', jInsightSelect('jf-nins', () => n.insight, v => { n.insight = v; }, 'kein Beleg, als Annahme führen')),
+      h('div', { class: 'jfld' }, `Löst Pain Points in „${L.a.title}“`, aps.length ? h('div', { class: 'jchecks' }, aps.map(x => { const c = h('input', { type: 'checkbox' }); c.checked = n.solves.includes(x.id); c.addEventListener('change', () => jChange(() => { n.solves = c.checked ? [...n.solves, x.id] : n.solves.filter(y => y !== x.id); })); return h('label', {}, c, `${jPnum(x)} ${x.text}`); })) : h('span', { class: 'hint' }, 'Keine Pain Points in dieser Phase')),
+      h('h3', {}, n.requirements.length ? `Anforderungen (${n.requirements.length})` : 'Noch keine Anforderung'),
+      h('ul', { class: 'jtodo' }, n.requirements.map(r => h('li', {}, h('button', { type: 'button', onclick: () => { J.sel = r.id; jRender(); } }, r.text || '(leer)')))),
+      btns(h('button', { type: 'button', class: 'btn', onclick: () => jAddReq(n) }, '+ Anforderung')));
+    jLive();
+    return;
+  }
+  const r = L.r, scr = jScreens(), multi = new Set(scr.map(x => x.flow.id)).size > 1;
+  fill(p, h('div', { class: 'jkind' }, `Anforderung zu B${L.ni + 1}`), h('p', { class: 'hint' }, L.n.text),
+    jFld('Was muss das Produkt ermöglichen?', jBind(h('textarea', { id: 'jf-req', rows: '3', placeholder: 'z. B. Bei jeder Praxis den nächsten freien Termin sehen.' }), () => r.text, v => { r.text = v; })),
+    h('div', { class: 'jfld' }, 'Screens', scr.length ? h('div', { class: 'jchecks' }, scr.map(x => { const c = h('input', { type: 'checkbox' }); c.checked = r.screens.includes(x.id); c.addEventListener('change', () => jChange(() => { r.screens = c.checked ? [...r.screens, x.id] : r.screens.filter(y => y !== x.id); })); return h('label', {}, c, multi ? `${x.flow.title} › ${x.title}` : x.title); })) : h('span', { class: 'hint' }, 'Noch kein Flow mit Screens.')),
+    jFld('Nur teilweise gelöst?', jBind(h('input', { id: 'jf-part', placeholder: 'z. B. nur im Profil, nicht in der Übersicht' }), () => r.partial, v => { r.partial = v || undefined; })),
+    btns(h('button', { type: 'button', class: 'btn', onclick: () => { J.sel = L.n.id; jRender(); } }, '← Zum Bedarf')));
+}
+function jRender() {
+  jMap();
+  jInsp();
+  jStat();
+  if (J.focus) { const f = $(`#${J.focus}`); J.focus = null; if (f) { f.focus(); const n = f.value?.length || 0; f.setSelectionRange?.(n, n); } }
+}
+
 function renderJourney() {
   const doc = $('#doc');
-  const f = flow();
-  const j = S.data.journeys.find(x => x.id === f?.journey) || S.data.journeys[0];
-  if (!j) { fill(doc, h('div', { class: 'empty' }, h('div', {}, h('b', {}, 'Noch keine Journey'), 'In Claude Code: /wireflow:journey – aus Research, Interviews oder dem, was das Team weiß.'))); return; }
-  const ins = id => S.data.knowledge.insights.find(i => i.id === id);
-  const cols = j.phases.length;
-  const grid = h('div', { class: 'jgrid', style: `grid-template-columns:repeat(${cols},minmax(190px,1fr))` }, ...j.phases.map(p => h('section', { class: 'jcol' },
-    h('h3', {}, p.title),
-    h('h4', {}, 'Handlungen'), h('ul', {}, ...(p.actions || []).map(a => h('li', {}, a))),
-    h('h4', {}, 'Pain Points'), h('ul', { class: 'pp' }, ...(p.painPoints || []).map(pp => {
-      const i = pp.insight ? ins(pp.insight) : null;
-      return h('li', {}, pp.text, h('div', {}, i ? kchip(i.wissensstand, `${KLABEL[i.wissensstand] || i.wissensstand} · ${i.id}`) : kchip('offen', 'ohne Beleg')));
-    })),
-    h('h4', {}, 'Chancen'), h('ul', {}, ...(p.opportunities || []).map(o => h('li', {}, o))),
-    p.flow ? h('div', { class: 'btns' }, btn(`Flow öffnen: ${S.data.flows.find(x => x.id === p.flow)?.title || p.flow}`, () => { S.flowId = p.flow; setMode('design'); })) : null,
-  )));
-  const emo = h('div', { class: 'emo', 'aria-label': 'Emotionskurve' });
-  fill(doc, 
-    h('h1', {}, j.title),
-    h('p', { class: 'sub' }, [j.variant ? `${j.variant === 'ist' ? 'Ist-Journey' : j.variant === 'soll' ? 'Soll-Journey' : j.variant}` : '', j.persona, j.scenario].filter(Boolean).join(' · ')),
-    emo,
-    grid,
-  );
-  requestAnimationFrame(() => {
-    const W = emo.clientWidth;
-    const H = 86;
-    const colsEl = [...grid.children];
-    const base = grid.getBoundingClientRect().left;
-    const pts = j.phases.map((p, i) => { const r = colsEl[i].getBoundingClientRect(); return [r.left - base + r.width / 2, H / 2 - (p.emotion || 0) * 16]; });
-    emo.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Emotion je Phase"><line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke-dasharray="4 4"/><polyline points="${pts.map(p => p.join(',')).join(' ')}"/>${pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="5"><title>${esc(j.phases[i].title)}: ${j.phases[i].emotion ?? 0}</title></circle>`).join('')}</svg>`;
-  });
+  if (!S.data.journeys.length) { fill(doc, h('div', { class: 'empty' }, h('div', {}, h('b', {}, 'Noch keine Journey'), 'In Claude Code: /wireflow:journey – aus Research, Interviews oder dem, was das Team weiß.'))); J.id = null; return; }
+  const st = jSync();
+  if (st === 'same' && doc.querySelector(`.jroot[data-j="${J.id}"]`)) { if (!J.edit) jMap(); jStat(); return; }
+  const j = J.data;
+  const sel = S.data.journeys.length > 1 ? h('select', { 'aria-label': 'Journey', onchange: e => { J.id = e.target.value; J.data = null; renderJourney(); } }, S.data.journeys.map(x => h('option', { value: x.id, selected: x.id === J.id || null }, x.title || x.id))) : null;
+  const lint = h('input', { type: 'checkbox', id: 'jlint' });
+  lint.checked = J.lint;
+  lint.addEventListener('change', () => { J.lint = lint.checked; jRender(); });
+  fill(doc, h('div', { class: 'jroot', 'data-j': J.id },
+    h('div', { class: 'jhead' },
+      h('div', { class: 'jtitle' }, h('h1', {}, j.title || j.id), h('p', { class: 'sub' }, [j.variant === 'soll' ? 'Soll-Journey' : 'Ist-Journey', j.persona, j.scenario].filter(Boolean).join(' · '))),
+      h('div', { class: 'jbar', role: 'toolbar', 'aria-label': 'Story Map bearbeiten' }, sel,
+        h('button', { type: 'button', class: 'btn', id: 'jundo', title: '⌘Z', onclick: jUndo }, '↶ Rückgängig'),
+        h('button', { type: 'button', class: 'btn', id: 'jredo', title: '⌘⇧Z', onclick: jRedo }, '↷ Wiederholen'),
+        h('button', { type: 'button', class: 'btn', onclick: () => jAddAct(J.data.phases.length) }, '+ Phase'),
+        h('label', { class: 'btn' }, lint, 'Lösungsbegriffe'),
+        h('span', { class: 'jstat', id: 'jstat', 'aria-live': 'polite' }))),
+    h('div', { class: 'jbody' }, h('div', { class: 'jwall' }, h('div', { class: 'jboard', id: 'jboard' })), h('aside', { class: 'jinsp', id: 'jinsp', 'aria-label': 'Eigenschaften' }))));
+  jRender();
 }
 
 // ---------- Wissen ----------
@@ -2777,7 +3155,7 @@ function renderTop() {
 function renderStatus() {
   const d = S.data;
   const f = flow();
-  const hints = { design: 'Rechtsklick oder .: Kontextmenü · Titel ziehen: verschieben · Fläche ziehen: schwenken · ⌘/Strg+Scrollen: zoomen · 0: alles zeigen', prototype: 'Variablen rechts steuern die Entscheidungen', journey: 'Pain Points zeigen ihren Beleg', knowledge: 'Annahmen nach Risiko sortiert' };
+  const hints = { design: 'Rechtsklick oder .: Kontextmenü · Titel ziehen: verschieben · Fläche ziehen: schwenken · ⌘/Strg+Scrollen: zoomen · 0: alles zeigen', prototype: 'Variablen rechts steuern die Entscheidungen', journey: 'Plus zwischen Schritten: einfügen · Doppelklick: umbenennen · ⌥+Pfeile: verschieben · ⌘Z: rückgängig', knowledge: 'Annahmen nach Risiko sortiert' };
   if (f?.storybook) {
     const stories = S.sb.groups.reduce((k, g) => k + g.stories.length, 0);
     fill($('#status'),
@@ -2839,6 +3217,10 @@ addEventListener('keydown', e => {
   const typing = e.target.closest?.('input,textarea,select,[contenteditable]');
   const mod = e.metaKey || e.ctrlKey;
   if (typing) { if (e.key === 'Escape') e.target.blur(); return; }
+  if (S.mode === 'journey') {
+    if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? jRedo() : jUndo(); return; }
+    if (e.key === 'Escape' && J.sel) { J.sel = null; jRender(); return; }
+  }
   if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
   if (S.mode === 'design') {
     if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel.el) { e.preventDefault(); removeSelected(); return; }

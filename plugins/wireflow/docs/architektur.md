@@ -46,7 +46,7 @@ flowchart LR
 |---|---|---|---|
 | Skills und Subagents | `skills/`, `agents/` | Anweisungen in Claude Code | Arbeitsabläufe: init, research, journey, flow, hifi, canvas, prototype, review, export |
 | MCP-Server | `src/mcp/server.js`, `tools.js` | Prozess je Sitzung, JSON-RPC über stdio | Werkzeuge für Projekt, Design System, Journeys, Flows, Screens, Varianten, Wissen, Canvas, Chat, Storybook, Export; meldet sich zusätzlich als Kanal |
-| Kern | `src/core/` | Bibliothek | Code-Brücke (TSX-Teilmenge lesen und unverändert wieder schreiben), Screen- und Flow-Operationen mit Rückgängig, Lint gegen das DS-Manifest, Tokens (DTCG → CSS-Variablen), Wissensstand, Storybook-Index |
+| Kern | `src/core/` | Bibliothek | Code-Brücke (TSX-Teilmenge lesen und unverändert wieder schreiben), Screen- und Flow-Operationen mit Rückgängig, Lint gegen das DS-Manifest, Tokens (DTCG → CSS-Variablen), Wissensstand, Journey als Story Map (Migration, Prüfung, offene Punkte), Storybook-Index |
 | Canvas-Server | `src/canvas/server.js` | im MCP-Prozess (`canvas_open`) oder allein (`wireflow serve`) | Web-App ausliefern, Projekt-API, Live-Ereignisse, Screens mit dem esbuild des Projekts bündeln, Dateien beobachten, Storybook durchreichen |
 | Canvas-App | `src/canvas/app/` | Browser, ohne Build | Fläche mit Frames, Inspector (Props · Style), Code, Chat, Kontextmenü, Prototyp, Journey, Wissen |
 | Frame-Skripte | `app/frame.js`, `app/sbframe.js` | in jedem Frame | melden Lage und Größe der Elemente, Fehler und – bei Storybook – Komponentenbaum und Args |

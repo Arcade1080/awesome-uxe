@@ -35,7 +35,7 @@ export function startMcp({ input = process.stdin, output = process.stdout } = {}
           protocolVersion: params?.protocolVersion || FALLBACK,
           // claude/channel: Nachrichten aus dem Canvas-Chat in die Sitzung schieben (Research Preview).
           capabilities: { tools: { listChanged: false }, experimental: { 'claude/channel': {} } },
-          serverInfo: { name: 'wireflow', title: 'Wireflow Studio', version: '0.4.0' },
+          serverInfo: { name: 'wireflow', title: 'Wireflow Studio', version: '0.5.0' },
           instructions: INSTRUCTIONS,
         };
       } else if (method === 'ping') {

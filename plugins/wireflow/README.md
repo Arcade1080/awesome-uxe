@@ -22,7 +22,7 @@ Voraussetzungen im Projekt: Node.js ≥ 20, React-Design-System als npm-Paket (a
 ```text
 /wireflow:init @firma/ui        Projekt anlegen, Design System verknüpfen
 /wireflow:research interviews/   Insights mit Belegen, Annahmen, offene Fragen
-/wireflow:journey                Journey mit Pain Points und Wissensstand
+/wireflow:journey                Journey als Story Map: Schritte, Pain Points, Bedarfe, Anforderungen
 /wireflow:flow                   Wireflow mit Entscheidungen und Fehlerpfaden
 /wireflow:hifi                   Screens als Code aus DS-Komponenten
 /wireflow:canvas                 Canvas öffnen: ansehen, anordnen, verbinden
@@ -60,7 +60,7 @@ node ../../bin/wireflow serve --open    # im Flow-Menü „Storybook · 10 Stori
 ├── ds/patterns/*.md             Pattern-Karten: wann welche Komponente, verlangte Zustände
 ├── knowledge/                   insights.json, assumptions.json, questions.json
 ├── research/                    Rohmaterial (pseudonymisiert), Testaufgaben
-├── journeys/*.journey.json      Phasen, Emotion, Pain Points mit Belegen, Chancen
+├── journeys/*.journey.json      Story Map: Phasen → Schritte → Pain Points → Bedarfe → Anforderungen → Screens
 ├── flows/*.flow.json            Screens, Entscheidungen, Kanten von Elementen zu Zielen
 ├── screens/*.screen.tsx         Screen-Module: React aus DS-Komponenten
 ├── screens/*.stories.tsx        Zustände als Storybook-Stories (CSF 3)
@@ -109,7 +109,7 @@ Keine Laufzeit-Abhängigkeiten: Das Plugin nutzt nur Node.js; React und esbuild 
 
 - **Design:** Screens als echte Komponenten auf einer unendlichen Fläche. Element anklicken → Inspector mit Props laut Manifest (Enums, Tokens, Text), Interaktion (Ziel im Flow), Richtlinien und Prüfung. Komponenten aus der Liste auf Screens ziehen oder mit „+“ einfügen; Elemente per Drag & Drop umordnen; Entf, ⌘/Strg+D, Alt+↑/↓, ⌘/Strg+Z. Screens am Titel verschieben. Kanten starten am auslösenden Element. Wireframe/Hi-Fi tauscht nur Tokens.
 - **Prototyp:** derselbe Code, klickbar. Variablen steuern Entscheidungen; fehlende Pfade und unverbundene Elemente werden gemeldet; Klick ins Leere zeigt Hotspots.
-- **Journey:** Phasen mit Emotionskurve, Pain Points mit Wissensstand und Beleg.
+- **Journey:** eine Story Map ohne Lösung – Phasen, Schritte, Pain Points und Bedarfe (was Menschen brauchen), jeweils mit Beleg. Unter der Linie „ab hier mit Produkt“ stehen die Anforderungen, und erst sie verweisen auf Screens im Flow. Schritte über das Plus zwischen zwei Schritten einfügen, Karten ziehen oder mit ⌥+Pfeilen verschieben; der Inspector rechts zeigt offene Punkte (Pain Point ohne Bedarf, Bedarf ohne Beleg, Anforderung ohne Screen). Aus einem Pain Point lässt sich ein Bedarf ableiten. Speichert direkt in die Journey-Datei.
 - **Wissen:** Wissensstand je Flow-Schritt, Insights mit Belegen, Annahmen nach Risiko, offene Fragen – jeweils mit „Genutzt in“.
 - **Live:** Ändert Claude oder ein Editor eine Datei, aktualisiert sich der Canvas sofort und markiert die betroffenen Screens. Die Auswahl im Canvas liest Claude mit `canvas_selection`.
 - **Rechte Spalte – Design · Code · Chat:** *Design* ist der Inspector, *Code* zeigt Screen-Modul und Stories mit markiertem Element, *Chat* ist das Gespräch mit Claude – die Auswahl geht als Kontext mit.

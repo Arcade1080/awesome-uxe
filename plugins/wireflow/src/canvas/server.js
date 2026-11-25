@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { loadProject, WF, readJson, undoLast } from '../core/project.js';
+import { saveJourney } from '../core/journeys.js';
 import { loadTokens, tokensCss, components } from '../core/ds.js';
 import { lintScreen } from '../core/lint.js';
 import { flowIssues } from '../core/flow.js';
@@ -490,6 +491,11 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
       if (r.removed) list.push(`${WF}/${r.removed}`);
       const files = ownWrite(list, by);
       return send(res, 200, { ok: true, ...r, v: st.v, files });
+    }
+    if (p === '/api/journey') {
+      const r = saveJourney(loadProject(root), body.journey || {});
+      const files = ownWrite([`${WF}/${r.file}`], by);
+      return send(res, 200, { ok: true, v: st.v, files });
     }
     if (p === '/api/chat') {
       if (!bridge) return send(res, 409, { error: 'Dieser Canvas läuft ohne Claude-Sitzung. Öffne ihn in Claude Code mit /wireflow:canvas.' });

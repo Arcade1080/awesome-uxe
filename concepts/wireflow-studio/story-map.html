@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Story Map Termin buchen</title>
+<style>
+/* VOICE work: Arbeitswerkzeug für UX-Teams nach ISO 9241-210, ruhig und dicht
+   IDEA eine Story Map an der Wand, nach unten verlängert: Schritt → Pain Point → Bedarf → Anforderung → Screen
+   PICTURE die Map selbst, sofort bearbeitbar, daneben ein Inspector mit Schablone und Prüfungen
+   COLOUR Wireflow-Canvas-Tokens; Gelb für Schritte, Weiß für Bedarfe, Blau ab der Systemebene, Wissensstand-Farben
+   TYPE System-UI wie das Werkzeug
+   LAYOUT Titelzeile, Werkzeugleiste; Map links mit eigenem Scroll, Inspector rechts (unter 1100px darunter) */
+:root{color-scheme:light dark;--bg:light-dark(#ececf0,#151519);--panel:light-dark(#fff,#212126);--panel2:light-dark(#f5f5f7,#2a2a30);--line:light-dark(#d9d9e0,#3a3a42);--ink:light-dark(#1b1b1f,#ececf1);--muted:light-dark(#5f5f69,#a3a3ad);--sel:light-dark(#2f6bff,#6f97ff);--sel-soft:light-dark(#e8efff,#25314c);--ok:light-dark(#1f7a4d,#62cf96);--ok-soft:light-dark(#e7f5ee,#1c3328);--warn:light-dark(#b54708,#f3a35b);--warn-soft:light-dark(#fff4e5,#3a2c1c);--bad:light-dark(#b42318,#ff8a7a);--bad-soft:light-dark(#fdecea,#3d2220);--hin:light-dark(#0e7490,#5cc8e0);--hin-soft:light-dark(#e6f6fa,#173239);--sticky:light-dark(#fde68a,#e9cf63);--act:light-dark(#26262c,#3b3b46);--cw:214px;--lab:118px}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-x:clip}
+header{padding:20px max(3vw,16px) 12px}
+h1{font-size:clamp(28px,3.6vw,38px);line-height:1.05;letter-spacing:-.02em;margin:0 0 6px}
+h2{font-size:18px;margin:0 0 10px}
+.sub{color:var(--muted);margin:0;max-width:80ch}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+.bar button,.bar label{height:38px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;font-size:14px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.bar button:disabled{opacity:.45;cursor:default}
+.stat{margin-left:auto;font-size:14px;color:var(--muted)}
+.stat b{color:var(--bad);font-weight:600}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;border-top:1px solid var(--line)}
+.wall{overflow:auto;background:var(--panel2);padding:16px 16px 24px max(3vw,16px);max-height:calc(100svh - 60px)}
+.board{display:grid;gap:10px;align-items:start;width:max-content}
+.lab{font-size:13px;font-weight:600;color:var(--muted);padding-top:8px;line-height:1.3}
+.lab small{display:block;font-weight:400}
+.lab.sys{color:var(--sel)}
+.rule{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--sel);font-weight:600;padding:4px 0}
+.rule::before,.rule::after{content:"";flex:1;border-top:2px dashed var(--sel);opacity:.5}
+.c{position:relative;border-radius:8px;padding:8px 26px 8px 10px;font-size:14px;line-height:1.35;cursor:grab;outline:none;box-shadow:0 1px 2px rgb(0 0 0/.12)}
+.c:focus-visible,.c.sel{box-shadow:0 0 0 2px var(--sel)}
+.c.rel{box-shadow:0 0 0 2px color-mix(in srgb,var(--sel) 45%,transparent)}
+.c.over{box-shadow:-4px 0 0 var(--sel)}
+.c.dragging{opacity:.4}
+.c-act{background:var(--act);color:#fff;font-weight:600;font-size:15px;padding-right:56px;min-height:40px}
+.c-step{background:var(--sticky);color:#1b1b1f;font-weight:600;min-height:64px}
+.c-need{background:var(--panel);border:1px solid var(--line);box-shadow:none}
+.ins{position:absolute;top:50%;width:24px;height:24px;margin-top:-12px;border-radius:50%;border:2px solid var(--panel2);background:var(--sel);color:#fff;font:600 16px/1 system-ui;padding:0;opacity:0;z-index:3;cursor:pointer;transition:opacity .12s,transform .12s}
+.ins-r{right:-17px}.ins-l{left:-17px}
+.c-step:hover .ins,.ins:focus-visible{opacity:1}.ins:hover{transform:scale(1.15)}
+@media(hover:none){.ins{opacity:.7}}
+.help{margin:0 0 12px;font-size:14px}.help ul{margin:4px 0 8px;padding-left:18px}.help summary{font-size:14px}
+.c-pain{background:var(--bad-soft);border:1px solid color-mix(in srgb,var(--bad) 30%,transparent);box-shadow:none}
+.c-pain .num{color:var(--bad)}
+.c-req{background:var(--sel-soft);border:1px solid color-mix(in srgb,var(--sel) 30%,transparent);box-shadow:none;cursor:pointer}
+.num{font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:2px}
+.c textarea{width:100%;border:0;background:transparent;color:inherit;font:inherit;resize:none;outline:none;padding:0;min-height:2.6em;field-sizing:content}
+.x,.plus{position:absolute;top:4px;width:22px;height:22px;border:0;border-radius:5px;background:transparent;color:inherit;opacity:0;font-size:16px;line-height:1;cursor:pointer}
+.x{right:3px}.plus{right:28px}
+.c:hover .x,.c:hover .plus,.c.sel .x,.c.sel .plus{opacity:.7}
+.x:hover,.plus:hover{opacity:1;background:rgb(127 127 127/.2)}
+@media(hover:none){.x,.plus{opacity:.6}}
+.meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.chip{display:inline-block;font-size:12.5px;line-height:1.3;padding:1px 7px;border-radius:999px;white-space:nowrap;font-weight:500}
+.t-info{background:var(--hin-soft);color:var(--hin)}.t-ent{background:var(--warn-soft);color:var(--warn)}.t-hand{background:var(--ok-soft);color:var(--ok)}
+.e-belegt{background:var(--ok-soft);color:var(--ok)}.e-hinweis{background:var(--hin-soft);color:var(--hin)}.e-annahme{background:var(--warn-soft);color:var(--warn);border:1px dashed currentColor}
+.c-gap{background:var(--bad-soft);color:var(--bad)}.c-part{background:var(--warn-soft);color:var(--warn)}.c-iss{background:var(--bad-soft);color:var(--bad)}.c-solv{white-space:normal;background:var(--panel2);color:var(--ink);border:1px solid var(--line)}.c-off{background:var(--panel2);color:var(--muted);border:1px dashed var(--line)}
+.derive{position:absolute;top:4px;right:28px;height:22px;border:0;border-radius:5px;background:transparent;color:var(--bad);font:inherit;font-size:12.5px;font-weight:600;opacity:0;cursor:pointer;padding:0 6px}
+.c:hover .derive,.c.sel .derive{opacity:1}.derive:hover{background:rgb(127 127 127/.2)}
+@media(hover:none){.derive{opacity:1}}
+.scr{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;padding:2px 7px 2px 4px;border-radius:6px;background:var(--panel);border:1px solid var(--line);white-space:nowrap;color:var(--ink)}
+.scr i{width:10px;height:15px;border:1.5px solid var(--sel);border-radius:3px}
+.lb{display:inline-block;margin-top:6px;font-size:12.5px;font-weight:600;color:#b54708;background:#fff4e5;border-radius:999px;padding:1px 8px;cursor:help}
+.pain{display:flex;gap:6px;align-items:baseline;margin-top:6px;font-size:13px;font-weight:400;color:#4a3d06}
+.pain::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:var(--k)}
+.k-belegt{--k:#1f7a4d}.k-hinweis{--k:#0e7490}.k-offen{--k:#8a8a94}
+.stack{display:flex;flex-direction:column;gap:8px;min-height:44px;border-radius:8px}
+.stack.over{background:var(--sel-soft)}
+.rg{display:flex;flex-direction:column;gap:6px}
+.rg+.rg{padding-top:6px;border-top:1px dashed var(--line)}
+.miss{border:1.5px dashed var(--bad);color:var(--bad);border-radius:8px;padding:6px 9px;font-size:13px}
+.ghost{border:1.5px dashed var(--line);background:transparent;color:var(--muted);border-radius:8px;font:inherit;font-size:13.5px;min-height:34px;padding:5px 10px;cursor:pointer;text-align:left}
+.ghost:hover,.ghost:focus-visible{border-color:var(--sel);color:var(--sel);outline:none}
+.ghost.sm{min-height:28px;padding:2px 8px;font-size:13px}
+.insp{background:var(--panel);border-left:1px solid var(--line);padding:18px;max-height:calc(100svh - 60px);overflow:auto;position:sticky;top:0}
+.insp .kind{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:13.5px;font-weight:600;margin-bottom:10px}
+.fld small{font-weight:400;color:var(--muted)}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.insp input,.insp select,.insp textarea{font:inherit;font-size:16px;font-weight:400;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--ink);width:100%}
+.insp input,.insp select{height:42px}
+.insp textarea{min-height:88px;resize:vertical}
+.insp :is(input,select,textarea):focus{outline:2px solid var(--sel);outline-offset:1px}
+.sent{padding:12px 14px;border-radius:10px;background:var(--panel2);font-size:16px;line-height:1.45;margin:4px 0 8px}
+.checks{list-style:none;margin:0 0 12px;padding:0;font-size:14px}
+.checks li{display:flex;gap:8px;padding:2px 0}
+.checks li::before{content:"✓";color:var(--ok);font-weight:700;width:14px;flex:none}
+.checks li.bad::before{content:"!";color:var(--bad)}
+.checks li.ann::before{content:"?";color:var(--warn)}
+.scrs{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;margin-bottom:10px}
+.scrs label{display:flex;gap:6px;align-items:center;font-weight:400;min-height:32px}
+.scrs input{width:18px;height:18px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.btns button{height:38px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+.btns .del{color:var(--bad)}
+.todo{list-style:none;margin:0;padding:0}
+.todo li{margin-bottom:6px}
+.todo button{all:unset;cursor:pointer;display:block;font-size:14px;line-height:1.35;padding:6px 8px;border-radius:6px;background:var(--panel2);width:100%;box-sizing:border-box}
+.todo button:hover,.todo button:focus-visible{outline:2px solid var(--sel)}
+.todo b{color:var(--bad);font-weight:600}
+.note{font-size:13.5px;color:var(--muted)}
+pre{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font:12.5px/1.5 ui-monospace,Menlo,monospace;max-height:280px;overflow:auto}
+details summary{cursor:pointer;font-weight:600;font-size:14px;margin-top:14px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--act);color:#fff;border-radius:10px;padding:8px 8px 8px 14px;display:flex;gap:10px;align-items:center;font-size:14px;box-shadow:0 6px 20px rgb(0 0 0/.25);z-index:5}
+.toast[hidden]{display:none}
+.toast button{border:0;background:#fff;color:#1b1b1f;border-radius:6px;padding:6px 10px;font:inherit;font-size:14px;cursor:pointer}
+kbd{font:12.5px ui-monospace,Menlo,monospace;background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+@media(max-width:1100px){.layout{grid-template-columns:minmax(0,1fr)}.insp{position:static;max-height:none;border-left:0;border-top:1px solid var(--line)}.wall{max-height:72svh}}
+@media(max-width:700px){.stat{margin-left:0;width:100%}.row2{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<header>
+<h1>Story Map: Arzttermin online buchen</h1>
+<p class="sub">Schritte, Pain Points und Bedarfe beschreiben, was Menschen erleben und brauchen, ohne Lösung. Unter der blauen Linie stehen die Anforderungen ans Produkt, und erst dort hängen Screens. Karte anklicken und rechts bearbeiten; neue Schritte über das Plus zwischen zwei Schritten.</p>
+<div class="bar" role="toolbar" aria-label="Map bearbeiten">
+<button id="undo" title="⌘Z">↶ Rückgängig</button>
+<button id="redo" title="⌘⇧Z">↷ Wiederholen</button>
+<button id="addAct">+ Aktivität</button>
+<label><input type="checkbox" id="lintOn" checked> Lösungsbegriffe in Schritten</label>
+<button id="copy">JSON kopieren</button>
+<button id="reset">Beispiel laden</button>
+<span class="stat" id="stat" aria-live="polite"></span>
+</div>
+</header>
+<div class="layout">
+<div class="wall" id="wall"><div class="board" id="board"></div></div>
+<aside class="insp" id="insp" aria-label="Inspector"></aside>
+</div>
+<div class="toast" id="toast" hidden><span id="toastT"></span><button id="toastU">Rückgängig</button></div>
+
+<script>
+{
+const KEY='wireflow-storymap-v3';
+const $=id=>document.getElementById(id);
+const uid=p=>p+'_'+Math.random().toString(36).slice(2,8);
+const h=(tag,props,...kids)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(props||{})){if(v==null||v===false)continue;if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(k==='class')e.className=v;else e.setAttribute(k,v===true?'':v)}for(const c of kids.flat())if(c!=null&&c!==false)e.append(c);return e};
+
+/* Projektkontext aus acme-health */
+const INS={ins_fach:{k:'belegt',f:'p02#12-14, p09#7',t:'Unklar, welche Fachrichtung zuständig ist'},ins_frei:{k:'belegt',f:'p04#22-25, p07#9',t:'Freie Termine und Kassenzulassung auf einen Blick'},ins_slot_weg:{k:'belegt',f:'p03#41-44, p07#18, p11#63-65',t:'Termine werden zwischen Auswahl und Absenden vergeben'},ins_erinnerung:{k:'hinweis',f:'p05#30',t:'Erinnerungen kommen zu spät, um umzuplanen'}};
+const SCREENS=['Suche','Ergebnisse','Profil & Termine','Anmelden','Angaben prüfen','Bestätigung'];
+const TYPES=[['info','Information',/\b(wissen|erkennen|verstehen|sehen|erfahren|nachvollziehen)\b/i,['Vor der Wahl einer Praxis wissen, ob sie meine Versicherung annimmt.','Erkennen, dass mein Termin für mich zurückgehalten wird.']],
+ ['ent','Entscheidung',/\b(vergleichen|auswählen|wählen|entscheiden|abwägen|einschätzen)\b/i,['Praxen nach dem nächsten freien Termin vergleichen.','Einen Termin auswählen, der zu meinen Arbeitszeiten passt.']],
+ ['hand','Handlung',/\b(angeben|ändern|korrigieren|erledigen|absagen|verschieben|mitteilen|bezahlen)\b/i,['Angeben, wie ich versichert bin.','Einen Termin kurzfristig absagen oder verschieben.']]];
+const TY={info:['Information','t-info'],ent:['Entscheidung','t-ent'],hand:['Handlung','t-hand']};
+const typeOf=t=>{let best=null,pos=1e9;for(const[k,,r]of TYPES){const m=(t||'').match(r);if(m&&m.index<pos){pos=m.index;best=k}}return best};
+const UI=/dropdown|button|knopf|\bfeld|felder|\bliste\b|\bseite\b|screen|bildschirm|filter|klick|tipp|menü|popup|\bapp\b|im system|formular|\bslot|log ?in|maske/i;
+const LINT=[[/tipp/i,'tippen','wählen, sich entscheiden'],[/klick/i,'klicken','wählen, bestätigen'],[/button|knopf/i,'Button','das Ziel dahinter'],[/screen|bildschirm|\bseite\b|maske/i,'Screen','was dort erreicht wird'],[/formular|feld\b|felder/i,'Feld','was angegeben wird'],[/dropdown|menü|popup|\bliste\b|filter/i,'Bauteil','was gefunden oder entschieden wird'],[/eingeben|ausfüllen/i,'eingeben','angeben, mitteilen'],[/\bslot/i,'Slot','Termin, Zeit'],[/log ?in|anmelden|registrier/i,'Login','sich ausweisen, nur wenn nötig'],[/\bapp\b|website|portal/i,'App','offen lassen, wo es passiert']];
+
+const N=(t,ins,reqs=[])=>({id:uid('erf'),t,ins,reqs:reqs.map(([t,scr,part])=>({id:uid('na'),t,scr:scr||[],part:part||''}))});
+const RAW=[
+ ['Bedarf klären',[
+  ['Beschwerde bemerken'],
+  ['Dringlichkeit einschätzen',['Unklar, welche Fachrichtung zuständig ist','belegt','ins_fach']],
+  ['Zuständige Fachrichtung herausfinden',null,[N('Wissen, welche Fachrichtung für meine Beschwerde zuständig ist, damit ich nicht bei der falschen Praxis lande.','ins_fach',[['Beschwerde in eigenen Worten nennen und passende Fachrichtungen vorgeschlagen bekommen.',['Suche']]])]]]],
+ ['Praxis finden',[
+  ['Praxen in der Nähe finden',null,[N('Wissen, welche Praxen für mich gut erreichbar sind.','',[['Bei jeder Praxis sehen, wie weit sie vom angegebenen Ort entfernt ist.',['Ergebnisse']]])]],
+  ['Praxen vergleichen',null,[N('Praxen nach dem nächsten freien Termin vergleichen, weil ich noch diese Woche drankommen will.','ins_frei',[['Bei jeder Praxis den nächsten freien Termin sehen.',['Ergebnisse']]])]],
+  ['Kassenzulassung klären',['Freie Termine und Kassenzulassung nicht auf einen Blick','belegt','ins_frei'],[
+   N('Vor der Wahl einer Praxis wissen, ob sie meine Versicherung annimmt.','ins_frei',[['In der Übersicht bei jeder Praxis sehen, ob sie gesetzlich Versicherte annimmt.',['Profil & Termine'],'nur im Profil, nicht in der Übersicht']]),
+   N('Angeben, wie ich versichert bin, damit nur passende Praxen übrig bleiben.','',[['Versicherungsart einmal angeben; sie gilt für die ganze Suche.',['Suche']]])]]]],
+ ['Termin vereinbaren',[
+  ['Passende Zeit finden',null,[N('Einen Termin auswählen, der zu meinen Arbeitszeiten passt.','',[['Termine auf Tageszeiten eingrenzen.',[]]])]],
+  ['Slot wählen'],
+  ['Termin verbindlich machen',['Termin beim Absenden weg, Angaben verloren','belegt','ins_slot_weg'],[
+   N('Erkennen, dass mein Termin für mich zurückgehalten wird, solange ich meine Angaben mache.','ins_slot_weg',[['Sehen, wie lange der Termin noch reserviert ist.',['Angaben prüfen']]]),
+   N('Wissen, bis wann ich kostenlos absagen kann.','')]]]],
+ ['Vorbereiten',[
+  ['Bestätigung erhalten'],
+  ['Rechtzeitig erinnert werden',['Erinnerung kommt erst am Morgen des Termins','hinweis','ins_erinnerung'],[N('Rechtzeitig vorher wissen, dass der Termin ansteht, um noch umplanen zu können.','ins_erinnerung')]]]],
+ ['Besuch & Nachsorge',[
+  ['Ankommen'],
+  ['Folgetermin vereinbaren',['Folgetermin nur telefonisch möglich','offen']]]]
+];
+const seed=()=>{const st={acts:RAW.map(([t,steps])=>({id:uid('act'),t,steps:steps.map(([st,p,needs])=>({id:uid('st'),t:st,pains:p?[{id:uid('pp'),t:p[0],ins:p[2]||''}]:[],needs:JSON.parse(JSON.stringify(needs||[])).map(n=>({...n,id:uid('erf'),solves:[],reqs:n.reqs.map(r=>({...r,id:uid('na')}))}))}))}))};
+ for(const a of st.acts){const ps=a.steps.flatMap(x=>x.pains);for(const n of a.steps.flatMap(x=>x.needs))n.solves=ps.filter(pp=>pp.ins&&pp.ins===n.ins).map(pp=>pp.id)}
+ return st};
+
+let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch{}
+if(!S?.acts)S=window.claude?.hot?.data?.acts?window.claude.hot.data:seed();
+let hist=[],fut=[],sel=null,edit=null,fresh=null,drag=null,refocus=false,focusField=null,pre=null;
+const snap=()=>JSON.stringify(S);
+const save=()=>{try{localStorage.setItem(KEY,snap())}catch{}};
+window.claude?.hot?.snapshot?.(()=>S);
+const change=fn=>{hist.push(snap());fut=[];fn();save();render()};
+
+/* Regeln */
+const lintOf=t=>{if(!$('lintOn').checked)return null;for(const[r,w,s]of LINT)if(r.test(t||''))return{w,s};return null};
+const evOf=n=>n.ins&&INS[n.ins]?{k:INS[n.ins].k,l:`${INS[n.ins].k==='belegt'?'belegt':'Hinweis'} · ${n.ins}`}:{k:'annahme',l:'Annahme'};
+const reqChecks=r=>[[r.scr.length>0,'einem Screen zugeordnet'],[!r.part,'vollständig gelöst']];
+function locate(id){
+ for(const[ai,a]of S.acts.entries()){if(a.id===id)return{kind:'act',a,ai};
+  for(const[si,s]of a.steps.entries()){if(s.id===id)return{kind:'step',a,ai,s,si};
+   for(const[pi,pp]of s.pains.entries())if(pp.id===id)return{kind:'pain',a,ai,s,si,pp,pi};
+   for(const[ni,n]of s.needs.entries()){if(n.id===id)return{kind:'need',a,ai,s,si,n,ni};
+    for(const[ri,r]of n.reqs.entries())if(r.id===id)return{kind:'req',a,ai,s,si,n,ni,r,ri}}}}
+ return null}
+const flatSteps=()=>S.acts.flatMap(a=>a.steps);
+const allNeeds=()=>flatSteps().flatMap(s=>s.needs);
+const allPains=()=>flatSteps().flatMap(s=>s.pains);
+const pnum=pp=>'P'+(allPains().indexOf(pp)+1);
+const painById=id=>allPains().find(x=>x.id===id);
+const solvers=pp=>allNeeds().filter(n=>n.solves.includes(pp.id));
+const actPains=a=>a.steps.flatMap(x=>x.pains);
+const pkOf=pp=>pp.ins&&INS[pp.ins]?INS[pp.ins].k:'offen';
+
+/* Anlegen, Löschen, Verschieben */
+function addAct(i){change(()=>{const a={id:uid('act'),t:'',steps:[]};S.acts.splice(i,0,a);sel=edit=fresh=a.id})}
+function addStep(a,i){change(()=>{const s={id:uid('st'),t:'',pains:[],needs:[]};a.steps.splice(i,0,s);sel=edit=fresh=s.id})}
+function addNeed(s){change(()=>{const n={id:uid('erf'),t:'',ins:'',solves:[],reqs:[]};s.needs.push(n);sel=n.id;focusField='f-need'})}
+function addReq(n){change(()=>{const r={id:uid('na'),t:'',scr:[],part:''};n.reqs.push(r);sel=r.id;focusField='f-req'})}
+function addPain(s){change(()=>{const pp={id:uid('pp'),t:'',ins:''};s.pains.push(pp);sel=pp.id;focusField='f-pt'})}
+function derive(id){const L=locate(id);if(!L)return;change(()=>{const n={id:uid('erf'),t:'',ins:L.pp.ins,solves:[L.pp.id],reqs:[]};L.s.needs.push(n);sel=n.id;focusField='f-need'});toast(`Bedarf zu ${pnum(L.pp)} angelegt, Beleg übernommen`)}
+function addSibling(id){const L=locate(id);if(!L)return;if(L.kind==='act')addAct(L.ai+1);else if(L.kind==='step')addStep(L.a,L.si+1)}
+function remove(id){const L=locate(id);if(!L)return;
+ const what={act:()=>`Aktivität „${L.a.t}“`,step:()=>`Schritt „${L.s.t}“`,pain:()=>`Pain Point ${pnum(L.pp)}`,need:()=>`Bedarf B${L.ni+1}${L.n.reqs.length?` mit ${L.n.reqs.length} Anforderung${L.n.reqs.length>1?'en':''}`:''}`,req:()=>'Anforderung'}[L.kind]();
+ change(()=>{if(L.kind==='act')S.acts.splice(L.ai,1);else if(L.kind==='step')L.a.steps.splice(L.si,1);else if(L.kind==='need')L.s.needs.splice(L.ni,1);else if(L.kind==='pain'){L.s.pains.splice(L.pi,1);allNeeds().forEach(n=>n.solves=n.solves.filter(x=>x!==id))}else L.n.reqs.splice(L.ri,1);sel=null});
+ toast(`${what} gelöscht`)}
+function undo(){if(!hist.length)return;fut.push(snap());S=JSON.parse(hist.pop());edit=fresh=null;if(sel&&!locate(sel))sel=null;save();render()}
+function redo(){if(!fut.length)return;hist.push(snap());S=JSON.parse(fut.pop());edit=fresh=null;if(sel&&!locate(sel))sel=null;save();render()}
+function moveStep(id,toA,toI){change(()=>{const L=locate(id);L.a.steps.splice(L.si,1);if(L.a===toA&&L.si<toI)toI--;toA.steps.splice(toI,0,L.s)})}
+function moveAct(id,toI){change(()=>{const L=locate(id);S.acts.splice(L.ai,1);if(L.ai<toI)toI--;S.acts.splice(toI,0,L.a)})}
+function moveNeed(id,toS,toI){change(()=>{const L=locate(id);L.s.needs.splice(L.ni,1);if(L.s===toS&&L.ni<toI)toI--;toS.needs.splice(toI??toS.needs.length,0,L.n)})}
+function movePain(id,toS,toI){change(()=>{const L=locate(id);L.s.pains.splice(L.pi,1);if(L.s===toS&&L.pi<toI)toI--;toS.pains.splice(toI??toS.pains.length,0,L.pp)})}
+function nudge(id,dir){const L=locate(id);if(!L)return;refocus=true;
+ if(L.kind==='act'){const j=L.ai+(dir==='r'?1:dir==='l'?-1:0);if(j<0||j>=S.acts.length||j===L.ai)return;change(()=>{S.acts.splice(L.ai,1);S.acts.splice(j,0,L.a)});return}
+ if(L.kind==='step'){
+  if(dir==='r'){if(L.si<L.a.steps.length-1)moveStep(id,L.a,L.si+2);else if(S.acts[L.ai+1])moveStep(id,S.acts[L.ai+1],0)}
+  if(dir==='l'){if(L.si>0)moveStep(id,L.a,L.si-1);else if(S.acts[L.ai-1])moveStep(id,S.acts[L.ai-1],S.acts[L.ai-1].steps.length)}
+  return}
+ if(L.kind==='need'){const fs=flatSteps(),k=fs.indexOf(L.s);
+  if(dir==='u'&&L.ni>0)moveNeed(id,L.s,L.ni-1);if(dir==='d'&&L.ni<L.s.needs.length-1)moveNeed(id,L.s,L.ni+2);
+  if(dir==='r'&&fs[k+1])moveNeed(id,fs[k+1]);if(dir==='l'&&fs[k-1])moveNeed(id,fs[k-1]);return}
+ if(L.kind==='pain'){const fs=flatSteps(),k=fs.indexOf(L.s);
+  if(dir==='u'&&L.pi>0)movePain(id,L.s,L.pi-1);if(dir==='d'&&L.pi<L.s.pains.length-1)movePain(id,L.s,L.pi+2);
+  if(dir==='r'&&fs[k+1])movePain(id,fs[k+1]);if(dir==='l'&&fs[k-1])movePain(id,fs[k-1]);return}
+ if(L.kind==='req'){const j=L.ri+(dir==='d'?1:dir==='u'?-1:0);if(j<0||j>=L.n.reqs.length||j===L.ri)return;change(()=>{L.n.reqs.splice(L.ri,1);L.n.reqs.splice(j,0,L.r)})}}
+
+/* Karten */
+function finish(ta,o,keep,next){if(ta._done)return;ta._done=true;
+ const v=ta.value.replace(/\s+/g,' ').trim(),wasFresh=fresh===o.id;edit=null;fresh=null;refocus=true;
+ if(!keep||!v){if(wasFresh){S=JSON.parse(hist.pop());sel=null;save()}render();return}
+ if(v!==o.t){if(!wasFresh){hist.push(snap());fut=[]}o.t=v;save()}
+ if(next)addSibling(o.id);else render()}
+function card(kind,o,body,extra){
+ const isEdit=edit===o.id,L=sel&&locate(sel);
+ const rel=L&&((kind==='req'&&L.kind==='need'&&L.n.reqs.includes(o))||(kind==='need'&&L.kind==='req'&&L.n===o)||(kind==='pain'&&L.kind==='need'&&L.n.solves.includes(o.id))||(kind==='need'&&L.kind==='pain'&&o.solves.includes(L.pp.id)));
+ const label={act:'Aktivität',step:'Schritt',pain:'Pain Point',need:'Bedarf',req:'Anforderung'}[kind];
+ const el=h('div',{class:`c c-${kind}${sel===o.id?' sel':''}${rel?' rel':''}`,tabindex:'0',draggable:(isEdit||kind==='req')?false:'true','data-id':o.id,role:'button','aria-label':`${label}: ${o.t||'leer'}`,
+  onclick:e=>{if(e.target.closest('button,textarea'))return;sel=o.id;render()},
+  ondblclick:e=>{if(e.target.closest('button'))return;if(kind==='act'||kind==='step'){sel=edit=o.id;render()}},
+  onkeydown:e=>{if(e.target.tagName==='TEXTAREA')return;const ar={ArrowLeft:'l',ArrowRight:'r',ArrowUp:'u',ArrowDown:'d'};
+   if(e.altKey&&ar[e.key]){e.preventDefault();sel=o.id;nudge(o.id,ar[e.key])}
+   else if(e.key==='Enter'||e.key==='F2'){e.preventDefault();sel=o.id;if(kind==='act'||kind==='step')edit=o.id;else focusField={need:'f-need',req:'f-req',pain:'f-pt'}[kind];render()}
+   else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();remove(o.id)}},
+  ondragstart:e=>{drag={kind,id:o.id};e.dataTransfer.setData('text/plain',o.id);e.dataTransfer.effectAllowed='move';el.classList.add('dragging')},
+  ondragend:()=>{drag=null;el.classList.remove('dragging')}});
+ if(isEdit){const ta=h('textarea',{'aria-label':'Text',rows:'2',placeholder:kind==='act'?'Aktivität, z. B. Praxis finden':'Was wollen Menschen erreichen?'});ta.value=o.t;
+  ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();finish(ta,o,true)}else if(e.key==='Tab'){e.preventDefault();finish(ta,o,true,true)}else if(e.key==='Escape'){e.preventDefault();finish(ta,o,false)}});
+  ta.addEventListener('blur',()=>finish(ta,o,true));el.append(ta);requestAnimationFrame(()=>{ta.focus();ta.select()})}
+ else el.append(...body.filter(x=>x!=null));
+ if(extra&&!isEdit)el.append(...[].concat(extra).filter(Boolean));
+ el.append(h('button',{class:'x',title:'Löschen','aria-label':'Löschen',onclick:e=>{e.stopPropagation();remove(o.id)}},'×'));
+ el.addEventListener('dragover',e=>{if(!drag||drag.id===o.id)return;const ok=drag.kind===kind||(kind==='act'&&drag.kind==='step');if(!ok)return;e.preventDefault();e.stopPropagation();el.classList.add('over')});
+ el.addEventListener('dragleave',()=>el.classList.remove('over'));
+ el.addEventListener('drop',e=>{el.classList.remove('over');if(!drag)return;e.preventDefault();e.stopPropagation();const d=drag;drag=null;const T=locate(o.id);
+  if(d.kind==='act'&&kind==='act')moveAct(d.id,T.ai);else if(d.kind==='step'&&kind==='act')moveStep(d.id,T.a,T.a.steps.length);
+  else if(d.kind==='step'&&kind==='step')moveStep(d.id,T.a,T.si);else if(d.kind==='need'&&kind==='need')moveNeed(d.id,T.s,T.ni);else if(d.kind==='pain'&&kind==='pain')movePain(d.id,T.s,T.pi)});
+ return el}
+
+function stepCard(s,a,si){const lint=lintOf(s.t);
+ const ins=(side,at)=>h('button',{class:`ins ins-${side}`,title:'Schritt einfügen','aria-label':`Schritt ${side==='l'?'vor':'nach'} „${s.t}“ einfügen`,onclick:e=>{e.stopPropagation();addStep(a,at)}},'+');
+ return card('step',s,[h('span',{},s.t),
+  lint?h('div',{},h('span',{class:'lb',title:`„${lint.w}“ beschreibt eine Lösung. Besser: ${lint.s}`},`Lösung? ${lint.w}`)):null],[si===0?ins('l',0):null,ins('r',si+1)])}
+function painCard(pp){const k=pkOf(pp),sv=solvers(pp);
+ return card('pain',pp,[h('div',{class:'num'},pnum(pp)),h('span',{},pp.t),
+  h('div',{class:'meta'},h('span',{class:`chip e-${k==='offen'?'annahme':k}`,title:pp.ins?INS[pp.ins].f:'Ohne Beleg'},pp.ins?`${k==='belegt'?'belegt':'Hinweis'} · ${pp.ins}`:'ohne Beleg'),
+   sv.length?h('span',{class:'chip c-solv'},'→ '+sv.map(n=>{const L=locate(n.id);return 'B'+(L.ni+1)+(L.s===locate(pp.id).s?'':` (${L.s.t})`)}).join(', ')):h('span',{class:'chip c-gap'},'kein Bedarf'))],
+  h('button',{class:'derive',title:'Bedarf aus diesem Pain Point ableiten',onclick:e=>{e.stopPropagation();derive(pp.id)}},'→ B'))}
+function painStack(s){const el=h('div',{class:'stack'},s.pains.map(painCard),h('button',{class:'ghost sm',onclick:()=>addPain(s)},'+ Pain Point'));
+ el.addEventListener('dragover',e=>{if(drag?.kind!=='pain')return;e.preventDefault();el.classList.add('over')});
+ el.addEventListener('dragleave',e=>{if(!el.contains(e.relatedTarget))el.classList.remove('over')});
+ el.addEventListener('drop',e=>{el.classList.remove('over');if(drag?.kind!=='pain')return;e.preventDefault();const d=drag;drag=null;movePain(d.id,s)});
+ return el}
+function needCard(n,i){const ev=evOf(n),ty=typeOf(n.t),lint=lintOf(n.t);
+ return card('need',n,[h('div',{class:'num'},`B${i+1}`),h('span',{},n.t),
+  h('div',{class:'meta'},ty?h('span',{class:`chip ${TY[ty][1]}`},TY[ty][0]):null,h('span',{class:`chip e-${ev.k}`,title:n.ins?INS[n.ins]?.f:'Ohne Beleg: wird in der Wissensbasis als Annahme geführt'},ev.l),
+   n.solves.length?h('span',{class:'chip c-solv'},'löst '+n.solves.map(x=>painById(x)).filter(Boolean).map(pnum).join(', ')):null,
+   lint?h('span',{class:'chip c-iss',title:`„${lint.w}“ klingt nach Lösung. Besser: ${lint.s}`},`Lösung? ${lint.w}`):null)])}
+function reqCard(r){return card('req',r,[h('span',{},r.t),h('div',{class:'meta'},r.scr.length?r.scr.map(x=>h('span',{class:'scr'},h('i'),x)):h('span',{class:'chip c-gap'},'kein Screen'),r.part?h('span',{class:'chip c-part',title:r.part},'teilweise'):null)])}
+
+function needStack(s){const el=h('div',{class:'stack'},s.needs.map(needCard),h('button',{class:'ghost',onclick:()=>addNeed(s)},'+ Bedarf'));
+ el.addEventListener('dragover',e=>{if(drag?.kind!=='need')return;e.preventDefault();el.classList.add('over')});
+ el.addEventListener('dragleave',e=>{if(!el.contains(e.relatedTarget))el.classList.remove('over')});
+ el.addEventListener('drop',e=>{el.classList.remove('over');if(drag?.kind!=='need')return;e.preventDefault();const d=drag;drag=null;moveNeed(d.id,s)});
+ return el}
+function reqStack(s){return h('div',{class:'stack'},s.needs.map((n,i)=>h('div',{class:'rg'},h('div',{class:'num'},`zu B${i+1}`),
+ n.reqs.length?n.reqs.map(reqCard):h('div',{class:'miss'},'Noch keine Anforderung'),
+ h('button',{class:'ghost sm',onclick:()=>addReq(n),'aria-label':`Anforderung zu B${i+1} hinzufügen`},'+ Anforderung'))))}
+
+function place(el,c,r,span=1){el.style.gridColumn=`${c} / span ${span}`;el.style.gridRow=r;$('board').append(el)}
+function renderMap(){
+ const b=$('board');const sx=$('wall').scrollLeft,sy=$('wall').scrollTop;b.textContent='';
+ let col=2;const tpl=['var(--lab)'];
+ const pos=S.acts.map(a=>{const n=Math.max(1,a.steps.length),p={c:col,n};col+=n;for(let i=0;i<n;i++)tpl.push('var(--cw)');return p});
+ tpl.push('var(--cw)');b.style.gridTemplateColumns=tpl.join(' ');
+ place(h('div',{class:'lab'},'Aktivitäten'),1,1);
+ place(h('div',{class:'lab'},'Schritte'),1,2);
+ place(h('div',{class:'lab'},'Pain Points',h('small',{},'mit Beleg')),1,3);
+ place(h('div',{class:'lab'},'Bedarfe',h('small',{},'was Menschen brauchen')),1,4);
+ place(h('div',{class:'rule'},'ab hier mit Produkt'),1,5,col);
+ place(h('div',{class:'lab sys'},'Anforderungen',h('small',{},'ans Produkt, mit Screens')),1,6);
+ S.acts.forEach((a,ai)=>{
+  place(card('act',a,[h('span',{},a.t)]),pos[ai].c,1,pos[ai].n);
+  if(!a.steps.length){const g=h('button',{class:'ghost',onclick:()=>addStep(a,0)},'+ Schritt');
+   g.addEventListener('dragover',e=>{if(drag?.kind==='step')e.preventDefault()});
+   g.addEventListener('drop',e=>{if(drag?.kind!=='step')return;e.preventDefault();const d=drag;drag=null;moveStep(d.id,a,0)});place(g,pos[ai].c,2)}
+  a.steps.forEach((s,si)=>{place(stepCard(s,a,si),pos[ai].c+si,2);place(painStack(s),pos[ai].c+si,3);place(needStack(s),pos[ai].c+si,4);place(reqStack(s),pos[ai].c+si,6)});
+ });
+ place(h('button',{class:'ghost',onclick:()=>addAct(S.acts.length)},'+ Aktivität'),col,1);
+ $('wall').scrollLeft=sx;$('wall').scrollTop=sy;
+ if(refocus&&sel&&!edit){b.querySelector(`[data-id="${sel}"]`)?.focus({preventScroll:false})}refocus=false;
+ // Status
+ const ns=allNeeds(),rs=ns.flatMap(n=>n.reqs);
+ const gaps=ns.filter(n=>!n.reqs.length).length+rs.filter(r=>!r.scr.length).length+allPains().filter(pp=>!solvers(pp).length).length;
+ $('stat').textContent='';
+ $('stat').append(`${flatSteps().length} Schritte · ${allPains().length} Pain Points · ${ns.length} Bedarfe, ${ns.filter(n=>n.ins).length} belegt`,gaps?h('span',{},' · ',h('b',{},`${gaps} Lücken`)):'');
+ $('undo').disabled=!hist.length;$('redo').disabled=!fut.length;
+}
+
+/* Inspector */
+function bind(el,get,set){el.value=get();el.addEventListener('focus',()=>{pre=snap()});
+ el.addEventListener('input',()=>{set(el.value);save();renderMap();live()});
+ el.addEventListener('change',()=>{if(pre&&pre!==snap()){hist.push(pre);fut=[];$('undo').disabled=false}pre=null});return el}
+const fld=(label,ctl,hint)=>h('label',{class:'fld'},label,ctl,hint?h('small',{},hint):null);
+let live=()=>{};
+function renderInsp(){
+ const p=$('insp');p.textContent='';live=()=>{};
+ const L=sel&&locate(sel);
+ if(!L){overview(p);return}
+ const del=h('button',{class:'del',onclick:()=>remove(sel)},'Löschen');
+ if(L.kind==='act'){p.append(h('div',{class:'kind'},'Aktivität'),fld('Titel',bind(h('input',{id:'f-t'}),()=>L.a.t,v=>L.a.t=v)),h('div',{class:'btns'},h('button',{onclick:()=>addStep(L.a,L.a.steps.length)},'+ Schritt'),del));return}
+ if(L.kind==='step'){const s=L.s;
+  const lintBox=h('div',{});live=()=>{lintBox.textContent='';const l=lintOf(s.t);if(l)lintBox.append(h('p',{class:'note'},`„${l.w}“ klingt nach Lösung. Besser: ${l.s}.`))};
+  p.append(h('div',{class:'kind'},`Schritt in „${L.a.t}“`),fld('Was wollen Menschen erreichen?',bind(h('input',{id:'f-t'}),()=>s.t,v=>s.t=v)),lintBox,
+   h('h2',{},`Bedarfe (${s.needs.length})`),
+   h('ul',{class:'todo'},s.needs.map((n,i)=>h('li',{},h('button',{onclick:()=>{sel=n.id;render()}},`B${i+1}: ${n.t}`)))),
+   h('div',{class:'btns'},h('button',{onclick:()=>addNeed(s)},'+ Bedarf'),del));live();return}
+ if(L.kind==='pain'){const pp=L.pp;
+  const ins=h('select',{id:'f-pins'},h('option',{value:''},'ohne Beleg'),Object.entries(INS).map(([k,v])=>h('option',{value:k},`${k} · ${v.k} · ${v.f}`)));
+  const sv=solvers(pp);
+  p.append(h('div',{class:'kind'},`Pain Point ${pnum(pp)} bei „${L.s.t}“`),
+   fld('Was geht schief?',bind(h('textarea',{id:'f-pt',placeholder:'z. B. Termin beim Absenden weg, Angaben verloren'}),()=>pp.t,v=>pp.t=v),'Aus Sicht der Menschen, ohne Lösung'),
+   fld('Beleg',bind(ins,()=>pp.ins,v=>pp.ins=v)),
+   h('h2',{},sv.length?`Gelöst durch (${sv.length})`:'Noch kein Bedarf'),
+   h('ul',{class:'todo'},sv.map(n=>{const N=locate(n.id);return h('li',{},h('button',{onclick:()=>{sel=n.id;render()}},`B${N.ni+1} (${N.s.t}): ${n.t}`))})),
+   h('div',{class:'btns'},h('button',{onclick:()=>derive(pp.id)},'Bedarf ableiten'),del));return}
+ if(L.kind==='need'){const n=L.n;
+  const aps=actPains(L.a);
+  const solv=h('div',{class:'scrs',role:'group','aria-label':'Löst Pain Points'},aps.length?aps.map(pp=>{const c=h('input',{type:'checkbox'});c.checked=n.solves.includes(pp.id);c.addEventListener('change',()=>change(()=>{n.solves=c.checked?[...n.solves,pp.id]:n.solves.filter(y=>y!==pp.id)}));return h('label',{},c,`${pnum(pp)} ${pp.t}`)}):h('span',{class:'note'},'Keine Pain Points in dieser Aktivität'));
+  const ins=h('select',{id:'f-ins'},h('option',{value:''},'kein Beleg, als Annahme führen'),Object.entries(INS).map(([k,v])=>h('option',{value:k},`${k} · ${v.k} · ${v.f}`)));
+  const info=h('div',{'aria-live':'polite'});
+  live=()=>{info.textContent='';const ty=typeOf(n.t),l=lintOf(n.t);
+   info.append(h('div',{class:'meta',style:'margin:0 0 10px'},ty?h('span',{class:`chip ${TY[ty][1]}`},TY[ty][0]):h('span',{class:'chip c-off'},'Art nicht erkannt'),l?h('span',{class:'chip c-iss',title:`Besser: ${l.s}`},`Lösung? ${l.w}`):null))};
+  const help=h('details',{class:'help',open:!n.t},h('summary',{},'Beispiele'),
+   TYPES.map(([k,lab,,ex])=>h('div',{},h('span',{class:`chip ${TY[k][1]}`},lab),h('ul',{},ex.map(x=>h('li',{},x))))),
+   h('p',{class:'note'},'Aus Sicht der Menschen, mit einem Verb. Ein „um …“ oder „weil …“ hilft, ist aber kein Muss.'));
+  p.append(h('div',{class:'kind'},`Bedarf B${L.ni+1} bei „${L.s.t}“`),
+   fld('Was brauchen Menschen?',bind(h('textarea',{id:'f-need',placeholder:'z. B. Wissen, bis wann ich kostenlos absagen kann.'}),()=>n.t,v=>n.t=v)),info,help,
+   fld('Beleg',bind(ins,()=>n.ins,v=>n.ins=v),'Insights aus der Wissensbasis mit Interview-Fakten'),
+   h('div',{class:'fld'},`Löst Pain Points in „${L.a.t}“`,solv),
+   h('h2',{},n.reqs.length?`Anforderungen (${n.reqs.length})`:'Noch keine Anforderung'),
+   h('ul',{class:'todo'},n.reqs.map(r=>h('li',{},h('button',{onclick:()=>{sel=r.id;render()}},r.t||'(leer)')))),
+   h('div',{class:'btns'},h('button',{onclick:()=>addReq(n)},'+ Anforderung'),del));live();return}
+ if(L.kind==='req'){const r=L.r;
+  const chk=h('ul',{class:'checks'});live=()=>{chk.textContent='';for(const[ok,t]of reqChecks(r))chk.append(h('li',{class:ok?'':'bad'},t))};
+  const boxes=h('div',{class:'scrs',role:'group','aria-label':'Screens'},SCREENS.map(x=>{const c=h('input',{type:'checkbox'});c.checked=r.scr.includes(x);c.addEventListener('change',()=>change(()=>{r.scr=c.checked?[...r.scr,x]:r.scr.filter(y=>y!==x)}));return h('label',{},c,x)}));
+  p.append(h('div',{class:'kind'},`Anforderung zu B${L.ni+1}`),h('p',{class:'note'},L.n.t),chk,
+   fld('Was muss das Produkt ermöglichen?',bind(h('textarea',{id:'f-req',placeholder:'z. B. Bei jeder Praxis den nächsten freien Termin sehen.'}),()=>r.t,v=>r.t=v)),
+   h('div',{class:'fld'},'Screens im Flow „Termin buchen“',boxes),
+   fld('Nur teilweise gelöst?',bind(h('input',{id:'f-part',placeholder:'z. B. nur im Profil, nicht in der Übersicht'}),()=>r.part,v=>r.part=v)),
+   h('div',{class:'btns'},h('button',{onclick:()=>{sel=L.n.id;render()}},'← Zum Bedarf'),del));live();return}
+}
+function overview(p){
+ const items=[];
+ for(const pp of allPains())if(!solvers(pp).length){const L=locate(pp.id);items.push([pp.id,`${pnum(pp)} „${pp.t}“`,'noch kein Bedarf dazu'])}
+ for(const s of flatSteps()){const l=lintOf(s.t);if(l)items.push([s.id,`„${s.t}“`,`klingt nach Lösung (${l.w})`]);
+  if(!s.needs.length)items.push([s.id,`„${s.t}“`,'hat noch keine Bedarfe']);
+  s.needs.forEach((n,i)=>{const lab=`${s.t}, B${i+1}`;const l=lintOf(n.t);
+   if(l)items.push([n.id,lab,`klingt nach Lösung (${l.w})`]);
+   if(!n.ins)items.push([n.id,lab,'ohne Beleg (Annahme)']);
+   if(!n.reqs.length)items.push([n.id,lab,'noch keine Anforderung']);
+   if(!n.solves.length&&!n.ins)items.push([n.id,lab,'ohne Beleg und ohne Pain Point']);
+   n.reqs.forEach(r=>{if(!r.scr.length)items.push([r.id,lab,'Anforderung ohne Screen']);else if(r.part)items.push([r.id,lab,`nur teilweise gelöst: ${r.part}`])})})}
+ p.append(h('div',{class:'kind'},'Nichts ausgewählt'),h('h2',{},`Offene Punkte (${items.length})`),
+  h('p',{class:'note'},'Klicke einen Punkt an, um ihn zu bearbeiten. Annahmen sind kein Fehler, aber Kandidaten für /wireflow:research.'),
+  h('ul',{class:'todo'},items.slice(0,40).map(([id,lab,t])=>h('li',{},h('button',{onclick:()=>{sel=id;refocus=true;render()}},lab,': ',h('b',{},t))))),
+  h('details',{},h('summary',{},'Datenmodell (journey@2)'),h('pre',{},JSON.stringify(exportJson(),null,2))));
+}
+function render(){renderMap();renderInsp();if(focusField){const f=$(focusField);focusField=null;if(f){f.focus();if(f.setSelectionRange){const n=f.value.length;f.setSelectionRange(n,n)}}}}
+
+function exportJson(){return{schema:'wireflow/journey@2',id:'jrn_termin',title:'Arzttermin online buchen',
+ phases:S.acts.map(a=>({id:a.id,title:a.t,steps:a.steps.map(s=>({id:s.id,text:s.t,painPoints:s.pains.map(pp=>({id:pp.id,text:pp.t,...(pp.ins?{insight:pp.ins}:{})})),
+  needs:s.needs.map(n=>({id:n.id,text:n.t,...(typeOf(n.t)?{type:typeOf(n.t)}:{}),evidence:n.ins?{insight:n.ins}:{assumption:true},solves:n.solves,
+   requirements:n.reqs.map(r=>({id:r.id,text:r.t,screens:r.scr,...(r.part?{partial:r.part}:{})}))}))}))}))}}
+
+let tt;function toast(t){$('toastT').textContent=t;$('toast').hidden=false;clearTimeout(tt);tt=setTimeout(()=>$('toast').hidden=true,5000)}
+$('toastU').onclick=()=>{undo();$('toast').hidden=true};
+$('undo').onclick=undo;$('redo').onclick=redo;
+$('addAct').onclick=()=>addAct(S.acts.length);
+$('lintOn').onchange=render;
+$('reset').onclick=()=>{change(()=>{S=seed();sel=null});toast('Beispiel geladen')};
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText(JSON.stringify(exportJson(),null,2));toast('JSON kopiert')}catch{sel=null;render();toast('Kopieren nicht erlaubt; JSON steht im Inspector')}};
+document.addEventListener('keydown',e=>{if(e.target.matches('textarea,input,select'))return;const m=e.metaKey||e.ctrlKey;
+ if(m&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo()}else if(e.key==='Escape'){sel=null;render()}});
+render();
+}
+</script>
+</body>
+</html>
