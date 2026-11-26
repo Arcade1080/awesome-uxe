@@ -2,6 +2,9 @@
 import { walk, getAttr } from './jsx.js';
 import { components } from './ds.js';
 
+// Häufige Attribute von HTML-Elementen (für Komponenten mit passthrough).
+const NATIVE = new Set(['type', 'value', 'defaultValue', 'checked', 'defaultChecked', 'placeholder', 'name', 'disabled', 'required', 'readOnly', 'autoFocus', 'autoComplete', 'href', 'target', 'rel', 'title', 'tabIndex', 'role', 'min', 'max', 'step', 'rows', 'cols', 'maxLength', 'minLength', 'pattern', 'inputMode', 'htmlFor', 'form', 'lang', 'dir', 'hidden', 'id']);
+
 export function lintScreen(screen, model) {
   const res = { errors: [], warnings: [], infos: [], score: { ds: 0, total: 0, pct: 100 } };
   if (screen.error || !screen.tree) { res.errors.push({ msg: screen.error || 'Screen konnte nicht gelesen werden' }); res.score.pct = 0; return res; }
@@ -33,7 +36,12 @@ export function lintScreen(screen, model) {
       if (a.name === 'style' || a.name === 'className') { res.errors.push({ el: id, msg: `„${a.name}“${at} ist nicht erlaubt – Gestaltung nur über Props und Tokens.` }); continue; }
       if (!spec || !a.name || a.name === 'key' || /^(data|aria)-/.test(a.name)) continue;
       const ps = spec.props?.[a.name];
-      if (!ps) { res.warnings.push({ el: id, msg: `Prop „${a.name}“ gibt es an <${n.name}> nicht.` }); continue; }
+      if (!ps) {
+        // Komponenten, die Attribute an ein HTML-Element durchreichen (manifest: passthrough), nehmen dessen Attribute an.
+        if (spec.passthrough && (NATIVE.has(a.name) || /^on[A-Z]/.test(a.name))) continue;
+        res.warnings.push({ el: id, msg: `Prop „${a.name}“ gibt es an <${n.name}> nicht.` });
+        continue;
+      }
       if (ps.enum && a.kind === 'str' && !ps.enum.includes(a.raw)) res.errors.push({ el: id, msg: `<${n.name}> ${a.name}="${a.raw}" ist nicht erlaubt (erlaubt: ${ps.enum.join(', ')}).` });
       if (ps.type === 'token' && a.kind === 'str' && !/^[a-z]+(\.[\w-]+)+$/.test(a.raw)) res.errors.push({ el: id, msg: `<${n.name}> ${a.name}="${a.raw}" ist ein freier Wert – bitte ein Token verwenden.` });
     }

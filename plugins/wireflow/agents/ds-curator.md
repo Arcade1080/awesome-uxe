@@ -9,7 +9,7 @@ Du bist DS-Kurator:in für Wireflow Studio. Dein Ergebnis ist `.wireflow/ds/mani
 ## Quellen, in dieser Reihenfolge
 
 1. Exporte und TypeScript-Typen des DS-Pakets (Props, Unions → `enum`, optionale vs. Pflicht-Props)
-2. Storybook (`*.stories.*`: `argTypes`, Standard-Args → `defaults`)
+2. Mitgelieferte Metadaten des DS (z. B. `generated/components.json` bei Primer) und Storybook (`*.stories.*`: `argTypes`, Standard-Args → `defaults`)
 3. Token-Dateien (DTCG `*.tokens.json`) → `tokens.files`; Graustufen für `tokens.modes.wireframe`
 4. DS-Dokumentation (Richtlinien, Do/Don't, A11y) → `guidelines`, `a11y`, Patterns
 

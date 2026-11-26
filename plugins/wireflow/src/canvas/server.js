@@ -98,8 +98,11 @@ else {
   const args = Object.assign({}, meta.args, story.args);
   let Render = () => story.render && !variant ? story.render(args, { args }) : h((!variant && story.component) || Comp, args);
   for (const d of [].concat(story.decorators || [], meta.decorators || [])) { const Inner = Render; Render = () => d(Inner, { args }); }
+  // Provider des Design Systems (renderer.provider), z. B. Theme und Grundstile; bekommt den Modus.
+  let el = h(Render);
+  if (typeof WFProvider === 'function' || (WFProvider && typeof WFProvider === 'object')) el = h(WFProvider, { mode: W.mode || 'hifi' }, el);
   try {
-    createRoot(document.getElementById('root'), { onUncaughtError: e => fail(String((e && e.stack) || e)) }).render(h(Render));
+    createRoot(document.getElementById('root'), { onUncaughtError: e => fail(String((e && e.stack) || e)) }).render(el);
   } catch (e) { fail(String((e && e.stack) || e)); }
 }`;
 
@@ -116,9 +119,10 @@ async function buildBundle(root) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const list = Object.values(m.screens).filter(s => !failed[s.ref]);
     const lines = ["import { createElement as h } from 'react';", "import { createRoot } from 'react-dom/client';"];
-    for (const st of [].concat(m.manifest.styles || [], m.project.renderer?.styles || [])) {
-      lines.push(`import ${JSON.stringify(st.startsWith('.') ? path.resolve(root, st) : st)};`);
-    }
+    const spec = s => JSON.stringify(s.startsWith('.') ? path.resolve(root, s) : s);
+    for (const st of [].concat(m.manifest.styles || [], m.project.renderer?.styles || [])) lines.push(`import ${spec(st)};`);
+    const provider = m.project.renderer?.provider || m.manifest.provider;
+    lines.push(provider ? `import WFProvider from ${spec(provider)};` : 'const WFProvider = null;');
     const reg = [];
     list.forEach((s, i) => {
       const variant = !s.storiesFile && parentOf[s.ref] ? m.screens[parentOf[s.ref]] : null;

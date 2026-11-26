@@ -29,6 +29,8 @@ export function flattenTokens(obj, prefix = [], type, out = []) {
   for (const [k, v] of Object.entries(obj || {})) {
     if (k.startsWith('$')) continue;
     if (v && typeof v === 'object' && '$value' in v) out.push({ path: [...prefix, k].join('.'), type: v.$type || type, value: v.$value });
+    // Style-Dictionary-Ausgabe (z. B. Primer Primitives): { name, value, type } – name ist der CSS-Name ohne „--“.
+    else if (v && typeof v === 'object' && 'value' in v && typeof v.name === 'string' && (typeof v.value !== 'object' || v.value === null || Array.isArray(v.value) || !('name' in v.value))) out.push({ path: v.name, type: v.$type || v.type || type, value: v.value, description: v.description || v.original?.$description });
     else if (v && typeof v === 'object') flattenTokens(v, [...prefix, k], v.$type || type, out);
   }
   return out;

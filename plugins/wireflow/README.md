@@ -50,6 +50,7 @@ Das Beispiel enthält ein kleines, fiktives Design System (Acme UI: 14 Komponent
 ├── project.json                 Name, Viewport, erlaubte Imports
 ├── ds/manifest.json             Komponenten, Props, Defaults, Intents, Richtlinien, Tokens, Regeln
 ├── ds/patterns/*.md             Pattern-Karten: wann welche Komponente, verlangte Zustände
+├── ds/provider.tsx              optional: Provider des DS (Theme, Grundstile) für alle Screens
 ├── knowledge/                   insights.json, assumptions.json, questions.json
 ├── research/                    Rohmaterial (pseudonymisiert), Testaufgaben
 ├── journeys/*.journey.json      Story Map: Phasen → Schritte → Pain Points → Bedarfe → Anforderungen → Screens
