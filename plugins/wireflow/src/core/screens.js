@@ -264,7 +264,9 @@ export const slugify = s => String(s || '').toLowerCase()
 export function newScreen(model, { title = 'Neuer Screen', flowTitle = '' } = {}) {
   const comps = model.manifest.components || [];
   const has = intent => comps.find(c => (c.intents || []).some(i => i === intent || i.startsWith(intent + '.')));
-  const rootSpec = has('page') || comps.find(c => c.props?.children?.type === 'node') || comps[0];
+  // Ohne Intents im Manifest: übliche Namen für Seiten-Container und Titel.
+  const byName = re => comps.find(c => !c.name.includes('.') && re.test(c.name) && c.status !== 'deprecated');
+  const rootSpec = has('page') || byName(/^(Page|Screen|Stack|VStack|Box|Layout|Container|Flex)$/) || comps.find(c => c.props?.children?.type === 'node') || comps[0];
   if (!rootSpec) throw new Error('Das Design-System-Manifest enthält keine Komponenten.');
   let base = slugify(title);
   let k = 1;
@@ -273,7 +275,7 @@ export function newScreen(model, { title = 'Neuer Screen', flowTitle = '' } = {}
   const name = `${pascal(base)}Screen`;
   const root = makeEl(rootSpec.name, rootSpec.defaults?.props || {});
   root.inline = false;
-  const heading = has('content.title');
+  const heading = has('content.title') || byName(/^(Heading|Title|PageTitle)$/);
   if (heading) insertEl(root, 0, makeEl(heading.name, heading.defaults?.props || {}, title));
   ensureIds(root);
   const used = [...new Set([rootSpec.name, heading?.name].filter(Boolean))];

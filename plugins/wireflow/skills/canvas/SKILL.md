@@ -14,6 +14,7 @@ argument-hint: "[flow-id]"
 
 - **Design:** Screens als echte Komponenten; Elemente anklicken und im Inspector Props, Text und Interaktion ändern; Komponenten aus der Liste auf Screens ziehen; Elemente per Drag & Drop umordnen; Screens am Titel verschieben; Wireframe/Hi-Fi umschalten. Alles wird als Code in die Screen-Module geschrieben.
 - **Prototyp:** den Flow durchklicken; Variablen steuern Entscheidungen; fehlende Pfade werden gemeldet.
+- **Sektionen:** benannte Rahmen auf dem Canvas, die Screens zu Phasen zusammenfassen (`flow_edit` mit `addSection`, `updateSection`, `removeSection`; `phase` = Phasen-ID der Journey). Wer gefragt wird, Screens nach Phasen zu ordnen: Sektionen um die passenden Screens legen und mit der Journey verknüpfen.
 - **Journey:** Story Map – Phasen, Schritte, Pain Points und Bedarfe ohne Lösung; darunter Anforderungen mit Screens. Bearbeitbar; speichert in die Journey-Datei. Offene Punkte liefert auch `journey_get`.
 - **Wissen:** Insights, Annahmen nach Risiko, offene Fragen.
 

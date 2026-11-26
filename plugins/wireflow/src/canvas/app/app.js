@@ -54,6 +54,10 @@ const S = {
   scope: 'one',
   picker: null,
   pagesOpen: true,
+  closedSec: new Set(),
+  tool: 'move',
+  space: false,
+  multi: new Set(),
   open: new Set(),
   autoOpen: null,
   renamePage: null,
@@ -225,7 +229,8 @@ function syncSelection() {
 
 // ---------- Auswahl ----------
 function select(sel) {
-  S.sel = { node: sel.node ?? null, el: sel.el ?? null, edge: sel.edge ?? null, variant: sel.variant ?? null };
+  S.sel = { node: sel.node ?? null, el: sel.el ?? null, edge: sel.edge ?? null, variant: sel.variant ?? null, section: sel.section ?? null };
+  S.multi = new Set(sel.multi || []);
   closeMenu();
   if (S.mode === 'design') renderCanvas();
   renderLeft();
@@ -236,6 +241,8 @@ function validateSelection() {
   const f = flow();
   if (!f) { S.sel = { node: null, el: null, edge: null, variant: null }; return; }
   if (S.sel.edge != null && !f.edges[S.sel.edge]) S.sel.edge = null;
+  if (S.sel.section && !(f.sections || []).some(x => x.id === S.sel.section)) S.sel.section = null;
+  S.multi = new Set([...S.multi].filter(id => f.nodes.some(n => n.id === id)));
   const n = nodeById(S.sel.node);
   if (!n) { S.sel.node = null; S.sel.el = null; S.sel.variant = null; return; }
   if (S.sel.variant && !(n.variants || []).some(v => v.ref === S.sel.variant)) S.sel.variant = null;
@@ -305,7 +312,7 @@ function zoomCenter(f) {
   zoomAt(r.left + r.width / 2, r.top + r.height / 2, f);
 }
 function nodeRect(n) {
-  const p = S.drag?.kind === 'node' && S.drag.id === n.id ? S.drag.pos : n;
+  const p = S.drag?.kind === 'node' && S.drag.id === n.id ? S.drag.pos : S.drag?.kind === 'group' && S.drag.pos[n.id] ? S.drag.pos[n.id] : n;
   if (n.type === 'decision') return { x: p.x, y: p.y, w: D, h: D };
   return { x: p.x, y: p.y, w: n.w || VW(), h: S.frames.get(n.id)?.h || VH() };
 }
@@ -313,7 +320,7 @@ function fit() {
   const f = flow();
   if (!f || !f.nodes.length) return;
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
-  for (const r of [...f.nodes.map(nodeRect), ...variantRects(f).map(v => v.rect)]) {
+  for (const r of [...f.nodes.map(nodeRect), ...variantRects(f).map(v => v.rect), ...(f.sections || []).map(sectionRect)]) {
     x1 = Math.min(x1, r.x); y1 = Math.min(y1, r.y); x2 = Math.max(x2, r.x + r.w); y2 = Math.max(y2, r.y + r.h + 30);
   }
   const sr = stage.getBoundingClientRect();
@@ -397,11 +404,13 @@ function renderCanvas() {
   if (!f) {
     if (!empty) stage.append(h('div', { class: 'empty' }, h('div', {}, h('b', {}, 'Noch kein Flow'), 'In Claude Code: /wireflow:flow – oder eine Journey mit /wireflow:journey anlegen.')));
     edgesSvg.innerHTML = '';
+    renderSections(null);
     fill(labelsEl, );
     renderVariants(null);
     return;
   }
   empty?.remove();
+  renderSections(f);
   for (const n of f.nodes) renderNode(n);
   renderVariants(f);
   renderEdges();
@@ -423,10 +432,10 @@ function renderNode(n) {
     world.append(el);
     S.nodeEls.set(n.id, el);
   }
-  const p = S.drag?.kind === 'node' && S.drag.id === n.id ? S.drag.pos : n;
+  const p = S.drag?.kind === 'node' && S.drag.id === n.id ? S.drag.pos : S.drag?.kind === 'group' && S.drag.pos[n.id] ? S.drag.pos[n.id] : n;
   el.style.left = `${p.x}px`;
   el.style.top = `${p.y}px`;
-  el.classList.toggle('sel', S.sel.node === n.id && !S.sel.el && S.sel.edge == null);
+  el.classList.toggle('sel', (S.sel.node === n.id && !S.sel.el && S.sel.edge == null) || S.multi.has(n.id));
   el.classList.toggle('entry', flow().entry === n.id);
   if (n.type === 'decision') {
     el.querySelector('.dl').textContent = n.label || n.id;
@@ -754,6 +763,9 @@ function startNodeDrag(e, id) {
   e.preventDefault();
   const n = nodeById(id);
   if (!n) return;
+  if (S.space || S.tool === 'hand') { startPan(e); return; }
+  if (e.shiftKey) { const ids = new Set(S.multi.size ? S.multi : S.sel.node ? [S.sel.node] : []); if (ids.has(id)) ids.delete(id); else ids.add(id); const l = [...ids]; select(l.length === 1 ? { node: l[0] } : { multi: l }); return; }
+  if (S.multi.size > 1 && S.multi.has(id)) { startGroupDrag(e, [...S.multi]); return; }
   select({ node: id });
   const k = S.view.k;
   const start = { x: e.clientX, y: e.clientY, nx: n.x, ny: n.y };
@@ -783,27 +795,230 @@ function startNodeDrag(e, id) {
   });
 }
 
-stage.addEventListener('pointerdown', e => {
-  if (S.mode !== 'design' || (e.button !== 0 && e.button !== 1)) return;
-  if (e.target.closest('.node,.elabel,.zoom')) return;
-  const start = { x: e.clientX, y: e.clientY, vx: S.view.x, vy: S.view.y };
+// ---------- Werkzeuge: Auswahlrahmen, Hand, Frame, Sektion ----------
+// Wie in Figma: Ziehen auf freier Fläche markiert (⇧ ergänzt), Leertaste oder H schiebt die Ansicht,
+// F setzt einen neuen Screen, S zieht eine Sektion auf. Sektionen fassen Screens zu Phasen zusammen.
+const TOOLS = [
+  ['move', 'Bewegen und markieren', 'V', '<path d="M4 2.5l8.5 5.2-3.7.8 2.2 4.3-1.6.8-2.2-4.3L4.5 12z"/>'],
+  ['hand', 'Hand – Ansicht schieben (Leertaste halten)', 'H', '<path d="M5.5 8V3.6a1 1 0 0 1 2 0V7.5M7.5 7V2.6a1 1 0 0 1 2 0V7M9.5 7V3.4a1 1 0 0 1 2 0v5.8c0 2.7-1.7 4.6-4.2 4.6-1.6 0-2.6-.8-3.5-2.2L2.4 8.8a1 1 0 0 1 1.6-1.1L5.5 9.4"/>'],
+  ['frame', 'Frame – neuer Screen', 'F', '<path d="M5 1.5v13M11 1.5v13M1.5 5h13M1.5 11h13"/>'],
+  ['section', 'Sektion – Screens zu einer Phase zusammenfassen', 'S', '<rect x="2" y="4" width="12" height="9.5" rx="1.2"/><path d="M2 2.5h5"/>'],
+];
+function setTool(t) {
+  S.tool = t;
+  stage.classList.remove('tool-move', 'tool-hand', 'tool-frame', 'tool-section');
+  stage.classList.add(`tool-${t}`);
+  document.querySelectorAll('#toolbar button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+}
+function buildToolbar() {
+  const bar = h('div', { class: 'toolbar', id: 'toolbar', role: 'toolbar', 'aria-label': 'Werkzeuge' }, TOOLS.map(([id, label, key, svg]) => {
+    const b = h('button', { type: 'button', 'data-tool': id, title: `${label} (${key})`, 'aria-label': label, 'aria-pressed': 'false', onclick: () => setTool(id) });
+    b.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true">${svg}</svg>`;
+    return b;
+  }));
+  stage.append(bar);
+  setTool('move');
+}
+const toWorld = (cx, cy) => { const r = stage.getBoundingClientRect(); return { x: (cx - r.left - S.view.x) / S.view.k, y: (cy - r.top - S.view.y) / S.view.k }; };
+const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+const centerIn = (r, s) => { const cx = r.x + r.w / 2, cy = r.y + Math.min(r.h, 400) / 2; return cx >= s.x && cx <= s.x + s.w && cy >= s.y && cy <= s.y + s.h; };
+function sectionRect(sec) { const p = S.drag?.kind === 'group' && S.drag.sec?.[sec.id] ? S.drag.sec[sec.id] : S.drag?.kind === 'resize' && S.drag.id === sec.id ? S.drag.rect : sec; return { x: p.x, y: p.y, w: p.w ?? sec.w, h: p.h ?? sec.h }; }
+function sectionMembers(f, sec) { return f.nodes.filter(n => centerIn(nodeRect(n), sec)).map(n => n.id); }
+function journeyPhases() {
+  const f = flow();
+  const j = S.data.journeys.find(x => x.id === f?.journey) || S.data.journeys[0];
+  return j ? j.phases.map(p => ({ id: p.id, title: p.title })) : [];
+}
+
+// Ziehen auf freier Fläche: Auswahlrahmen bzw. Rechteck für Frame und Sektion.
+function dragRect(e, done) {
+  const r0 = stage.getBoundingClientRect();
+  const start = { x: e.clientX, y: e.clientY };
+  const box = h('div', { class: `marquee ${S.tool === 'section' ? 'sec' : ''}` });
   let moved = false;
-  stage.classList.add('panning');
   beginPointer({
     move: ev => {
-      const dx = ev.clientX - start.x;
-      const dy = ev.clientY - start.y;
-      if (!moved && Math.hypot(dx, dy) < 3) return;
-      moved = true;
-      S.view.x = start.vx + dx;
-      S.view.y = start.vy + dy;
-      applyView();
+      if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 4) return;
+      if (!moved) { moved = true; stage.append(box); }
+      const x = Math.min(start.x, ev.clientX) - r0.left, y = Math.min(start.y, ev.clientY) - r0.top;
+      Object.assign(box.style, { left: `${x}px`, top: `${y}px`, width: `${Math.abs(ev.clientX - start.x)}px`, height: `${Math.abs(ev.clientY - start.y)}px` });
     },
-    up: () => {
-      stage.classList.remove('panning');
-      if (!moved) select({});
+    up: ev => {
+      box.remove();
+      const a = toWorld(start.x, start.y), b = toWorld(ev.clientX, ev.clientY);
+      done({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) }, moved, ev);
     },
   });
+}
+function marquee(e) {
+  const f = flow();
+  const before = e.shiftKey ? new Set(S.multi.size ? S.multi : S.sel.node ? [S.sel.node] : []) : new Set();
+  dragRect(e, (rect, moved) => {
+    if (!moved) { if (!e.shiftKey) select({}); return; }
+    const hits = new Set(before);
+    for (const n of f?.nodes || []) if (overlaps(nodeRect(n), rect)) hits.add(n.id);
+    const ids = [...hits];
+    if (ids.length === 1) select({ node: ids[0] });
+    else if (ids.length) select({ multi: ids });
+    else select({});
+  });
+}
+async function drawCreate(e) {
+  const tool = S.tool;
+  dragRect(e, async (rect, moved) => {
+    setTool('move');
+    if (tool === 'frame') {
+      const n = flow().nodes.filter(x => x.type === 'screen').length + 1;
+      const r = await flowOp({ op: 'addScreen', title: `Screen ${n}`, x: Math.round(rect.x / 10) * 10, y: Math.round(rect.y / 10) * 10 });
+      if (r?.node) setTimeout(() => select({ node: r.node }), 200);
+      return;
+    }
+    const n = (flow().sections || []).length + 1;
+    const w = moved ? rect.w : 900, hh = moved ? rect.h : 900;
+    const r = await flowOp({ op: 'addSection', title: `Phase ${n}`, x: rect.x, y: rect.y, w, h: hh });
+    if (r?.section) setTimeout(() => { select({ section: r.section }); $('#right [data-key="sec:title"]')?.select(); }, 200);
+  });
+}
+function startPan(e) {
+  const start = { x: e.clientX, y: e.clientY, vx: S.view.x, vy: S.view.y };
+  stage.classList.add('panning');
+  beginPointer({
+    move: ev => { S.view.x = start.vx + ev.clientX - start.x; S.view.y = start.vy + ev.clientY - start.y; applyView(); },
+    up: () => stage.classList.remove('panning'),
+  });
+}
+
+// Mehrere Knoten (und Sektionen) gemeinsam ziehen.
+function startGroupDrag(e, nodeIds, sectionIds = []) {
+  const f = flow();
+  const k = S.view.k;
+  const start = { x: e.clientX, y: e.clientY };
+  const base = Object.fromEntries(nodeIds.map(id => { const n = nodeById(id); return [id, { x: n.x, y: n.y }]; }));
+  const sbase = Object.fromEntries(sectionIds.map(id => { const s = f.sections.find(x => x.id === id); return [id, { x: s.x, y: s.y, w: s.w, h: s.h }]; }));
+  let moved = false;
+  beginPointer({
+    move: ev => {
+      const dx = Math.round((ev.clientX - start.x) / k / 10) * 10, dy = Math.round((ev.clientY - start.y) / k / 10) * 10;
+      if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 4) return;
+      moved = true;
+      S.drag = { kind: 'group', pos: {}, sec: {} };
+      for (const [id, p] of Object.entries(base)) { S.drag.pos[id] = { x: p.x + dx, y: p.y + dy }; const el = S.nodeEls.get(id); if (el) { el.style.left = `${p.x + dx}px`; el.style.top = `${p.y + dy}px`; } }
+      for (const [id, p] of Object.entries(sbase)) { S.drag.sec[id] = { ...p, x: p.x + dx, y: p.y + dy }; const el = world.querySelector(`.section[data-sec="${id}"]`); if (el) { el.style.left = `${p.x + dx}px`; el.style.top = `${p.y + dy}px`; } }
+      renderEdges();
+    },
+    up: async () => {
+      const d = S.drag;
+      S.drag = null;
+      if (!moved || !d) return;
+      for (const [id, p] of Object.entries(d.pos)) Object.assign(nodeById(id), p);
+      for (const [id, p] of Object.entries(d.sec)) Object.assign(f.sections.find(x => x.id === id), { x: p.x, y: p.y });
+      renderEdges();
+      await flowOp({ op: 'moveGroup', moves: Object.entries(d.pos).map(([id, p]) => ({ id, ...p })), sections: Object.entries(d.sec).map(([id, p]) => ({ id, x: p.x, y: p.y })) });
+    },
+  });
+}
+function startSectionResize(e, sec) {
+  e.stopPropagation();
+  e.preventDefault();
+  const k = S.view.k, start = { x: e.clientX, y: e.clientY, w: sec.w, h: sec.h };
+  beginPointer({
+    move: ev => {
+      S.drag = { kind: 'resize', id: sec.id, rect: { x: sec.x, y: sec.y, w: Math.max(120, Math.round((start.w + (ev.clientX - start.x) / k) / 10) * 10), h: Math.max(80, Math.round((start.h + (ev.clientY - start.y) / k) / 10) * 10) } };
+      const el = world.querySelector(`.section[data-sec="${sec.id}"]`);
+      if (el) { el.style.width = `${S.drag.rect.w}px`; el.style.height = `${S.drag.rect.h}px`; }
+    },
+    up: async () => {
+      const d = S.drag;
+      S.drag = null;
+      if (!d) return;
+      Object.assign(sec, { w: d.rect.w, h: d.rect.h });
+      await flowOp({ op: 'updateSection', id: sec.id, props: { w: d.rect.w, h: d.rect.h } });
+    },
+  });
+}
+function renderSections(f) {
+  let layer = world.querySelector(':scope > .sections');
+  if (!layer) { layer = h('div', { class: 'sections' }); world.prepend(layer); }
+  const phases = journeyPhases();
+  fill(layer, (f?.sections || []).map(sec => {
+    const r = sectionRect(sec);
+    const ph = sec.phase ? phases.find(p => p.id === sec.phase) : null;
+    const title = h('div', { class: 'sectitle', title: 'Ziehen: Sektion mit Inhalt verschieben · Doppelklick: umbenennen' },
+      h('b', {}, sec.title), ph ? h('span', { class: 'secphase' }, `Phase: ${ph.title}`) : null);
+    title.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || S.space || S.tool === 'hand') return;
+      e.stopPropagation();
+      e.preventDefault();
+      select({ section: sec.id });
+      startGroupDrag(e, sectionMembers(f, sec), [sec.id]);
+    });
+    title.addEventListener('dblclick', () => setTimeout(() => $('#right [data-key="sec:title"]')?.select(), 30));
+    const grip = h('div', { class: 'sechandle', title: 'Größe ändern' });
+    grip.addEventListener('pointerdown', e => startSectionResize(e, sec));
+    return h('div', { class: `section${S.sel.section === sec.id ? ' sel' : ''}`, 'data-sec': sec.id, style: `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px` }, title, grip);
+  }));
+}
+
+// Rechte Spalte: Sektion und Mehrfachauswahl.
+function sectionInspector(pane, sec) {
+  const f = flow();
+  const members = sectionMembers(f, sec).map(nodeById).filter(Boolean);
+  const phases = journeyPhases();
+  const ph = h('select', { id: 'sec:phase', 'data-key': 'sec:phase' }, h('option', { value: '' }, '– keine –'), phases.map(p => h('option', { value: p.id, selected: sec.phase === p.id || null }, p.title)));
+  ph.addEventListener('change', () => flowOp({ op: 'updateSection', id: sec.id, props: { phase: ph.value || null } }));
+  pane.append(
+    h('h2', { class: 'ttl' }, 'Sektion'),
+    inputRow('Titel', 'sec:title', sec.title, v => v && flowOp({ op: 'updateSection', id: sec.id, props: { title: v } })),
+    h('label', { class: 'row' }, h('span', {}, 'Phase der Journey'), ph),
+    phases.length ? '' : h('p', { class: 'hint' }, 'Noch keine Journey – mit /wireflow:journey anlegen.'),
+    h('div', { class: 'grp' }, 'Enthält', h('em', {}, `${members.length}`)),
+    members.length ? h('ul', { class: 'tree' }, members.map(n => h('li', {}, h('button', { type: 'button', onclick: () => { select({ node: n.id }); centerOn(n.id); } }, h('span', { class: 'ico' }, n.type === 'decision' ? '◆' : '#'), h('span', { class: 'nm' }, n.title || n.label || n.id))))) : h('p', { class: 'hint' }, 'Leer. Screens hineinziehen – was mit der Mitte in der Sektion liegt, gehört dazu.'),
+    h('div', { class: 'btns' },
+      btn('An Inhalt anpassen', () => { const rs = members.map(nodeRect); if (!rs.length) return; const x = Math.min(...rs.map(r => r.x)) - 60, y = Math.min(...rs.map(r => r.y)) - 90, x2 = Math.max(...rs.map(r => r.x + r.w)) + 60, y2 = Math.max(...rs.map(r => r.y + r.h)) + 60; flowOp({ op: 'updateSection', id: sec.id, props: { x, y, w: x2 - x, h: y2 - y } }); }, !members.length),
+      btn('Sektion löschen', () => { flowOp({ op: 'removeSection', id: sec.id }); select({}); toast(`Sektion „${sec.title}“ gelöscht – die Screens bleiben. ⌘Z macht es rückgängig.`); }, false, 'danger')),
+  );
+}
+function multiInspector(pane) {
+  const ids = [...S.multi];
+  const ns = ids.map(nodeById).filter(Boolean);
+  pane.append(
+    h('h2', { class: 'ttl' }, `${ns.length} ausgewählt`),
+    h('ul', { class: 'tree' }, ns.map(n => h('li', {}, h('button', { type: 'button', onclick: () => { select({ node: n.id }); centerOn(n.id); } }, h('span', { class: 'ico' }, n.type === 'decision' ? '◆' : '#'), h('span', { class: 'nm' }, n.title || n.label || n.id))))),
+    h('p', { class: 'hint' }, 'Ziehen an einem Titel verschiebt alle. ⇧ + Rahmen ergänzt die Auswahl.'),
+    h('div', { class: 'btns' },
+      btn('Sektion um Auswahl', async () => {
+        const rs = ns.map(nodeRect);
+        const x = Math.min(...rs.map(r => r.x)) - 60, y = Math.min(...rs.map(r => r.y)) - 90, x2 = Math.max(...rs.map(r => r.x + r.w)) + 60, y2 = Math.max(...rs.map(r => r.y + r.h)) + 60;
+        const r = await flowOp({ op: 'addSection', title: `Phase ${(flow().sections || []).length + 1}`, x, y, w: x2 - x, h: y2 - y });
+        if (r?.section) setTimeout(() => { select({ section: r.section }); $('#right [data-key="sec:title"]')?.select(); }, 200);
+      }),
+      btn('Aus dem Flow entfernen', () => removeMulti(), false, 'danger')),
+  );
+}
+// Leertaste halten: Hand-Werkzeug (wie in Figma).
+addEventListener('keydown', e => {
+  if (e.code !== 'Space' || S.mode !== 'design' || e.target.closest?.('input,textarea,select,[contenteditable]')) return;
+  e.preventDefault();
+  if (!S.space) { S.space = true; stage.classList.add('hand'); }
+});
+addEventListener('keyup', e => { if (e.code === 'Space' && S.space) { S.space = false; stage.classList.remove('hand'); } });
+addEventListener('blur', () => { S.space = false; stage.classList.remove('hand'); });
+async function removeMulti() {
+  const ids = [...S.multi];
+  const r = await flowOp({ op: 'removeNodes', ids });
+  if (r) { select({}); toast(`${ids.length} Knoten aus dem Flow entfernt – Screen-Module bleiben. ⌘Z macht es rückgängig.`); }
+}
+
+stage.addEventListener('pointerdown', e => {
+  if (S.mode !== 'design' || (e.button !== 0 && e.button !== 1)) return;
+  if (e.target.closest('.elabel,.zoom,.toolbar,.sectitle,.sechandle')) return;
+  const pan = e.button === 1 || S.space || S.tool === 'hand';
+  if (!pan && e.target.closest('.node')) return;
+  e.preventDefault();
+  closeMenu();
+  if (pan) startPan(e);
+  else if (S.tool === 'frame' || S.tool === 'section') drawCreate(e);
+  else marquee(e);
 });
 stage.addEventListener('wheel', e => {
   if (S.mode !== 'design') return;
@@ -987,29 +1202,29 @@ function layersSection() {
       if (from !== to) flowOp({ op: 'reorderNode', id: d.id, index: to });
     },
   });
-  for (const n of f.nodes) {
+  const emit = (n, base) => {
     if (n.type === 'decision') {
-      rows.push(layerRow({ depth: 0, current: S.sel.node === n.id && !S.sel.el, onClick: () => { select({ node: n.id }); centerOn(n.id); }, ico: '◆', name: n.label || n.title || n.id, meta: n.var ? `${n.var} ?` : '', drag: nodeDrag(n), onDelete: () => deleteNode(f, n), delLabel: 'Aus dem Flow entfernen' }));
-      continue;
+      rows.push(layerRow({ depth: base, current: (S.sel.node === n.id && !S.sel.el) || S.multi.has(n.id), onClick: () => { select({ node: n.id }); centerOn(n.id); }, ico: '◆', name: n.label || n.title || n.id, meta: n.var ? `${n.var} ?` : '', drag: nodeDrag(n), onDelete: () => deleteNode(f, n), delLabel: 'Aus dem Flow entfernen' }));
+      return;
     }
     const scr = S.data.screens[n.ref];
     const open = S.open.has(n.id);
     const issues = scr ? scr.lint.errors.length + scr.lint.warnings.length : 0;
     rows.push(layerRow({
-      depth: 0, open, onToggle: scr?.tree ? toggle(n.id) : null,
-      current: S.sel.node === n.id && !S.sel.el && !S.sel.variant,
+      depth: base, open, onToggle: scr?.tree ? toggle(n.id) : null,
+      current: (S.sel.node === n.id && !S.sel.el && !S.sel.variant) || S.multi.has(n.id),
       onClick: () => { select({ node: n.id }); centerOn(n.id); },
       ico: '#', name: n.title || n.id, nameCls: 'scrname',
       meta: [f.entry === n.id ? 'Einstieg' : n.exit ? 'Ausstieg' : '', issues ? `⚠ ${issues}` : ''].filter(Boolean).join(' · '),
       title: n.ref, drag: nodeDrag(n), onDelete: () => deleteNode(f, n), delLabel: 'Aus dem Flow entfernen (Screen-Modul bleibt)',
     }));
-    if (!open || !scr?.tree) continue;
+    if (!open || !scr?.tree) return;
     const warn = new Set([...scr.lint.warnings, ...scr.lint.errors].map(w => w.el).filter(Boolean));
     walkTree(scr.tree, (el, depth, parent) => {
       const sp = spec(el.name);
       const isRoot = !parent;
       rows.push(layerRow({
-        depth: depth + 1,
+        depth: depth + 1 + base,
         current: S.sel.node === n.id && S.sel.el === el.id,
         onClick: () => select({ node: n.id, el: el.id }),
         onHover: on => { S.hover = on ? { node: n.id, el: el.id } : null; renderOverlays(); },
@@ -1038,12 +1253,26 @@ function layersSection() {
     });
     for (const v of n.variants || []) {
       rows.push(layerRow({
-        depth: 1, current: S.sel.node === n.id && S.sel.variant === v.ref,
+        depth: 1 + base, current: S.sel.node === n.id && S.sel.variant === v.ref,
         onClick: () => select({ node: n.id, variant: v.ref }),
         ico: '◌', name: v.label || path0(v.ref), nameCls: 'var', meta: 'Variante', title: v.rationale || v.ref,
       }));
     }
+  };
+  const inSec = new Set();
+  for (const sc of f.sections || []) {
+    const mem = sectionMembers(f, sc);
+    mem.forEach(id => inSec.add(id));
+    const ph = sc.phase ? journeyPhases().find(p => p.id === sc.phase) : null;
+    rows.push(layerRow({
+      depth: 0, open: !S.closedSec.has(sc.id), onToggle: () => { if (S.closedSec.has(sc.id)) S.closedSec.delete(sc.id); else S.closedSec.add(sc.id); renderLeft(); },
+      current: S.sel.section === sc.id, onClick: () => select({ section: sc.id }),
+      ico: '▭', name: sc.title, nameCls: 'secname', meta: ph ? ph.title : `${mem.length}`,
+      onDelete: () => { flowOp({ op: 'removeSection', id: sc.id }); select({}); }, delLabel: 'Sektion löschen (Screens bleiben)',
+    }));
+    if (!S.closedSec.has(sc.id)) for (const id of mem) emit(nodeById(id), 1);
   }
+  for (const n of f.nodes) if (!inSec.has(n.id)) emit(n, 0);
   sec.append(h('ul', { class: 'tree ltree' }, rows), h('p', { class: 'hint lhint' }, 'Ziehen ordnet um (auf einen Container: hinein). × oder Entf löscht, ⌘Z macht rückgängig.'));
   return sec;
 }
@@ -1175,7 +1404,10 @@ function renderRight() {
 }
 function designPane(pane) {
   const n = nodeById(S.sel.node);
-  if (S.sel.edge != null && flow()?.edges[S.sel.edge]) edgeInspector(pane, S.sel.edge);
+  const sec = S.sel.section && (flow()?.sections || []).find(x => x.id === S.sel.section);
+  if (S.multi.size > 1) multiInspector(pane);
+  else if (sec) sectionInspector(pane, sec);
+  else if (S.sel.edge != null && flow()?.edges[S.sel.edge]) edgeInspector(pane, S.sel.edge);
   else if (n?.type === 'screen' && S.sel.variant) variantInspector(pane, n, S.sel.variant);
   else if (n?.type === 'screen' && S.sel.el) elementInspector(pane, n);
   else if (n?.type === 'screen') screenInspector(pane, n);
@@ -2891,6 +3123,10 @@ addEventListener('keydown', e => {
   }
   if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
   if (S.mode === 'design') {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && S.multi.size > 1) { e.preventDefault(); removeMulti(); return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel.section) { e.preventDefault(); const sec = (flow()?.sections || []).find(x => x.id === S.sel.section); if (sec) { flowOp({ op: 'removeSection', id: sec.id }); select({}); toast(`Sektion „${sec.title}“ gelöscht – die Screens bleiben. ⌘Z macht es rückgängig.`); } return; }
+    if (!mod && !e.altKey && !e.shiftKey) { const t = { v: 'move', h: 'hand', f: 'frame', s: 'section' }[e.key.toLowerCase()]; if (t) { e.preventDefault(); setTool(t); return; } }
+    if (e.key === 'Escape' && (S.multi.size || S.sel.section || S.tool !== 'move')) { setTool('move'); select({}); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel.el) { e.preventDefault(); removeSelected(); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel.edge != null) { e.preventDefault(); flowOp({ op: 'disconnect', index: S.sel.edge }); select({}); return; }
     if (mod && e.key.toLowerCase() === 'd' && S.sel.el) { e.preventDefault(); duplicateSelected(); return; }
@@ -2927,6 +3163,7 @@ $('#flowSel').addEventListener('change', e => {
 addEventListener('resize', () => { if (S.mode === 'prototype') renderProto(); });
 
 async function init() {
+  buildToolbar();
   try {
     S.data = await api('/api/project');
     S.dataV = S.data.v;

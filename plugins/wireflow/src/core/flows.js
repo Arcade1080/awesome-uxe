@@ -19,6 +19,7 @@ export function applyFlowOp(model, flowId, op) {
     while (nodes.some(n => n.id === id)) id = `${base}_${++k}`;
     return id;
   };
+  const section = id => (data.sections || []).find(x => x.id === id) || (() => { throw new Error(`Sektion ${id} nicht gefunden`); })();
   const out = { flow: data.id };
   switch (op.op) {
     case 'moveNode': {
@@ -140,6 +141,44 @@ export function applyFlowOp(model, flowId, op) {
       }
       break;
     }
+    case 'moveGroup': {
+      // Mehrere Knoten und Sektionen in einem Schritt verschieben (Auswahl, Sektion mit Inhalt).
+      for (const mv of op.moves || []) { const n = node(mv.id); n.x = Math.round(mv.x); n.y = Math.round(mv.y); }
+      for (const mv of op.sections || []) { const sec = section(mv.id); sec.x = Math.round(mv.x); sec.y = Math.round(mv.y); }
+      break;
+    }
+    case 'removeNodes': {
+      const ids = new Set(op.ids || []);
+      for (const id of ids) node(id);
+      data.nodes = nodes.filter(n => !ids.has(n.id));
+      data.edges = edges.filter(e => !ids.has(e.from) && !ids.has(e.to));
+      if (ids.has(data.entry)) data.entry = data.nodes[0]?.id;
+      out.removed = [...ids];
+      break;
+    }
+    case 'addSection': {
+      // Sektion: benannter Rahmen, der Screens zu einer Phase zusammenfasst (optional mit Journey-Phase).
+      data.sections ||= [];
+      let id = `sec_${slugify(op.title || 'phase').replace(/-/g, '_')}`;
+      for (let k = 2; data.sections.some(x => x.id === id); k++) id = `sec_${slugify(op.title || 'phase').replace(/-/g, '_')}_${k}`;
+      data.sections.push(clean({ id, title: String(op.title || 'Phase').slice(0, 120), x: Math.round(op.x ?? 0), y: Math.round(op.y ?? 0), w: Math.max(120, Math.round(op.w ?? 800)), h: Math.max(80, Math.round(op.h ?? 600)), phase: op.phase }));
+      out.section = id;
+      break;
+    }
+    case 'updateSection': {
+      const sec = section(op.id);
+      const pr = op.props || {};
+      if (pr.title !== undefined) { const t = String(pr.title).trim(); if (!t) throw new Error('Titel fehlt'); sec.title = t.slice(0, 120); }
+      for (const k of ['x', 'y']) if (pr[k] !== undefined) sec[k] = Math.round(pr[k]);
+      if (pr.w !== undefined) sec.w = Math.max(120, Math.round(pr.w));
+      if (pr.h !== undefined) sec.h = Math.max(80, Math.round(pr.h));
+      if (pr.phase !== undefined) { if (pr.phase) sec.phase = pr.phase; else delete sec.phase; }
+      break;
+    }
+    case 'removeSection':
+      section(op.id);
+      data.sections = data.sections.filter(x => x.id !== op.id);
+      break;
     case 'setFlow': {
       const title = String(op.title || '').trim();
       if (!title) throw new Error('Titel fehlt');

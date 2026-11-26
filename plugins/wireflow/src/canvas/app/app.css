@@ -517,3 +517,28 @@ code,.code{font-family:var(--mono);font-size:12px}
 @media(hover:none){.lrow .ldel{opacity:.7}}
 .tree .lrow em{margin-left:6px}
 .lhint{font-size:11.5px;margin-top:8px}
+
+/* Werkzeuge (wie in Figma): Bewegen, Hand, Frame, Sektion */
+.toolbar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:30;display:flex;gap:2px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.toolbar button{display:grid;place-items:center;width:36px;height:34px;border:0;border-radius:8px;background:none;color:var(--ink)}
+.toolbar button:hover{background:var(--panel2)}
+.toolbar button[aria-pressed=true]{background:var(--sel);color:var(--on-sel)}
+.toolbar svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.app:not([data-mode=design]) .toolbar{display:none}
+.stage.tool-hand,.stage.hand{cursor:grab}
+.stage.tool-hand.panning,.stage.hand.panning{cursor:grabbing}
+.stage.tool-frame,.stage.tool-section{cursor:crosshair}
+.stage.tool-hand .node,.stage.hand .node,.stage.tool-frame .node,.stage.tool-section .node,.stage.tool-hand .section *,.stage.hand .section *,.stage.tool-frame .section *,.stage.tool-section .section *{pointer-events:none}
+.marquee{position:absolute;z-index:25;border:1px solid var(--sel);background:color-mix(in srgb,var(--sel) 10%,transparent);pointer-events:none}
+.marquee.sec{border-style:dashed}
+/* Sektionen: benannte Rahmen hinter den Screens */
+.sections{position:absolute;left:0;top:0}
+.section{position:absolute;border-radius:calc(10px*var(--iz));background:color-mix(in srgb,var(--panel) 55%,transparent);border:calc(1px*var(--iz)) solid var(--line);pointer-events:none}
+.section.sel{border-color:var(--sel);box-shadow:0 0 0 calc(1px*var(--iz)) var(--sel)}
+.sectitle{position:absolute;left:0;bottom:100%;margin-bottom:calc(6px*var(--iz));display:flex;align-items:center;gap:calc(6px*var(--iz));max-width:100%;padding:calc(3px*var(--iz)) calc(9px*var(--iz));border-radius:calc(7px*var(--iz));background:var(--panel2);border:calc(1px*var(--iz)) solid var(--line);font-size:calc(13px*var(--iz));white-space:nowrap;cursor:move;pointer-events:auto}
+.sectitle b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.section.sel .sectitle{background:var(--sel);border-color:var(--sel);color:var(--on-sel)}
+.secphase{font-size:calc(11.5px*var(--iz));opacity:.8}
+.sechandle{position:absolute;right:calc(-6px*var(--iz));bottom:calc(-6px*var(--iz));width:calc(14px*var(--iz));height:calc(14px*var(--iz));border-radius:calc(4px*var(--iz));background:var(--panel);border:calc(1.5px*var(--iz)) solid var(--sel);cursor:nwse-resize;pointer-events:auto;opacity:0}
+.section:hover .sechandle,.section.sel .sechandle{opacity:1}
+.tree .nm.secname{font-weight:600;color:var(--ink)}
