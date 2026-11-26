@@ -14,7 +14,7 @@ import { lintScreen } from '../core/lint.js';
 import { flowIssues } from '../core/flow.js';
 import { flowKnowledge, openAssumptions } from '../core/knowledge.js';
 import { applyOpRecorded, handlerProp, changeLog, revertChange } from '../core/screens.js';
-import { applyFlowOp } from '../core/flows.js';
+import { applyFlowOp, createFlow } from '../core/flows.js';
 import { getAttr, textOf, walk } from '../core/jsx.js';
 import { packageDir } from '../core/init.js';
 import { monitorAlive } from '../mcp/bridge.js';
@@ -385,6 +385,11 @@ ${err ? `<script>window.__wfError(${forScript(err)})</script>` : `<script src="/
       const f = loadProject(root).flows.find(x => x.id === r.flow);
       const list = [`${WF}/${f.file}`];
       if (r.ref) list.push(`${WF}/${r.ref}`, `${WF}/${r.ref.replace(/\.screen\.tsx$/, '.stories.tsx')}`);
+    if (p === '/api/flow' && body.op === 'createFlow') {
+      const r = createFlow(loadProject(root), body.title);
+      const files = ownWrite([`${WF}/${r.file}`], by);
+      return send(res, 200, { ok: true, ...r, v: st.v, files });
+    }
       if (r.wired) list.push(`${WF}/${m.flows.find(x => x.id === r.flow).nodes.find(n => n.id === body.from).ref}`);
       if (r.removed) list.push(`${WF}/${r.removed}`);
       const files = ownWrite(list, by);

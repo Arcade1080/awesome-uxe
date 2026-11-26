@@ -477,3 +477,30 @@ code,.code{font-family:var(--mono);font-size:12px}
 .chathead .via.monitor{color:var(--ok)}
 .chathead .via.hooks,.chathead .via.kanal{color:var(--warn)}
 
+
+/* Linke Spalte wie in Figma: Seiten oben, Ebenen darunter */
+.pane.lpane{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.lsec{display:flex;flex-direction:column;min-height:0;padding:6px 8px}
+.lsec.pages{flex:none;max-height:38%;border-bottom:1px solid var(--line)}
+.lsec.layers{flex:1}
+.lsec>.tree{overflow:auto;min-height:0}
+.sechead{display:flex;align-items:center;gap:6px;min-height:30px;padding:0 4px;color:var(--ink);font-weight:600;font-size:12px}
+.sechead em{margin-left:auto;font-style:normal;font-weight:400;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sechead .chev{display:flex;align-items:center;gap:4px;border:0;background:none;padding:2px 4px 2px 0;font:inherit;font-weight:600;color:inherit;border-radius:5px}
+.sechead .chev .ar{width:12px;color:var(--muted)}
+.sechead .addbtn{margin-left:auto;width:24px;height:24px;border:0;border-radius:6px;background:none;color:var(--muted);font-size:17px;line-height:1}
+.sechead .addbtn:hover,.sechead .chev:hover{background:var(--panel2);color:var(--ink)}
+.pagelist .ico{color:var(--sel)}
+.pagelist input.rename{width:100%;height:28px;padding:2px 8px;border:1px solid var(--sel);border-radius:6px;background:var(--panel);font:inherit}
+.lsec .hint{padding:0 6px}
+.ltree li{margin:0}
+.lrow{display:flex;align-items:center;padding-left:calc(var(--d) * 14px);border-radius:6px}
+.lrow:hover{background:var(--panel2)}
+.lrow.cur{background:var(--sel-soft)}
+.lrow .tog{flex:none;width:16px;height:24px;padding:0;border:0;background:none;color:var(--muted);font-size:10px;line-height:24px;text-align:center}
+.lrow .tog:hover{color:var(--ink)}
+.tree .lrow .lbtn{flex:1;min-width:0;padding-left:2px;background:none}
+.tree .lrow .lbtn:hover{background:none}
+.tree .lrow.cur .lbtn{color:var(--sel)}
+.tree .nm.frame{font-weight:600}
+.tree .nm.var{font-style:italic;font-weight:400}

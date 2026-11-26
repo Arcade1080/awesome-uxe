@@ -53,6 +53,10 @@ const S = {
   elTab: 'props',
   scope: 'one',
   picker: null,
+  pagesOpen: true,
+  open: new Set(),
+  autoOpen: null,
+  renamePage: null,
 };
 
 // ---------- Zugriff ----------
@@ -871,35 +875,126 @@ function renderLeft() {
   ({ layers: layersPane, components: componentsPane, patterns: patternsPane, tokens: tokensPane })[S.leftTab](pane);
   fill(L, t, pane);
 }
-function layersPane(pane) {
+// Linke Spalte wie in Figma: oben die Seiten (Flows), darunter die Ebenen der Seite –
+// Screens und Entscheidungen, aufklappbar bis zu den Elementen.
+function goPage(id) {
+  if (id === S.flowId) return;
+  S.flowId = id;
+  S.sel = { node: null, el: null, edge: null, variant: null };
+  S.fitted = false;
+  renderAll();
+  syncSelection();
+}
+async function newPage() {
+  try {
+    const n = S.data.flows.length + 1;
+    const r = await api('/api/flow', { op: 'createFlow', title: `Seite ${n}` });
+    S.renamePage = r.flow;
+    await doReload();
+    goPage(r.flow);
+    renderLeft();
+  } catch (e) { toast(e.message, 'bad'); }
+}
+async function renamePage(f, title) {
+  S.renamePage = null;
+  const t = title.trim();
+  if (!t || t === f.title) { renderLeft(); return; }
+  try {
+    const r = await api('/api/flow', { flow: f.id, op: 'setFlow', title: t });
+    scheduleReload(r.files || [], r.v);
+  } catch (e) { toast(e.message, 'bad'); renderLeft(); }
+}
+function pagesSection() {
+  const rows = S.data.flows.map(f => {
+    if (S.renamePage === f.id) {
+      const inp = h('input', { class: 'rename', value: f.title || f.id, 'aria-label': 'Name der Seite' });
+      let done = false;
+      const finish = keep => { if (done) return; done = true; if (keep) renamePage(f, inp.value); else { S.renamePage = null; renderLeft(); } };
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } });
+      inp.addEventListener('blur', () => finish(true));
+      requestAnimationFrame(() => { inp.focus(); inp.select(); });
+      return h('li', {}, inp);
+    }
+    const screens = f.nodes.filter(n => n.type === 'screen').length;
+    return h('li', {}, h('button', {
+      type: 'button',
+      'aria-current': String(f.id === S.flowId),
+      title: 'Doppelklick: umbenennen',
+      onclick: () => goPage(f.id),
+      ondblclick: () => { S.renamePage = f.id; renderLeft(); },
+    }, h('span', { class: 'ico' }, f.id === S.flowId ? '✓' : ''), h('span', { class: 'nm' }, f.title || f.id), h('em', {}, screens ? `${screens} ${screens === 1 ? 'Screen' : 'Screens'}` : 'leer')));
+  });
+  return h('section', { class: 'lsec pages' },
+    h('div', { class: 'sechead' },
+      h('button', { type: 'button', class: 'chev', 'aria-expanded': String(S.pagesOpen), onclick: () => { S.pagesOpen = !S.pagesOpen; renderLeft(); } }, h('span', { class: 'ar' }, S.pagesOpen ? '▾' : '▸'), 'Seiten'),
+      h('button', { type: 'button', class: 'addbtn', title: 'Neue Seite', 'aria-label': 'Neue Seite', onclick: newPage }, '+')),
+    S.pagesOpen ? h('ul', { class: 'tree pagelist' }, rows) : null);
+}
+function layerRow({ depth, open, onToggle, current, onClick, onHover, ico, name, nameCls, text, meta, title }) {
+  return h('li', {}, h('div', { class: `lrow${current ? ' cur' : ''}`, style: `--d:${depth}` },
+    onToggle ? h('button', { type: 'button', class: 'tog', 'aria-label': open ? 'Zuklappen' : 'Aufklappen', 'aria-expanded': String(open), onclick: e => { e.stopPropagation(); onToggle(); } }, open ? '▾' : '▸') : h('span', { class: 'tog' }),
+    h('button', {
+      type: 'button', class: 'lbtn', 'aria-current': String(!!current), title,
+      onclick: onClick,
+      onmouseenter: onHover ? () => onHover(true) : null,
+      onmouseleave: onHover ? () => onHover(false) : null,
+    }, h('span', { class: 'ico' }, ico), h('span', { class: `nm${nameCls ? ` ${nameCls}` : ''}` }, name), text ? h('span', { class: 'tx' }, text) : null, meta ? h('em', {}, meta) : null)));
+}
+function layersSection() {
   const f = flow();
-  if (!f) { pane.append(h('p', { class: 'hint' }, 'Kein Flow.')); return; }
-  const n = nodeById(S.sel.node);
-  const scr = screenOf(n);
-  if (scr?.tree) {
-    pane.append(h('div', { class: 'grp' }, n.title || n.id, h('em', {}, scr.component || '')));
+  const sec = h('section', { class: 'lsec layers' }, h('div', { class: 'sechead' }, h('span', { class: 'ttl' }, 'Ebenen'), f ? h('em', {}, f.title || f.id) : null));
+  if (!f) { sec.append(h('p', { class: 'hint' }, 'Keine Seite. Mit + oben eine anlegen.')); return sec; }
+  if (!f.nodes.length) { sec.append(h('p', { class: 'hint' }, 'Leere Seite. Rechts „+ Screen“ oder Claude bitten: „Lege die Screens für … an“.')); return sec; }
+  if (S.sel.node && S.autoOpen !== S.sel.node) { S.open.add(S.sel.node); S.autoOpen = S.sel.node; }
+  const rows = [];
+  const toggle = id => () => { if (S.open.has(id)) S.open.delete(id); else S.open.add(id); renderLeft(); };
+  for (const n of f.nodes) {
+    if (n.type === 'decision') {
+      rows.push(layerRow({ depth: 0, current: S.sel.node === n.id && !S.sel.el, onClick: () => { select({ node: n.id }); centerOn(n.id); }, ico: '◆', name: n.label || n.title || n.id, meta: n.var ? `${n.var} ?` : '' }));
+      continue;
+    }
+    const scr = S.data.screens[n.ref];
+    const open = S.open.has(n.id);
+    const issues = scr ? scr.lint.errors.length + scr.lint.warnings.length : 0;
+    rows.push(layerRow({
+      depth: 0, open, onToggle: scr?.tree ? toggle(n.id) : null,
+      current: S.sel.node === n.id && !S.sel.el && !S.sel.variant,
+      onClick: () => { select({ node: n.id }); centerOn(n.id); },
+      ico: '#', name: n.title || n.id, nameCls: 'frame',
+      meta: [f.entry === n.id ? 'Einstieg' : n.exit ? 'Ausstieg' : '', issues ? `⚠ ${issues}` : ''].filter(Boolean).join(' · '),
+      title: n.ref,
+    }));
+    if (!open || !scr?.tree) continue;
     const warn = new Set([...scr.lint.warnings, ...scr.lint.errors].map(w => w.el).filter(Boolean));
-    const items = [];
     walkTree(scr.tree, (el, depth) => {
       const sp = spec(el.name);
-      items.push(h('li', {}, h('button', {
-        type: 'button',
-        'aria-current': String(S.sel.el === el.id),
-        style: `padding-left:${6 + depth * 14}px`,
-        onclick: () => select({ node: n.id, el: el.id }),
-        onmouseenter: () => { S.hover = { node: n.id, el: el.id }; renderOverlays(); },
-        onmouseleave: () => { S.hover = null; renderOverlays(); },
-      }, h('span', { class: 'ico' }, !sp ? '!' : isContainer(el) ? '▤' : '◇'), h('span', { class: `nm${sp ? '' : ' gap'}`, title: sp ? '' : 'Keine Komponente des Design Systems' }, el.name), el.text ? h('span', { class: 'tx' }, el.text) : null, h('em', {}, warn.has(el.id) ? '⚠ ' : '', el.id || ''))));
+      rows.push(layerRow({
+        depth: depth + 1,
+        current: S.sel.node === n.id && S.sel.el === el.id,
+        onClick: () => select({ node: n.id, el: el.id }),
+        onHover: on => { S.hover = on ? { node: n.id, el: el.id } : null; renderOverlays(); },
+        ico: !sp ? '!' : isContainer(el) ? '▤' : '◇',
+        name: el.name, nameCls: sp ? '' : 'gap', text: el.text,
+        meta: `${warn.has(el.id) ? '⚠ ' : ''}${el.id || ''}`,
+        title: sp ? '' : 'Keine Komponente des Design Systems',
+      }));
     });
-    pane.append(h('ul', { class: 'tree' }, ...items));
-    pane.append(h('p', { class: 'hint' }, 'Ziehen auf dem Screen ordnet um. Entf löscht, ⌘/Strg+D dupliziert, Alt+↑/↓ verschiebt.'));
+    for (const v of n.variants || []) {
+      rows.push(layerRow({
+        depth: 1, current: S.sel.node === n.id && S.sel.variant === v.ref,
+        onClick: () => select({ node: n.id, variant: v.ref }),
+        ico: '◌', name: v.label || path0(v.ref), nameCls: 'var', meta: 'Variante', title: v.rationale || v.ref,
+      }));
+    }
   }
-  pane.append(h('div', { class: 'grp' }, 'Flow', h('em', {}, `${f.nodes.length} Knoten`)));
-  pane.append(h('ul', { class: 'tree' }, ...f.nodes.map(x => h('li', {}, h('button', {
-    type: 'button',
-    'aria-current': String(S.sel.node === x.id && !S.sel.el),
-    onclick: () => { select({ node: x.id }); centerOn(x.id); },
-  }, h('span', { class: 'ico' }, x.type === 'decision' ? '◆' : '▢'), h('span', { class: 'nm' }, x.title || x.label || x.id), f.entry === x.id ? h('em', {}, 'Einstieg') : x.exit ? h('em', {}, 'Ausstieg') : null)))));
+  sec.append(h('ul', { class: 'tree ltree' }, rows));
+  return sec;
+}
+const path0 = r => String(r).replace(/^screens\//, '').replace(/\.screen\.tsx$/, '');
+function layersPane(pane) {
+  pane.classList.add('lpane');
+  pane.append(pagesSection(), layersSection());
+  requestAnimationFrame(() => pane.querySelector('.ltree .lrow.cur')?.scrollIntoView({ block: 'nearest' }));
 }
 function insertTarget() {
   const n = nodeById(S.sel.node);
