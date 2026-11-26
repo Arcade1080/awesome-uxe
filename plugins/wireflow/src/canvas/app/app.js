@@ -932,15 +932,42 @@ function pagesSection() {
       h('button', { type: 'button', class: 'addbtn', title: 'Neuer Flow', 'aria-label': 'Neuer Flow', onclick: newPage }, '+')),
     S.pagesOpen ? h('ul', { class: 'tree pagelist' }, rows) : null);
 }
-function layerRow({ depth, open, onToggle, current, onClick, onHover, ico, name, nameCls, text, meta, title }) {
-  return h('li', {}, h('div', { class: `lrow${current ? ' cur' : ''}`, style: `--d:${depth}` },
+function layerRow({ depth, open, onToggle, current, onClick, onHover, ico, name, nameCls, text, meta, title, drag, onDelete, delLabel }) {
+  const row = h('div', { class: `lrow${current ? ' cur' : ''}`, style: `--d:${depth}`, draggable: drag?.canDrag ? 'true' : null },
     onToggle ? h('button', { type: 'button', class: 'tog', 'aria-label': open ? 'Zuklappen' : 'Aufklappen', 'aria-expanded': String(open), onclick: e => { e.stopPropagation(); onToggle(); } }, open ? '▾' : '▸') : h('span', { class: 'tog' }),
     h('button', {
       type: 'button', class: 'lbtn', 'aria-current': String(!!current), title,
       onclick: onClick,
+      onkeydown: onDelete ? e => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); onDelete(); } } : null,
       onmouseenter: onHover ? () => onHover(true) : null,
       onmouseleave: onHover ? () => onHover(false) : null,
-    }, h('span', { class: 'ico' }, ico), h('span', { class: `nm${nameCls ? ` ${nameCls}` : ''}` }, name), text ? h('span', { class: 'tx' }, text) : null, meta ? h('em', {}, meta) : null)));
+    }, h('span', { class: 'ico' }, ico), h('span', { class: `nm${nameCls ? ` ${nameCls}` : ''}` }, name), text ? h('span', { class: 'tx' }, text) : null, meta ? h('em', {}, meta) : null),
+    onDelete ? h('button', { type: 'button', class: 'ldel', title: delLabel, 'aria-label': delLabel, onclick: e => { e.stopPropagation(); onDelete(); } }, '×') : null);
+  if (drag) {
+    row.addEventListener('dragstart', e => { S.ldrag = drag; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', drag.id); row.classList.add('dragging'); });
+    row.addEventListener('dragend', () => { S.ldrag = null; row.classList.remove('dragging'); });
+    const pos = e => {
+      const d = S.ldrag;
+      if (!d || d.id === drag.id || d.kind !== drag.kind || (d.kind === 'el' && (d.node !== drag.node || drag.inside?.(d.id)))) return null;
+      const r = row.getBoundingClientRect(), y = (e.clientY - r.top) / r.height;
+      if (drag.kind === 'el' && drag.isRoot) return 'inside';
+      if (drag.kind === 'el' && drag.container && y > 0.3 && y < 0.7) return 'inside';
+      return y < 0.5 ? 'before' : 'after';
+    };
+    const clear = () => row.classList.remove('drop-before', 'drop-after', 'drop-inside');
+    row.addEventListener('dragover', e => { const p = pos(e); clear(); if (!p) return; e.preventDefault(); row.classList.add(`drop-${p}`); });
+    row.addEventListener('dragleave', clear);
+    row.addEventListener('drop', e => { const p = pos(e); clear(); if (!p) return; e.preventDefault(); const d = S.ldrag; S.ldrag = null; drag.onDrop(d, p); });
+  }
+  return h('li', {}, row);
+}
+async function deleteNode(f, n) {
+  const r = await flowOp({ op: 'removeNode', id: n.id });
+  if (r) { select({}); toast(`„${n.title || n.label || n.id}“ aus dem Flow entfernt${n.ref ? ' – das Screen-Modul bleibt erhalten' : ''}. ⌘Z macht es rückgängig.`); }
+}
+async function deleteEl(n, el, parent) {
+  const r = await screenOp(n.ref, { op: 'remove', id: el.id });
+  if (r) { select({ node: n.id, el: parent?.id || null }); toast(`${el.name} entfernt – ⌘Z macht es rückgängig.`); }
 }
 function layersSection() {
   const f = flow();
@@ -950,9 +977,18 @@ function layersSection() {
   if (S.sel.node && S.autoOpen !== S.sel.node) { S.open.add(S.sel.node); S.autoOpen = S.sel.node; }
   const rows = [];
   const toggle = id => () => { if (S.open.has(id)) S.open.delete(id); else S.open.add(id); renderLeft(); };
+  const nodeDrag = n => ({
+    kind: 'node', id: n.id, canDrag: true,
+    onDrop: (d, p) => {
+      const from = f.nodes.findIndex(x => x.id === d.id);
+      let to = f.nodes.findIndex(x => x.id === n.id) + (p === 'after' ? 1 : 0);
+      if (from < to) to--;
+      if (from !== to) flowOp({ op: 'reorderNode', id: d.id, index: to });
+    },
+  });
   for (const n of f.nodes) {
     if (n.type === 'decision') {
-      rows.push(layerRow({ depth: 0, current: S.sel.node === n.id && !S.sel.el, onClick: () => { select({ node: n.id }); centerOn(n.id); }, ico: '◆', name: n.label || n.title || n.id, meta: n.var ? `${n.var} ?` : '' }));
+      rows.push(layerRow({ depth: 0, current: S.sel.node === n.id && !S.sel.el, onClick: () => { select({ node: n.id }); centerOn(n.id); }, ico: '◆', name: n.label || n.title || n.id, meta: n.var ? `${n.var} ?` : '', drag: nodeDrag(n), onDelete: () => deleteNode(f, n), delLabel: 'Aus dem Flow entfernen' }));
       continue;
     }
     const scr = S.data.screens[n.ref];
@@ -962,14 +998,15 @@ function layersSection() {
       depth: 0, open, onToggle: scr?.tree ? toggle(n.id) : null,
       current: S.sel.node === n.id && !S.sel.el && !S.sel.variant,
       onClick: () => { select({ node: n.id }); centerOn(n.id); },
-      ico: '#', name: n.title || n.id, nameCls: 'frame',
+      ico: '#', name: n.title || n.id, nameCls: 'scrname',
       meta: [f.entry === n.id ? 'Einstieg' : n.exit ? 'Ausstieg' : '', issues ? `⚠ ${issues}` : ''].filter(Boolean).join(' · '),
-      title: n.ref,
+      title: n.ref, drag: nodeDrag(n), onDelete: () => deleteNode(f, n), delLabel: 'Aus dem Flow entfernen (Screen-Modul bleibt)',
     }));
     if (!open || !scr?.tree) continue;
     const warn = new Set([...scr.lint.warnings, ...scr.lint.errors].map(w => w.el).filter(Boolean));
-    walkTree(scr.tree, (el, depth) => {
+    walkTree(scr.tree, (el, depth, parent) => {
       const sp = spec(el.name);
+      const isRoot = !parent;
       rows.push(layerRow({
         depth: depth + 1,
         current: S.sel.node === n.id && S.sel.el === el.id,
@@ -979,6 +1016,23 @@ function layersSection() {
         name: el.name, nameCls: sp ? '' : 'gap', text: el.text,
         meta: `${warn.has(el.id) ? '⚠ ' : ''}${el.id || ''}`,
         title: sp ? '' : 'Keine Komponente des Design Systems',
+        onDelete: isRoot || !el.id ? null : () => deleteEl(n, el, parent), delLabel: 'Element löschen',
+        drag: el.id ? {
+          kind: 'el', node: n.id, id: el.id, canDrag: !isRoot, isRoot, container: isContainer(el),
+          inside: id => !!findEl(findEl(scr.tree, id)?.node, el.id),
+          onDrop: async (d, p) => {
+            let o;
+            if (p === 'inside') o = { op: 'move', id: d.id, parent: el.id, index: Number.MAX_SAFE_INTEGER };
+            else if (p === 'after') o = { op: 'move', id: d.id, parent: parent.id, after: el.id };
+            else {
+              const kids = parent.children.filter(c => c.id && c.id !== d.id);
+              const i = kids.findIndex(c => c.id === el.id);
+              o = { op: 'move', id: d.id, parent: parent.id, after: i > 0 ? kids[i - 1].id : null };
+            }
+            const r = await screenOp(n.ref, o);
+            if (r) select({ node: n.id, el: d.id });
+          },
+        } : null,
       }));
     });
     for (const v of n.variants || []) {
@@ -989,7 +1043,7 @@ function layersSection() {
       }));
     }
   }
-  sec.append(h('ul', { class: 'tree ltree' }, rows));
+  sec.append(h('ul', { class: 'tree ltree' }, rows), h('p', { class: 'hint lhint' }, 'Ziehen ordnet um (auf einen Container: hinein). × oder Entf löscht, ⌘Z macht rückgängig.'));
   return sec;
 }
 const path0 = r => String(r).replace(/^screens\//, '').replace(/\.screen\.tsx$/, '');

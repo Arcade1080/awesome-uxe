@@ -86,6 +86,13 @@ export function applyFlowOp(model, flowId, op) {
       out.node = id;
       break;
     }
+    case 'reorderNode': {
+      // Reihenfolge der Knoten – im Canvas die Reihenfolge der Ebenen.
+      const n = node(op.id);
+      nodes.splice(nodes.indexOf(n), 1);
+      nodes.splice(Math.max(0, Math.min(Number(op.index) || 0, nodes.length)), 0, n);
+      break;
+    }
     case 'removeNode': {
       node(op.id);
       data.nodes = nodes.filter(n => n.id !== op.id);

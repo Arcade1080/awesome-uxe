@@ -503,5 +503,17 @@ code,.code{font-family:var(--mono);font-size:12px}
 .tree .lrow .lbtn{flex:1;min-width:0;padding-left:2px;background:none}
 .tree .lrow .lbtn:hover{background:none}
 .tree .lrow.cur .lbtn{color:var(--sel)}
-.tree .nm.frame{font-weight:600}
+.tree .nm.scrname{font-weight:600}
 .tree .nm.var{font-style:italic;font-weight:400}
+.lrow{position:relative}
+.lrow[draggable=true]{cursor:grab}
+.lrow.dragging{opacity:.45}
+.lrow.drop-before{box-shadow:inset 0 2px 0 var(--sel)}
+.lrow.drop-after{box-shadow:inset 0 -2px 0 var(--sel)}
+.lrow.drop-inside{background:var(--sel-soft);box-shadow:inset 0 0 0 1.5px var(--sel)}
+.lrow .ldel{flex:none;width:22px;height:22px;margin-right:2px;padding:0;border:0;border-radius:5px;background:none;color:var(--muted);font-size:15px;line-height:1;opacity:0}
+.lrow:hover .ldel,.lrow.cur .ldel,.lrow:focus-within .ldel{opacity:1}
+.lrow .ldel:hover{background:var(--bad-soft);color:var(--bad)}
+@media(hover:none){.lrow .ldel{opacity:.7}}
+.tree .lrow em{margin-left:6px}
+.lhint{font-size:11.5px;margin-top:8px}
