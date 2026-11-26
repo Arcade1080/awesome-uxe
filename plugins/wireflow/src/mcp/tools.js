@@ -181,14 +181,14 @@ export const TOOLS = [
   },
   {
     name: 'flow_edit',
-    description: 'Strukturierte Änderung an einem Flow – wie auf dem Canvas. op: addScreen {title, x, y, ref?} (legt Screen-Modul aus DS-Komponenten an) | addDecision {label, var, x, y} | connect {from, el?, to, label?, when?} (verdrahtet flow.trigger im Code) | updateEdge {index, props} | disconnect {index} | moveNode {id, x, y} | setNode {id, props:{title,label,var,story,exit}} | removeNode {id} | setEntry {id} | setVariable {name, value} | addSection {title, x, y, w, h, phase?} (Sektion: fasst Screens zu einer Phase zusammen, phase = Phasen-ID der Journey) | updateSection {id, props:{title,x,y,w,h,phase}} | removeSection {id}.',
+    description: 'Strukturierte Änderung an einem Flow – wie auf dem Canvas. op: addScreen {title, x, y, ref?, device?} (legt Screen-Modul aus DS-Komponenten an; device: mobile|tablet|desktop) | addDecision {label, var, x, y} | connect {from, el?, to, label?, when?} (verdrahtet flow.trigger im Code) | updateEdge {index, props} | disconnect {index} | moveNode {id, x, y} | setNode {id, props:{title,label,var,story,exit,device}} | removeNode {id} | setEntry {id} | setVariable {name, value} | addSection {title, x, y, w, h, phase?} (Sektion: fasst Screens zu einer Phase zusammen, phase = Phasen-ID der Journey) | updateSection {id, props:{title,x,y,w,h,phase}} | removeSection {id}.',
     inputSchema: obj({
       flow: str('Flow-ID (ohne: erster Flow)'),
       op: { type: 'string', enum: ['addScreen', 'addDecision', 'connect', 'updateEdge', 'disconnect', 'moveNode', 'setNode', 'removeNode', 'setEntry', 'setVariable', 'addSection', 'updateSection', 'removeSection'] },
       id: str('Knoten-ID'), from: str('Start-Knoten'), to: str('Ziel-Knoten'), el: str('data-wf des auslösenden Elements'),
       label: str('Beschriftung'), when: str('Variable oder else'), title: str('Titel eines neuen Screens'), ref: str('bestehendes Screen-Modul'),
       var: str('Variable einer Entscheidung'), name: str('Variablenname'), value: { description: 'Variablenwert' },
-      index: { type: 'number' }, x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' }, phase: str('Phasen-ID der Journey (Sektion)'), props: { type: 'object' },
+      index: { type: 'number' }, x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' }, phase: str('Phasen-ID der Journey (Sektion)'), device: { type: 'string', enum: ['mobile', 'tablet', 'desktop'], description: 'Gerätegröße eines neuen Screens' }, props: { type: 'object' },
     }, ['op']),
     run: ({ flow, ...op }) => {
       const m = model();

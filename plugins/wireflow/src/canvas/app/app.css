@@ -542,3 +542,18 @@ code,.code{font-family:var(--mono);font-size:12px}
 .sechandle{position:absolute;right:calc(-6px*var(--iz));bottom:calc(-6px*var(--iz));width:calc(14px*var(--iz));height:calc(14px*var(--iz));border-radius:calc(4px*var(--iz));background:var(--panel);border:calc(1.5px*var(--iz)) solid var(--sel);cursor:nwse-resize;pointer-events:auto;opacity:0}
 .section:hover .sechandle,.section.sel .sechandle{opacity:1}
 .tree .nm.secname{font-weight:600;color:var(--ink)}
+
+/* Geräte: Mobile, Tablet, Desktop */
+.devico{width:14px;height:14px;flex:none;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.ftitle .fdev{display:inline-flex;color:var(--muted)}
+.ftitle .fdev .devico{width:calc(13px*var(--iz));height:calc(13px*var(--iz))}
+.devseg{display:flex;gap:2px;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
+.devseg button{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;min-height:28px;padding:2px 6px;border:0;border-radius:6px;background:none;color:var(--muted);font-size:12px}
+.devseg button[aria-pressed=true]{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+.tooldev{display:none;gap:2px;margin-left:4px;padding-left:6px;border-left:1px solid var(--line)}
+.stage.tool-frame .tooldev{display:flex}
+.toolbar .tooldev button{width:auto;padding:0 8px;gap:5px;font-size:12px}
+.toolbar .tooldev button .devico{width:15px;height:15px}
+.devseg button{min-width:0}
+.devseg button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:1300px){.devseg button span{display:none}}

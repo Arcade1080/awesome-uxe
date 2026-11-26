@@ -71,6 +71,23 @@ const screenOf = n => (n && n.type === 'screen' ? S.data.screens[n.ref] || null 
 const spec = name => S.data.ds.components.find(c => c.name === name) || null;
 const VW = () => S.data?.project.renderer?.viewport?.width || 360;
 const VH = () => S.data?.project.renderer?.viewport?.height || 740;
+// Gerätegrößen: Mobile, Tablet, Desktop. Standard je Projekt aus renderer.viewport; überschreibbar mit renderer.devices.
+const DEVICE_ICON = {
+  mobile: '<rect x="4.5" y="1.5" width="7" height="13" rx="1.6"/><path d="M7 12.5h2"/>',
+  tablet: '<rect x="2.5" y="1.5" width="11" height="13" rx="1.6"/><path d="M7 12.5h2"/>',
+  desktop: '<rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M6 14h4M8 11v3"/>',
+};
+const DEVICE_LABEL = { mobile: 'Mobile', tablet: 'Tablet', desktop: 'Desktop' };
+function devices() {
+  const vw = VW(), vh = VH();
+  const base = { mobile: { w: 390, h: 844 }, tablet: { w: 834, h: 1194 }, desktop: { w: 1440, h: 900 } };
+  const def = vw < 600 ? 'mobile' : vw < 1100 ? 'tablet' : 'desktop';
+  base[def] = { w: vw, h: vh };
+  return { ...base, ...(S.data?.project.renderer?.devices || {}), def };
+}
+const devOf = n => (n?.device && DEVICE_ICON[n.device] ? n.device : devices().def);
+const devSize = n => devices()[devOf(n)];
+const devIcon = (d, cls = 'devico') => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 16 16'); s.setAttribute('class', cls); s.setAttribute('aria-hidden', 'true'); s.innerHTML = DEVICE_ICON[d]; return s; };
 const isContainer = n => { const s = spec(n.name); return s ? s.props?.children?.type === 'node' : n.children.length > 0; };
 
 function findEl(tree, id, parent = null) {
@@ -314,7 +331,7 @@ function zoomCenter(f) {
 function nodeRect(n) {
   const p = S.drag?.kind === 'node' && S.drag.id === n.id ? S.drag.pos : S.drag?.kind === 'group' && S.drag.pos[n.id] ? S.drag.pos[n.id] : n;
   if (n.type === 'decision') return { x: p.x, y: p.y, w: D, h: D };
-  return { x: p.x, y: p.y, w: n.w || VW(), h: S.frames.get(n.id)?.h || VH() };
+  return { x: p.x, y: p.y, w: devSize(n).w, h: S.frames.get(n.id)?.h || devSize(n).h };
 }
 function fit() {
   const f = flow();
@@ -370,7 +387,7 @@ function ensureIframe(fr) {
   }
   if (fr.next) fr.next.remove();
   ifr.classList.add('loading');
-  if (!fr.proto) ifr.style.height = `${VH()}px`;
+  if (!fr.proto) ifr.style.height = `${fr.vh || VH()}px`;
   fr.next = ifr;
   fr.box.insertBefore(ifr, fr.ov || null);
   setTimeout(() => { if (fr.next === ifr) promote(fr); }, 6000);
@@ -483,6 +500,7 @@ function updateNode(n) {
   const l = scr?.lint;
   fill(fr.title, 
     k ? h('i', { class: 'kdot', style: `background:var(--k-${k.level})`, title: `Wissensstand: ${KLABEL[k.level]}` }) : null,
+    h('span', { class: 'fdev', title: `${DEVICE_LABEL[devOf(n)]} · ${devSize(n).w} × ${devSize(n).h}` }, devIcon(devOf(n))),
     h('b', {}, n.title || n.id),
     scr?.stories?.length > 1 || n.story ? h('span', { class: 'tag', title: 'Zustand (Story)' }, n.story || scr.stories[0]) : null,
     k ? h('span', { class: `tag k-${k.level}`, title: 'Wissensstand' }, KLABEL[k.level]) : null,
@@ -502,7 +520,9 @@ function updateNode(n) {
     }, '✦'),
   );
   fr.el.classList.toggle('working', S.working.has(n.ref));
-  fr.box.style.width = `${VW()}px`;
+  const ds = devSize(n);
+  if (fr.w !== ds.w || fr.vh !== ds.h) { fr.w = ds.w; fr.vh = ds.h; fr.h = ds.h; fr.url = ''; }
+  fr.box.style.width = `${ds.w}px`;
   fr.box.style.height = `${fr.h}px`;
   ensureIframe(fr);
 }
@@ -687,7 +707,7 @@ function dropTarget(fr, x, y, movingId) {
   });
   if (!c) {
     if (!isContainer(scr.tree)) return null;
-    c = { n: scr.tree, depth: 0, b: fr.boxes[scr.tree.id] || [0, 0, VW(), fr.h] };
+    c = { n: scr.tree, depth: 0, b: fr.boxes[scr.tree.id] || [0, 0, fr.w || VW(), fr.h] };
   }
   const all = c.n.children.filter(k => k.id !== movingId);
   const kids = all.filter(k => fr.boxes[k.id]);
@@ -716,7 +736,8 @@ function renderOverlays() {
   for (const fr of S.frames.values()) {
     if (!fr.ov) continue;
     const kids = [];
-    if (fr.kind !== 'component' && fr.h > VH() + 2) kids.push(h('div', { class: 'fold', style: `top:${VH()}px` }, h('span', {}, `Sichtbereich ${VH()} px`)));
+    const fvh = fr.vh || VH();
+    if (fr.h > fvh + 2) kids.push(h('div', { class: 'fold', style: `top:${fvh}px` }, h('span', {}, `Sichtbereich ${fvh} px`)));
     const box = (id, cls, label) => {
       const b = fr.boxes[id];
       if (!b) return null;
@@ -808,7 +829,9 @@ function setTool(t) {
   S.tool = t;
   stage.classList.remove('tool-move', 'tool-hand', 'tool-frame', 'tool-section');
   stage.classList.add(`tool-${t}`);
-  document.querySelectorAll('#toolbar button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+  document.querySelectorAll('#toolbar button[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+  const cur = S.frameDevice || (S.data ? devices().def : 'mobile');
+  document.querySelectorAll('#toolbar [data-dev]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dev === cur)));
 }
 function buildToolbar() {
   const bar = h('div', { class: 'toolbar', id: 'toolbar', role: 'toolbar', 'aria-label': 'Werkzeuge' }, TOOLS.map(([id, label, key, svg]) => {
@@ -816,6 +839,12 @@ function buildToolbar() {
     b.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true">${svg}</svg>`;
     return b;
   }));
+  // Beim Frame-Werkzeug: Gerät für den neuen Screen wählen.
+  const devs = h('div', { class: 'tooldev', role: 'group', 'aria-label': 'Gerät des neuen Screens' }, Object.keys(DEVICE_ICON).map(d => {
+    const b = h('button', { type: 'button', 'data-dev': d, title: `Frame: ${DEVICE_LABEL[d]}`, 'aria-label': `Frame ${DEVICE_LABEL[d]}`, onclick: () => { S.frameDevice = d; setTool('frame'); } }, devIcon(d), h('span', {}, DEVICE_LABEL[d]));
+    return b;
+  }));
+  bar.append(devs);
   stage.append(bar);
   setTool('move');
 }
@@ -869,7 +898,8 @@ async function drawCreate(e) {
     setTool('move');
     if (tool === 'frame') {
       const n = flow().nodes.filter(x => x.type === 'screen').length + 1;
-      const r = await flowOp({ op: 'addScreen', title: `Screen ${n}`, x: Math.round(rect.x / 10) * 10, y: Math.round(rect.y / 10) * 10 });
+      const dev = S.frameDevice || devices().def;
+      const r = await flowOp({ op: 'addScreen', title: `Screen ${n}`, x: Math.round(rect.x / 10) * 10, y: Math.round(rect.y / 10) * 10, ...(dev !== devices().def ? { device: dev } : {}) });
       if (r?.node) setTimeout(() => select({ node: r.node }), 200);
       return;
     }
@@ -984,6 +1014,7 @@ function multiInspector(pane) {
   pane.append(
     h('h2', { class: 'ttl' }, `${ns.length} ausgewählt`),
     h('ul', { class: 'tree' }, ns.map(n => h('li', {}, h('button', { type: 'button', onclick: () => { select({ node: n.id }); centerOn(n.id); } }, h('span', { class: 'ico' }, n.type === 'decision' ? '◆' : '#'), h('span', { class: 'nm' }, n.title || n.label || n.id))))),
+    ns.some(n => n.type === 'screen') ? devicePicker((() => { const d = new Set(ns.filter(n => n.type === 'screen').map(devOf)); return d.size === 1 ? [...d][0] : null; })(), async d => { for (const n of ns.filter(x => x.type === 'screen')) await flowOp({ op: 'setNode', id: n.id, props: { device: d === devices().def ? null : d } }); }, 'Gerät (alle)') : '',
     h('p', { class: 'hint' }, 'Ziehen an einem Titel verschiebt alle. ⇧ + Rahmen ergänzt die Auswahl.'),
     h('div', { class: 'btns' },
       btn('Sektion um Auswahl', async () => {
@@ -1053,7 +1084,7 @@ addEventListener('message', e => {
     fr.boxes = d.boxes || {};
     fr.failed = !!d.failed;
     if (!fr.proto) {
-      const nh = fr.kind === 'component' ? Math.max(80, Math.min(Math.round(d.content || 0), 1400)) : Math.max(VH(), Math.min(Math.round(d.height || 0), 6000));
+      const nh = Math.max(fr.vh || VH(), Math.min(Math.round(d.height || 0), 6000));
       if (nh !== fr.h) { fr.h = nh; fr.box.style.height = `${nh}px`; }
       renderEdges();
       renderOverlays();
@@ -1868,12 +1899,18 @@ function knowledgeBlock(pane, g) {
     h('div', {}, r.kind === 'insight' ? kchip(r.level) : kchip(r.status === 'bestätigt' ? 'belegt' : r.status === 'widerlegt' ? 'widerspruch' : 'annahme'), ' ', h('code', {}, r.id)),
     h('div', {}, r.text)))));
 }
+function devicePicker(current, onPick, label = 'Gerät') {
+  const ds = devices();
+  return h('div', { class: 'row' }, h('span', {}, label), h('div', { class: 'devseg', role: 'group', 'aria-label': label },
+    Object.keys(DEVICE_ICON).map(d => h('button', { type: 'button', 'aria-pressed': String(current === d), title: `${DEVICE_LABEL[d]} · ${ds[d].w} × ${ds[d].h}`, onclick: () => onPick(d) }, devIcon(d), h('span', {}, DEVICE_LABEL[d])))));
+}
 function screenInspector(pane, n) {
   const scr = screenOf(n);
   const f = flow();
   pane.append(h('div', { class: 'ihead' }, h('h2', {}, n.title || n.id), f.entry === n.id ? h('span', { class: 'tag ai' }, 'Einstieg') : null, n.exit ? h('span', { class: 'tag' }, 'Ausstieg') : null));
   pane.append(h('p', { class: 'hint' }, h('code', {}, `.wireflow/${n.ref}`), scr?.component ? ` · ${scr.component}` : ''));
   pane.append(inputRow('Titel', `${n.id}:title`, n.title || '', v => v && flowOp({ op: 'setNode', id: n.id, props: { title: v } })));
+  pane.append(devicePicker(devOf(n), d => flowOp({ op: 'setNode', id: n.id, props: { device: d === devices().def ? null : d } })));
   if (scr?.stories?.length) {
     pane.append(h('div', { class: 'row' }, h('label', { for: `${n.id}:story` }, 'Zustand'), h('select', {
       id: `${n.id}:story`,
@@ -2026,17 +2063,20 @@ function renderProto() {
   fr.ref = n.ref;
   fr.story = n.story || '';
   fr.v = Math.max(fr.v, S.frames.get(n.id)?.v || 0);
-  fr.box.style.width = `${VW()}px`;
-  fr.box.style.height = `${VH()}px`;
+  const { w: pw, h: ph } = devSize(n);
+  if (fr.w !== pw) { fr.w = pw; fr.vh = ph; fr.url = ''; }
+  fr.box.style.width = `${pw}px`;
+  fr.box.style.height = `${ph}px`;
   ensureIframe(fr);
   const sr = stage.getBoundingClientRect();
-  const s = Math.max(0.3, Math.min(1, (sr.height - 120) / (VH() + 20), (sr.width - 40) / (VW() + 20)));
-  P.device.style.width = `${VW() + 20}px`;
-  P.device.style.height = `${VH() + 20}px`;
+  const s = Math.max(0.2, Math.min(1, (sr.height - 120) / (ph + 20), (sr.width - 40) / (pw + 20)));
+  P.device.style.width = `${pw + 20}px`;
+  P.device.style.height = `${ph + 20}px`;
   P.device.style.transform = `scale(${s})`;
   P.device.style.transformOrigin = 'top left';
-  P.wrap.style.width = `${(VW() + 20) * s}px`;
-  P.wrap.style.height = `${(VH() + 20) * s}px`;
+  P.wrap.style.width = `${(pw + 20) * s}px`;
+  P.wrap.style.height = `${(ph + 20) * s}px`;
+  P.device.dataset.device = devOf(n);
   fill(P.bar, h('b', {}, n.title || n.id), n.story ? h('span', { class: 'tag' }, n.story) : null, h('span', {}, `Schritt ${S.proto.history.length + 1}`));
   fill(P.foot, n.exit ? h('div', { class: 'endbanner' }, 'Ende des Flows erreicht.', btn('Neu starten', () => protoStart())) : 'Bedienen wie in der App. Klick ins Leere zeigt, wo es weitergeht.');
 }
@@ -2749,12 +2789,13 @@ function variantRects(f) {
     const vs = n.variants || [];
     if (!vs.length) continue;
     const r = nodeRect(n);
-    const w = vs.length * (VW() + 60) - 60;
-    const hit = yy => taken.some(t => t.x < r.x + w + 40 && t.x + t.w > r.x - 40 && t.y < yy + VH() + 80 && t.y + t.h > yy - 80);
+    const { w: dw, h: dh } = devSize(n);
+    const w = vs.length * (dw + 60) - 60;
+    const hit = yy => taken.some(t => t.x < r.x + w + 40 && t.x + t.w > r.x - 40 && t.y < yy + dh + 80 && t.y + t.h > yy - 80);
     let y = r.y + r.h + 170;
     for (let guard = 0; hit(y) && guard < 30; guard++) y += 200;
     vs.forEach((v, i) => {
-      const rect = { x: r.x + i * (VW() + 60), y, w: VW(), h: VH() };
+      const rect = { x: r.x + i * (dw + 60), y, w: dw, h: dh };
       taken.push(rect);
       out.push({ n, v, rect, key: `v:${n.id}:${v.ref}` });
     });
@@ -2797,7 +2838,9 @@ function renderVariants(f) {
       h('span', { class: `tag ${v.mode === 'free' ? 'warn' : v.mode === 'original' ? '' : 'ai'}` }, `◇ ${MODE_LABEL[v.mode] || v.mode || 'Variante'}`),
       h('b', { title: v.rationale || '' }, v.label || 'Variante'),
       l ? h('span', { class: `tag ${l.errors.length ? 'bad' : l.score.pct < 100 ? 'warn' : 'ok'}` }, l.errors.length ? `${l.errors.length} Fehler` : `DS ${l.score.pct} %`) : null);
-    fr.box.style.width = `${VW()}px`;
+    const ds = devSize(n);
+    if (fr.w !== ds.w) { fr.w = ds.w; fr.vh = ds.h; fr.h = ds.h; fr.url = ''; }
+    fr.box.style.width = `${ds.w}px`;
     fr.box.style.height = `${fr.h}px`;
     ensureIframe(fr);
   }

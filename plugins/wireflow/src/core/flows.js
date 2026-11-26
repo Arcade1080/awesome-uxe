@@ -3,6 +3,8 @@ import path from 'node:path';
 import { writeJson, flowById, removeTracked } from './project.js';
 import { wireTrigger, newScreen, slugify } from './screens.js';
 
+// Gerätegrößen eines Screens im Canvas (Größen: project.renderer.devices oder Standard).
+export const DEVICES = ['mobile', 'tablet', 'desktop'];
 const clean = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''));
 
 export function applyFlowOp(model, flowId, op) {
@@ -31,7 +33,8 @@ export function applyFlowOp(model, flowId, op) {
     case 'setNode': {
       const n = node(op.id);
       for (const [k, v] of Object.entries(op.props || {})) {
-        if (!['title', 'label', 'var', 'story', 'exit'].includes(k)) continue;
+        if (!['title', 'label', 'var', 'story', 'exit', 'device'].includes(k)) continue;
+        if (k === 'device' && v && !DEVICES.includes(v)) throw new Error(`Gerät ${v} unbekannt (mobile, tablet, desktop)`);
         if (v === null || v === '' || v === false) delete n[k];
         else n[k] = v;
       }
@@ -72,7 +75,8 @@ export function applyFlowOp(model, flowId, op) {
     case 'addScreen': {
       const s = op.ref ? { ref: op.ref } : newScreen(model, { title: op.title, flowTitle: data.title });
       const id = uniqueId(`scr_${slugify(op.title || path.basename(s.ref, '.screen.tsx')).replace(/-/g, '_')}`);
-      nodes.push(clean({ id, type: 'screen', title: op.title || id, ref: s.ref, x: Math.round(op.x ?? 0), y: Math.round(op.y ?? 0) }));
+      if (op.device && !DEVICES.includes(op.device)) throw new Error(`Gerät ${op.device} unbekannt (mobile, tablet, desktop)`);
+      nodes.push(clean({ id, type: 'screen', title: op.title || id, ref: s.ref, x: Math.round(op.x ?? 0), y: Math.round(op.y ?? 0), device: op.device }));
       if (!data.entry) data.entry = id;
       out.node = id;
       out.ref = s.ref;

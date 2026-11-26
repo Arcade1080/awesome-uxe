@@ -61,3 +61,17 @@ test('Neuer Screen ohne Intents: Seiten-Container und Titel nach Namen', async (
   const src = fs.readFileSync(path.join(root, '.wireflow', r.ref), 'utf8');
   assert.match(src, /<Stack data-wf="[\w-]+">\s*<Heading data-wf="[\w-]+">Leer<\/Heading>/);
 });
+
+test('Screens: Gerätegröße Mobile, Tablet, Desktop', () => {
+  const root = tempProject();
+  const r = applyFlowOp(loadProject(root), 'flw_buchung', { op: 'addScreen', title: 'Übersicht', device: 'desktop' });
+  let n = loadProject(root).flows.find(f => f.id === 'flw_buchung').nodes.find(x => x.id === r.node);
+  assert.equal(n.device, 'desktop');
+  applyFlowOp(loadProject(root), 'flw_buchung', { op: 'setNode', id: r.node, props: { device: 'tablet' } });
+  n = loadProject(root).flows.find(f => f.id === 'flw_buchung').nodes.find(x => x.id === r.node);
+  assert.equal(n.device, 'tablet');
+  applyFlowOp(loadProject(root), 'flw_buchung', { op: 'setNode', id: r.node, props: { device: null } });
+  n = loadProject(root).flows.find(f => f.id === 'flw_buchung').nodes.find(x => x.id === r.node);
+  assert.equal(n.device, undefined, 'null = Standard des Projekts');
+  assert.throws(() => applyFlowOp(loadProject(root), 'flw_buchung', { op: 'setNode', id: r.node, props: { device: 'watch' } }), /unbekannt/);
+});
