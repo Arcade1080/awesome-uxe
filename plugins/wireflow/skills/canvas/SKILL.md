@@ -17,14 +17,6 @@ argument-hint: "[flow-id]"
 - **Journey:** Story Map – Phasen, Schritte, Pain Points und Bedarfe ohne Lösung; darunter Anforderungen mit Screens. Bearbeitbar; speichert in die Journey-Datei. Offene Punkte liefert auch `journey_get`.
 - **Wissen:** Insights, Annahmen nach Risiko, offene Fragen.
 
-## Storybook-Brett
-
-Hat das Projekt Storybook (`storybook_status` sagt, ob es läuft und welche Stories es gibt), zeigt der Canvas die Stories im Flow-Menü unter „Storybook“ – ohne Migration.
-
-- Läuft Storybook nicht, vor `canvas_open` im Hintergrund starten (z. B. `npm run storybook -- --no-open` oder `npx storybook dev -p 6006 --no-open --ci`); der Canvas verbindet sich von selbst.
-- Aufträge aus dem Storybook-Brett nennen Story-ID, Stories-Datei, Komponente und die Datei, in der das Element entsteht (`canvas_selection` liefert dazu Args und Props). Ändere dann den **Code des Projekts** und seine Stories – nicht `.wireflow/screens`. Varianten und Zustände entstehen als neue Stories im selben Stories-File; das Original bleibt.
-- Danach wie immer mit `canvas_reply` antworten. Storybook lädt Änderungen selbst neu.
-
 ## Zusammenarbeit mit Claude
 
 - Änderungen von Claude (`screen_edit`, `flow_edit`, `variant_create` …) erscheinen sofort im Canvas; der bearbeitete Screen leuchtet, Werkzeug-Aufrufe stehen im Chat.

@@ -71,19 +71,17 @@ function metaOf(sel = {}) {
 export function monitorLine(p) {
   const a = p.meta || {};
   const text = String(p.text).replace(/\s*\n+\s*/g, ' ⏎ ').slice(0, 1500);
-  const where = [a.titel && `„${a.titel}“`, a.screen, a.story && `Story ${a.story}`, a.datei, a.variante && `Variante ${a.variante}`, a.element && `Element ${a.element}${a.komponente ? ` <${a.komponente}>` : ''}`, a.quelle && `im Code ${a.quelle}`].filter(Boolean).join(' · ');
+  const where = [a.titel && `„${a.titel}“`, a.screen, a.variante && `Variante ${a.variante}`, a.element && `Element ${a.element}${a.komponente ? ` <${a.komponente}>` : ''}`].filter(Boolean).join(' · ');
   return `Nachricht aus dem Wireflow-Canvas (chat_id ${p.id}): „${text}“${where ? ` – Auswahl: ${where}` : ''} – mit canvas_inbox abholen, erledigen und mit canvas_reply (chat_id ${p.id}) antworten.`;
 }
 
 function channelText(m) {
   const a = m.meta || {};
   const ctx = [
-    a.titel && `${a.story ? 'Story' : 'Screen'} „${a.titel}“`,
+    a.titel && `Screen „${a.titel}“`,
     a.screen && `(${a.screen})`,
-    a.story && `(${a.story}${a.datei ? `, ${a.datei}` : ''})`,
     a.variante && `Variante ${a.variante}`,
     a.element && `Element ${a.element}${a.komponente ? ` <${a.komponente}>` : ''}`,
-    a.quelle && `im Code ${a.quelle}`,
   ].filter(Boolean).join(' ');
   return ctx ? `${m.text}\n\n[Auswahl im Canvas: ${ctx}]` : m.text;
 }

@@ -10,7 +10,6 @@ const INSTRUCTIONS = [
   'Chat im Canvas: Nachrichten kommen als Benachrichtigung „Nachricht aus dem Wireflow-Canvas (chat_id …)“ vom Plugin-Monitor, als <channel … chat_id="…"> (Kanal) oder über Hooks; abholen mit canvas_inbox.',
   'Sie beziehen sich auf die Auswahl im Canvas. Erledige die Bitte mit den Wireflow-Werkzeugen und antworte immer mit canvas_reply (chat_id übernehmen).',
   'Jede chat_id nur einmal beantworten; was schon beantwortet ist, zeigt canvas_inbox nicht mehr. Varianten mit variant_create anlegen.',
-  'Hat das Projekt Storybook, zeigt der Canvas dessen Stories (storybook_status). Aufträge zu einer Story betreffen den Code des Projekts und seine Stories, nicht .wireflow/screens.',
 ].join(' ');
 
 export function startMcp({ input = process.stdin, output = process.stdout } = {}) {

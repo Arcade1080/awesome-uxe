@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": [".wireflow", ".storybook", "packages", "src"]
+  "include": [".wireflow", "packages", "src"]
 }

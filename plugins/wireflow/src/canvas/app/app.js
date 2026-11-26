@@ -53,16 +53,13 @@ const S = {
   elTab: 'props',
   scope: 'one',
   picker: null,
-  sb: { status: 'sucht', url: null, base: '', hash: '', hint: '', dirs: [], groups: [], flow: null, pins: new Set(), pos: {}, file: null },
 };
 
 // ---------- Zugriff ----------
-const SB = '__storybook';
-const isSb = n => n?.type === 'story';
-const flow = () => (S.flowId === SB ? S.sb.flow : S.data?.flows.find(f => f.id === S.flowId) || null);
+const flow = () => S.data?.flows.find(f => f.id === S.flowId) || null;
 const nodeById = id => flow()?.nodes.find(n => n.id === id) || null;
 const nodeName = id => { const n = nodeById(id); return n ? n.title || n.label || n.id : id; };
-const screenOf = n => (n && n.type === 'screen' ? S.data.screens[n.ref] || null : isSb(n) ? sbScreen(n) : null);
+const screenOf = n => (n && n.type === 'screen' ? S.data.screens[n.ref] || null : null);
 const spec = name => S.data.ds.components.find(c => c.name === name) || null;
 const VW = () => S.data?.project.renderer?.viewport?.width || 360;
 const VH = () => S.data?.project.renderer?.viewport?.height || 740;
@@ -166,7 +163,6 @@ function connect() {
   const es = new EventSource('/api/events');
   es.addEventListener('hello', () => setLive(true));
   es.addEventListener('chat', e => onChat(JSON.parse(e.data)));
-  es.addEventListener('storybook', () => loadSb());
   es.addEventListener('change', e => {
     const d = JSON.parse(e.data);
     if (d.by !== S.client) external(d.files || []);
@@ -206,7 +202,7 @@ function syncSelection() {
     const scr = screenOf(n);
     const el = scr && S.sel.el ? findEl(scr.tree, S.sel.el)?.node : null;
     const e = S.sel.edge != null ? flow()?.edges[S.sel.edge] : null;
-    const selection = flow()?.storybook ? sbSelection() : {
+    const selection = {
       flow: S.flowId,
       modus: S.mode,
       knoten: n?.id || null,
@@ -239,7 +235,7 @@ function validateSelection() {
   if (!n) { S.sel.node = null; S.sel.el = null; S.sel.variant = null; return; }
   if (S.sel.variant && !(n.variants || []).some(v => v.ref === S.sel.variant)) S.sel.variant = null;
   const scr = screenOf(n);
-  if (S.sel.el && !(isSb(n) && !scr?.tree) && !(scr?.tree && findEl(scr.tree, S.sel.el))) S.sel.el = null;
+  if (S.sel.el && !(scr?.tree && findEl(scr.tree, S.sel.el))) S.sel.el = null;
 }
 function selectParent() {
   if (S.sel.el) {
@@ -256,19 +252,19 @@ function selected() {
 }
 async function removeSelected() {
   const { n, hit, isRoot } = selected();
-  if (!hit || isRoot || isSb(n)) return;
+  if (!hit || isRoot) return;
   const r = await screenOp(n.ref, { op: 'remove', id: hit.node.id });
   if (r) select({ node: n.id, el: hit.parent?.id || null });
 }
 async function duplicateSelected() {
   const { n, hit, isRoot } = selected();
-  if (!hit || isRoot || isSb(n)) return;
+  if (!hit || isRoot) return;
   const r = await screenOp(n.ref, { op: 'duplicate', id: hit.node.id });
   if (r?.selected) select({ node: n.id, el: r.selected });
 }
 async function moveSelected(delta) {
   const { n, hit, isRoot } = selected();
-  if (!hit || isRoot || isSb(n)) return;
+  if (!hit || isRoot) return;
   const sibs = hit.parent.children;
   const i = sibs.indexOf(hit.node);
   if (i + delta < 0 || i + delta >= sibs.length) return;
@@ -346,7 +342,6 @@ function beginPointer({ move, up }) {
 
 // ---------- Canvas: Knoten und Frames ----------
 function frameUrl(fr) {
-  if (fr.sb) return `/iframe.html?${new URLSearchParams({ viewMode: 'story', id: fr.sb, wfv: String(fr.sbv || 1) })}`;
   const q = new URLSearchParams({ ref: fr.ref, story: fr.story || '', mode: S.fid, ui: fr.proto ? 'prototype' : 'design', v: String(fr.v) });
   if (fr.proto) q.set('vars', JSON.stringify(S.proto.vars));
   return `/render?${q}`;
@@ -355,7 +350,7 @@ function ensureIframe(fr) {
   const url = frameUrl(fr);
   if (fr.url === url) return;
   fr.url = url;
-  const ifr = h('iframe', { src: url, title: fr.sb ? `Story ${fr.sb}` : `Screen ${fr.ref}`, tabindex: fr.proto ? '0' : '-1' });
+  const ifr = h('iframe', { src: url, title: `Screen ${fr.ref}`, tabindex: fr.proto ? '0' : '-1' });
   if (!fr.iframe) {
     fr.iframe = ifr;
     fr.box.insertBefore(ifr, fr.ov || null);
@@ -394,14 +389,6 @@ function renderCanvas() {
     }
   }
   let empty = stage.querySelector(':scope > .empty');
-  if (f?.storybook && !f.nodes.length) {
-    empty?.remove();
-    stage.append(h('div', { class: 'empty' }, h('div', {}, h('b', {}, S.sb.status === 'verbunden' ? 'Keine Stories' : 'Storybook läuft nicht'), S.sb.status === 'verbunden' ? 'Storybook ist verbunden, hat aber keine Stories.' : S.sb.hint || 'Suche Storybook …')));
-    edgesSvg.innerHTML = '';
-    fill(labelsEl);
-    renderVariants(null);
-    return;
-  }
   if (!f) {
     if (!empty) stage.append(h('div', { class: 'empty' }, h('div', {}, h('b', {}, 'Noch kein Flow'), 'In Claude Code: /wireflow:flow – oder eine Journey mit /wireflow:journey anlegen.')));
     edgesSvg.innerHTML = '';
@@ -473,7 +460,7 @@ function createDecision(id) {
 }
 const kchip = (level, text) => h('span', { class: `kchip k-${level}` }, text || KLABEL[level] || level);
 
-function updateScreen(n) {
+function updateNode(n) {
   const fr = S.frames.get(n.id);
   fr.ref = n.ref;
   fr.story = n.story || '';
@@ -612,7 +599,6 @@ function onOvDown(e, fr) {
   const id = hitTest(fr, p.x, p.y);
   if (!id) { select({ node: fr.id }); return; }
   select({ node: fr.id, el: id });
-  if (fr.sb) return;
   const scr = S.data.screens[fr.ref];
   if (!scr?.tree || id === scr.tree.id) return;
   const start = { x: e.clientX, y: e.clientY };
@@ -675,7 +661,6 @@ async function finishDrop() {
 }
 // Wohin fällt ein Element? Tiefster Container unter dem Zeiger, Position nach Lage der Geschwister.
 function dropTarget(fr, x, y, movingId) {
-  if (fr.sb) return null;
   const scr = S.data.screens[fr.ref];
   if (!scr?.tree) return null;
   const banned = new Set();
@@ -725,12 +710,12 @@ function renderOverlays() {
     };
     if (S.hover?.node === fr.id && S.hover.el && S.hover.el !== S.sel.el && !S.drag) kids.push(box(S.hover.el, 'hb'));
     if (S.sel.node === fr.id && S.sel.el && S.drag?.kind !== 'move' && !S.sel.variant) {
-      const scr = fr.sb ? sbScreen(nodeById(fr.id)) : S.data.screens[fr.ref];
+      const scr = S.data.screens[fr.ref];
       const hitSel = findEl(scr?.tree, S.sel.el);
       const b = fr.boxes[S.sel.el];
       if (b && hitSel) {
         kids.push(box(S.sel.el, 'sb', `${hitSel.node.name} · ${b[2]} × ${b[3]}`));
-        if (hitSel.parent && !fr.sb) {
+        if (hitSel.parent) {
           kids.push(h('button', {
             type: 'button', class: 'hdl add', title: 'Komponente darunter einfügen', 'aria-label': 'Komponente darunter einfügen',
             style: `left:${b[0] + b[2] / 2}px;top:${b[1] + b[3]}px`,
@@ -738,7 +723,7 @@ function renderOverlays() {
             onclick: ev => { ev.stopPropagation(); const r = ev.currentTarget.getBoundingClientRect(); openPicker(r.left - 10, r.bottom + 8); },
           }, '+'));
         }
-        if (!fr.sb && spec(hitSel.node.name)?.handler) {
+        if (spec(hitSel.node.name)?.handler) {
           kids.push(h('button', {
             type: 'button', class: 'hdl link', title: 'Ziehen: mit einem anderen Screen verbinden', 'aria-label': 'Verbindung ziehen',
             style: `left:${b[0] + b[2]}px;top:${b[1]}px`,
@@ -787,8 +772,7 @@ function startNodeDrag(e, id) {
         n.x = d.pos.x;
         n.y = d.pos.y;
         renderEdges();
-        if (flow()?.storybook) sbMoved(id, d.pos);
-        else await flowOp({ op: 'moveNode', id, x: d.pos.x, y: d.pos.y });
+        await flowOp({ op: 'moveNode', id, x: d.pos.x, y: d.pos.y });
       }
     },
   });
@@ -848,14 +832,13 @@ addEventListener('message', e => {
     }
     fr.boxes = d.boxes || {};
     fr.failed = !!d.failed;
-    if (d.sb) sbTreeArrived(fr, d.tree || []);
     if (!fr.proto) {
       const nh = fr.kind === 'component' ? Math.max(80, Math.min(Math.round(d.content || 0), 1400)) : Math.max(VH(), Math.min(Math.round(d.height || 0), 6000));
-      if (nh !== fr.h) { fr.h = nh; fr.box.style.height = `${nh}px`; if (fr.sb) sbRelayoutSoon(); }
+      if (nh !== fr.h) { fr.h = nh; fr.box.style.height = `${nh}px`; }
       renderEdges();
       renderOverlays();
       const n = nodeById(fr.id);
-      if (n && (d.failed || fr.sb)) updateNode(n);
+      if (n && d.failed) updateNode(n);
       if (S.sel.node === fr.id && S.sel.el && S.rightTab === 'design' && S.elTab === 'style') {
         clearTimeout(S.styleTimer);
         S.styleTimer = setTimeout(renderRight, 60);
@@ -866,17 +849,8 @@ addEventListener('message', e => {
   }
   if (d.type === 'error' && hit.current && !fr.proto) {
     fr.failed = true;
-    if (d.sb) fr.sbError = d.message;
     const n = nodeById(fr.id);
     if (n) updateNode(n);
-  }
-  if (d.sb && d.type === 'story') {
-    fr.sbInfo = d.info;
-    if (S.sel.node === fr.id && S.rightTab === 'design') renderRight();
-  }
-  if (d.sb && d.type === 'args') {
-    if (fr.sbInfo) fr.sbInfo.args = d.args;
-    if (S.sel.node === fr.id && !S.sel.el && S.rightTab === 'design') renderRight();
   }
   if (fr.proto && hit.current) {
     if (d.type === 'trigger') protoTrigger(d.el);
@@ -899,7 +873,6 @@ function renderLeft() {
 }
 function layersPane(pane) {
   const f = flow();
-  if (f?.storybook) { sbLayers(pane); return; }
   if (!f) { pane.append(h('p', { class: 'hint' }, 'Kein Flow.')); return; }
   const n = nodeById(S.sel.node);
   const scr = screenOf(n);
@@ -1050,12 +1023,6 @@ function renderRight() {
 }
 function designPane(pane) {
   const n = nodeById(S.sel.node);
-  if (flow()?.storybook) {
-    if (isSb(n) && S.sel.el) sbElementInspector(pane, n);
-    else if (isSb(n)) sbStoryInspector(pane, n);
-    else sbBoardInspector(pane);
-    return;
-  }
   if (S.sel.edge != null && flow()?.edges[S.sel.edge]) edgeInspector(pane, S.sel.edge);
   else if (n?.type === 'screen' && S.sel.variant) variantInspector(pane, n, S.sel.variant);
   else if (n?.type === 'screen' && S.sel.el) elementInspector(pane, n);
@@ -1260,7 +1227,7 @@ function computedLook(fr, id) {
   const win = fr?.iframe?.contentWindow;
   const doc = fr?.iframe?.contentDocument;
   let el = null;
-  try { el = fr?.sb ? win?.__wfSb?.node(id) : doc?.querySelector(`[data-wf="${CSS.escape(id)}"]`); } catch { el = null; }
+  try { el = doc?.querySelector(`[data-wf="${CSS.escape(id)}"]`); } catch { el = null; }
   if (!el || !win) return null;
   const cs = win.getComputedStyle(el);
   const idx = tokenIndex(win, doc);
@@ -2223,7 +2190,6 @@ function updateChatTab() {
 }
 function selectionMeta() {
   const n = nodeById(S.sel.node);
-  if (isSb(n)) return sbMeta(n);
   if (!n) return { flow: S.flowId };
   const scr = screenOf(n);
   const el = scr && S.sel.el && !S.sel.variant ? findEl(scr.tree, S.sel.el)?.node : null;
@@ -2234,7 +2200,6 @@ function selectionLabel() {
   const n = nodeById(S.sel.node);
   if (!n) return null;
   if (S.sel.variant) return `${n.title || n.id} · Variante`;
-  if (isSb(n)) { const el = S.sel.el ? findEl(sbScreen(n).tree, S.sel.el)?.node : null; return el ? `${el.name} · ${n.title}` : `Story ${n.title}`; }
   const scr = screenOf(n);
   const el = scr && S.sel.el ? findEl(scr.tree, S.sel.el)?.node : null;
   return el ? `${el.name} · ${el.id}` : n.title || n.label || n.id;
@@ -2360,8 +2325,6 @@ function syntax(s) {
 }
 function codePane(pane) {
   const n = nodeById(S.sel.node);
-  if (isSb(n)) { sbCodePane(pane, n); return; }
-  if (flow()?.storybook) { pane.append(h('p', { class: 'hint' }, 'Story auswählen – hier stehen ihr Stories-File, die Komponente und die Datei des gewählten Elements.')); return; }
   const ref = n?.type === 'screen' ? S.sel.variant || n.ref : null;
   if (!ref) {
     pane.append(h('p', { class: 'hint' }, 'Screen auswählen – hier steht sein Code: das Screen-Modul aus Komponenten des Design Systems und seine Zustände als Stories.'));
@@ -2484,7 +2447,6 @@ function variantInspector(pane, n, ref) {
 // ---------- Lücken als Karten am Ort ----------
 function gapsOf(f) {
   const out = [];
-  if (f?.storybook) return out;
   const slots = {};
   for (const iss of f.issues || []) {
     const n = nodeById(iss.ref);
@@ -2546,7 +2508,7 @@ function selectionCenter() {
 }
 function openMenu(cx, cy) {
   const n = nodeById(S.sel.node);
-  if (!n || (n.type !== 'screen' && !isSb(n)) || S.mode !== 'design') return;
+  if (!n || n.type !== 'screen' || S.mode !== 'design') return;
   const pad = 200;
   S.menu = { x: Math.max(pad, Math.min(innerWidth - pad, cx)), y: Math.max(pad - 30, Math.min(innerHeight - pad + 30, cy)), open: null };
   renderMenu();
@@ -2604,7 +2566,6 @@ function reviewItems(subject) {
 }
 function menuItems() {
   const { n, hit } = selected();
-  if (isSb(n)) return sbMenuItems(n, hit);
   const f = flow();
   const title = n.title || n.id;
   const elInfo = hit && hit.parent && !S.sel.variant ? ` – mit Fokus auf ${hit.node.id} <${hit.node.name}>` : '';
@@ -2676,433 +2637,6 @@ function renderMenu() {
 }
 addEventListener('pointerdown', e => { if (S.menu && !e.target.closest?.('#radial')) closeMenu(); }, true);
 
-// ---------- Storybook als Renderer ----------
-// Das Storybook-Brett zeigt die Stories des Projekts als Frames – gerendert von Storybook
-// selbst (mit Decorators, Providern und Styles des Projekts). Nichts wird migriert: Args
-// lassen sich live ändern, Komponenten auswählen und prüfen; Änderungen am Code macht Claude.
-const SB_GAP_X = 90;
-const SB_GAP_Y = 70;
-const SB_PER_ROW = 8;
-const SB_COMP_W = 360;
-const leaf = t => String(t || '').split('/').pop().trim();
-const sbKey = () => `wireflow-sb:${S.data?.project?.name || location.port}`;
-function sbLoadPrefs() {
-  try {
-    const d = JSON.parse(localStorage.getItem(sbKey()) || '{}');
-    S.sb.pins = new Set(Array.isArray(d.pins) ? d.pins : []);
-    S.sb.pos = d.pos && typeof d.pos === 'object' ? d.pos : {};
-  } catch { /* privat */ }
-}
-function sbSavePrefs() {
-  try { localStorage.setItem(sbKey(), JSON.stringify({ pins: [...S.sb.pins], pos: S.sb.pos })); } catch { /* privat */ }
-}
-async function loadSb(refresh = false) {
-  let d;
-  try { d = await api(`/api/storybook${refresh ? '?refresh=1' : ''}`); } catch { return; }
-  const first = !S.sb.loaded;
-  const before = S.sb.flow?.nodes.length || 0;
-  Object.assign(S.sb, { status: d.status, url: d.url, base: d.base || '', hash: d.hash, hint: d.hint || '', dirs: d.dirs || [], groups: d.groups || [], loaded: true });
-  if (first) sbLoadPrefs();
-  S.sb.flow = sbFlow();
-  if (S.flowId === SB) {
-    if (!before && S.sb.flow.nodes.length) S.fitted = false;
-    validateSelection();
-    renderAll();
-  } else if (S.data) renderTop();
-}
-const sbH = (id, kind) => S.frames.get(id)?.h || (kind === 'component' ? 160 : VH());
-function sbNode(g, s, kind, x, y, w) {
-  const id = `sb:${s.id}`;
-  const o = S.sb.pos[id];
-  return { id, type: 'story', story: s.id, kind, group: g.title, file: g.file, component: g.component, name: s.name, exportName: s.exportName, title: `${leaf(g.title)} · ${s.name}`, x: o ? o.x : x, y: o ? o.y : y, w };
-}
-// Screens nebeneinander (je Komponente eine Spalte, ihre Zustände darunter), Komponenten-Stories darunter.
-function sbFlow() {
-  const nodes = [];
-  const screens = S.sb.groups.filter(g => g.screen);
-  const comps = S.sb.groups.filter(g => !g.screen);
-  const W = VW();
-  let x = 0;
-  let y = 0;
-  let col = 0;
-  let band = 0;
-  for (const g of screens) {
-    if (col === SB_PER_ROW) { col = 0; x = 0; y += band + SB_GAP_Y * 1.5; band = 0; }
-    let yy = y;
-    for (const s of g.stories) {
-      nodes.push(sbNode(g, s, 'screen', x, yy, W));
-      yy += sbH(`sb:${s.id}`, 'screen') + SB_GAP_Y;
-    }
-    band = Math.max(band, yy - y);
-    x += W + SB_GAP_X;
-    col++;
-  }
-  const list = screens.length
-    ? comps.flatMap(g => g.stories.filter(s => S.sb.pins.has(s.id)).map(s => [g, s]))
-    : comps.slice(0, 8).flatMap(g => g.stories.slice(0, 4).map(s => [g, s]));
-  if (list.length) {
-    y += screens.length ? band + SB_GAP_Y : 0;
-    let title = null;
-    let row = 0;
-    for (const [g, s] of list) {
-      if (title !== g.title) { if (title !== null) y += row + SB_GAP_Y; title = g.title; x = 0; row = 0; }
-      nodes.push(sbNode(g, s, 'component', x, y, SB_COMP_W));
-      x += SB_COMP_W + SB_GAP_X / 2;
-      row = Math.max(row, sbH(`sb:${s.id}`, 'component') + 30);
-    }
-  }
-  return { id: SB, title: 'Storybook', storybook: true, nodes, edges: [], entry: null, issues: [], knowledge: null };
-}
-let sbRelayoutTimer = 0;
-function sbRelayoutSoon() {
-  clearTimeout(sbRelayoutTimer);
-  sbRelayoutTimer = setTimeout(() => {
-    if (S.flowId !== SB || S.drag) return;
-    S.sb.flow = sbFlow();
-    if (S.mode === 'design') renderCanvas();
-  }, 80);
-}
-function sbMoved(id, pos) {
-  S.sb.pos[id] = { x: pos.x, y: pos.y };
-  sbSavePrefs();
-  S.sb.flow = sbFlow();
-  renderCanvas();
-}
-function sbOpen(storyId) {
-  const id = `sb:${storyId}`;
-  if (!nodeById(id)) {
-    S.sb.pins.add(storyId);
-    sbSavePrefs();
-    S.sb.flow = sbFlow();
-    renderCanvas();
-  }
-  select({ node: id });
-  setTimeout(() => centerOn(id), 60);
-}
-function sbUnpin(storyId) {
-  S.sb.pins.delete(storyId);
-  delete S.sb.pos[`sb:${storyId}`];
-  sbSavePrefs();
-  if (S.sel.node === `sb:${storyId}`) S.sel = { node: null, el: null, edge: null, variant: null };
-  S.sb.flow = sbFlow();
-  renderAll();
-}
-// Komponentenbaum aus dem Frame (React) – als Baum wie bei Screen-Modulen.
-function sbScreen(n) {
-  const fr = n && S.frames.get(n.id);
-  const t = fr?.sbTree;
-  const tree = !t ? null : t.length === 1 ? t[0] : { id: '', name: leaf(n.group), text: '', props: [], children: t };
-  return { tree, stories: [], component: n ? leaf(n.group) : '', lint: { warnings: [], errors: [] }, sb: true };
-}
-const sbSig = t => JSON.stringify(t, (k, v) => (k === 'text' || k === 'props' ? undefined : v));
-function sbTreeArrived(fr, tree) {
-  const sig = sbSig(tree);
-  fr.sbTree = tree;
-  if (sig === fr.sbSig) return;
-  fr.sbSig = sig;
-  if (S.sel.node === fr.id) {
-    if (S.sel.el && !findEl(sbScreen(nodeById(fr.id)).tree, S.sel.el)) S.sel.el = null;
-    renderLeft();
-    if (S.rightTab !== 'chat') renderRight();
-  }
-}
-const sbSrc = src => (!src ? '' : src.startsWith('/') ? src : `${S.sb.base ? `${S.sb.base.replace(/\/$/, '')}/` : ''}${src}`);
-const sbLink = id => (S.sb.url ? `${S.sb.url}/?path=/story/${encodeURIComponent(id)}` : null);
-function sbEl(n) {
-  if (!S.sel.el) return null;
-  const hit = findEl(sbScreen(n).tree, S.sel.el);
-  return hit ? hit.node : null;
-}
-function sbSelection() {
-  const n = nodeById(S.sel.node);
-  const fr = n && S.frames.get(n.id);
-  const el = isSb(n) ? sbEl(n) : null;
-  return {
-    flow: 'storybook',
-    modus: S.mode,
-    storybook: S.sb.url,
-    knoten: n?.id || null,
-    titel: n?.title || null,
-    story: isSb(n) ? { id: n.story, gruppe: n.group, name: n.name, export: n.exportName || null, datei: n.file, komponente: n.component, args: fr?.sbInfo?.args || null, link: sbLink(n.story) } : null,
-    element: el ? { id: el.id, komponente: el.name, text: el.text || null, quelle: sbSrc(el.src) || null, props: Object.fromEntries((el.props || []).map(p => [p.name, p.raw])) } : null,
-  };
-}
-function sbMeta(n) {
-  const el = sbEl(n);
-  const out = { flow: 'storybook', titel: n.title, story: n.story, datei: n.file || '', element: el?.id || '', komponente: el?.name || '', quelle: sbSrc(el?.src) };
-  return Object.fromEntries(Object.entries(out).filter(([, v]) => v));
-}
-function updateStory(n) {
-  const fr = S.frames.get(n.id);
-  fr.sb = n.story;
-  fr.kind = n.kind;
-  fr.w = n.w;
-  fr.ref = '';
-  if (n.kind === 'component' && !fr.sized) { fr.sized = true; fr.h = 160; }
-  fill(fr.title,
-    h('b', {}, leaf(n.group)),
-    h('span', { class: 'tag', title: `Story ${n.story}` }, n.name),
-    fr.failed ? h('span', { class: 'tag bad', title: fr.sbError || 'Fehler in der Story' }, 'Fehler') : null,
-    h('button', {
-      type: 'button',
-      class: 'fmenu',
-      title: 'Aktionen: Varianten, Zustände, Review (Rechtsklick oder Taste .)',
-      'aria-label': `Aktionen für ${n.title}`,
-      onpointerdown: ev => ev.stopPropagation(),
-      onclick: ev => {
-        const r = ev.currentTarget.getBoundingClientRect();
-        select({ node: n.id });
-        openMenu(r.left + r.width / 2, r.bottom + 120);
-      },
-    }, '✦'),
-  );
-  fr.el.classList.add('story');
-  fr.el.classList.toggle('comp', n.kind === 'component');
-  fr.box.style.width = `${n.w}px`;
-  fr.box.style.height = `${fr.h}px`;
-  ensureIframe(fr);
-}
-function updateNode(n) {
-  if (isSb(n)) updateStory(n);
-  else updateScreen(n);
-}
-function sbSetArgs(fr, args) {
-  if (fr.sbInfo) fr.sbInfo.args = { ...fr.sbInfo.args, ...args };
-  fr.iframe?.contentWindow?.postMessage({ wf: 1, type: 'sbArgs', args }, location.origin);
-}
-
-// Linke Spalte: Komponentenbaum der Story und die Stories wie in der Storybook-Seitenleiste.
-function sbLayers(pane) {
-  const n = nodeById(S.sel.node);
-  if (isSb(n)) {
-    const scr = sbScreen(n);
-    pane.append(h('div', { class: 'grp' }, leaf(n.group), h('em', {}, n.name)));
-    if (!scr.tree) pane.append(h('p', { class: 'hint' }, 'Komponentenbaum wird gelesen …'));
-    else {
-      const items = [];
-      walkTree(scr.tree, (el, depth) => {
-        if (!el.id) return;
-        const sp = spec(el.name);
-        items.push(h('li', {}, h('button', {
-          type: 'button',
-          'aria-current': String(S.sel.el === el.id),
-          style: `padding-left:${6 + depth * 14}px`,
-          title: sbSrc(el.src) || '',
-          onclick: () => select({ node: n.id, el: el.id }),
-          onmouseenter: () => { S.hover = { node: n.id, el: el.id }; renderOverlays(); },
-          onmouseleave: () => { S.hover = null; renderOverlays(); },
-        }, h('span', { class: 'ico' }, el.children.length ? '▤' : '◇'), h('span', { class: 'nm' }, el.name), el.text ? h('span', { class: 'tx' }, el.text) : null, sp ? h('em', { title: `Komponente aus ${S.data.ds.name || 'dem Design System'}` }, 'DS') : null)));
-      });
-      pane.append(h('ul', { class: 'tree' }, ...items));
-      pane.append(h('p', { class: 'hint' }, 'Live aus React, so wie Storybook die Story rendert. Ändern: Args rechts oder Claude (Rechtsklick).'));
-    }
-  }
-  const screens = S.sb.groups.filter(g => g.screen);
-  const comps = S.sb.groups.filter(g => !g.screen);
-  const item = (s, onBoard, pinned) => h('li', { class: 'sbi' },
-    h('button', {
-      type: 'button',
-      'aria-current': String(S.sel.node === `sb:${s.id}` && !S.sel.el),
-      title: onBoard ? s.id : 'Auf den Canvas holen',
-      onclick: () => sbOpen(s.id),
-    }, h('span', { class: 'ico' }, onBoard ? '▢' : '+'), h('span', { class: 'nm' }, s.name), s.tags.length ? h('em', {}, s.tags.join(' · ')) : null),
-    pinned ? h('button', { type: 'button', class: 'unpin', title: 'Vom Canvas nehmen', 'aria-label': `${s.name} vom Canvas nehmen`, onclick: () => sbUnpin(s.id) }, '×') : null);
-  const block = (label, groups, note) => {
-    if (!groups.length) return;
-    pane.append(h('div', { class: 'grp' }, label, h('em', {}, note)));
-    pane.append(h('ul', { class: 'tree sbtree' }, ...groups.flatMap(g => [
-      h('li', { class: 'sbg', title: g.file || '' }, g.title),
-      ...g.stories.map(s => item(s, !!nodeById(`sb:${s.id}`), !g.screen && S.sb.pins.has(s.id))),
-    ])));
-  };
-  if (S.sb.status !== 'verbunden') { pane.append(h('p', { class: 'hint' }, S.sb.hint || 'Suche Storybook …')); return; }
-  block('Screens', screens, `${screens.reduce((k, g) => k + g.stories.length, 0)} Stories`);
-  block('Komponenten', comps, screens.length ? '+ holt sie her' : `${comps.reduce((k, g) => k + g.stories.length, 0)} Stories`);
-}
-
-// Rechte Spalte: Story (Args live), Element (Props | Style), Übersicht.
-function sbBoardInspector(pane) {
-  pane.append(h('div', { class: 'ihead' }, h('h2', {}, 'Storybook'), h('code', {}, S.sb.url || 'nicht verbunden')));
-  if (S.sb.status !== 'verbunden') {
-    pane.append(h('p', { class: 'hint' }, S.sb.hint || 'Suche Storybook …'));
-    pane.append(h('div', { class: 'btns' }, btn('Erneut suchen', () => loadSb(true))));
-    return;
-  }
-  const screens = S.sb.groups.filter(g => g.screen);
-  const states = screens.reduce((k, g) => k + g.stories.length, 0);
-  const pinned = flow().nodes.filter(x => x.kind === 'component').length;
-  pane.append(h('div', { class: 'grp' }, 'Auf dem Canvas'), h('p', { class: 'hint' }, `${screens.length} Screens mit ${states} Zuständen${pinned ? ` · ${pinned} Komponenten-Stories` : ''}. Gerendert von Storybook selbst – mit euren Decorators, Providern und Styles. Nichts wird migriert.`));
-  pane.append(h('div', { class: 'grp' }, 'So arbeitest du hier'), h('ul', { class: 'hint steps' },
-    h('li', {}, 'Story anklicken: Args live ändern wie in den Controls und von Claude in den Code übernehmen lassen.'),
-    h('li', {}, 'Element anklicken: Komponente, Props, Style-Tokens und Kontrast.'),
-    h('li', {}, 'Rechtsklick: Varianten, Zustände und Reviews durch Claude – als neue Stories.')));
-  pane.append(h('div', { class: 'grp' }, 'Screens erkennen'), h('p', { class: 'hint' }, 'Als Screens gelten Titel wie „Screens/…“ oder „Pages/…“ und Stories aus Ordnern wie screens/ oder pages/. Anpassen in .wireflow/project.json: ', h('code', {}, '"storybook": { "screens": ["Bereich/"] }'), '.'));
-  pane.append(h('div', { class: 'btns' }, h('a', { class: 'btn', href: S.sb.url, target: '_blank', rel: 'noopener' }, 'Storybook öffnen ↗'), btn('Neu laden', () => loadSb(true))));
-}
-function sbStoryInspector(pane, n) {
-  const fr = S.frames.get(n.id);
-  const info = fr?.sbInfo;
-  pane.append(h('div', { class: 'ihead' },
-    h('h2', {}, leaf(n.group), h('span', { class: 'hsub' }, ` · ${n.name}`)),
-    h('code', {}, n.file || n.story),
-    h('span', { class: 'tag' }, 'Storybook')));
-  if (n.component) pane.append(h('p', { class: 'hint' }, 'Komponente: ', h('code', {}, n.component)));
-  if (fr?.failed) pane.append(h('p', { class: 'sberr' }, fr.sbError || 'Die Story wirft einen Fehler – Details im Storybook.'));
-  pane.append(h('div', { class: 'grp' }, 'Args', h('em', {}, 'live, wie die Controls')));
-  if (!info) { pane.append(h('p', { class: 'hint' }, 'Story wird geladen …')); return; }
-  const names = Object.keys(info.argTypes).filter(k => !info.argTypes[k].action);
-  for (const k of Object.keys(info.args || {})) if (!names.includes(k) && !info.argTypes[k]?.action) names.push(k);
-  if (!names.length) pane.append(h('p', { class: 'hint' }, 'Diese Story hat keine Args.'));
-  for (const k of names) pane.append(sbArgRow(fr, k, info.argTypes[k] || {}, info.args?.[k], info.initialArgs?.[k]));
-  const changed = names.filter(k => JSON.stringify(info.args?.[k]) !== JSON.stringify(info.initialArgs?.[k]));
-  if (changed.length) {
-    const diff = Object.fromEntries(changed.map(k => [k, info.args?.[k]]));
-    pane.append(h('p', { class: 'hint' }, `${changed.length} ${changed.length === 1 ? 'Arg' : 'Args'} geändert – nur im Canvas, die Story-Datei ist unverändert.`));
-    pane.append(h('div', { class: 'btns' },
-      btn('In Code übernehmen', () => askClaude(`Übernimm diese Args in die Storybook-Story „${n.title}“ (Datei ${n.file}, Export ${n.exportName || n.name}, ID ${n.story}): ${JSON.stringify(diff)}. Ändere nur die args dieser Story, sonst nichts, und sag kurz per canvas_reply Bescheid.`, 'auftrag'), false, 'pri'),
-      btn('Zurücksetzen', () => fr.iframe?.contentWindow?.postMessage({ wf: 1, type: 'sbReset' }, location.origin))));
-  }
-  pane.append(h('div', { class: 'btns' }, sbLink(n.story) ? h('a', { class: 'btn', href: sbLink(n.story), target: '_blank', rel: 'noopener' }, 'In Storybook öffnen ↗') : null));
-}
-function sbArgRow(fr, name, at, value, initial) {
-  const key = `sbarg:${name}`;
-  const set = v => sbSetArgs(fr, { [name]: v });
-  const changed = JSON.stringify(value) !== JSON.stringify(initial);
-  const label = h('label', { for: key, title: at.description || at.type || '' }, name, at.required ? h('span', { class: 'req' }, ' *') : null, changed ? h('span', { class: 'chg', title: 'Geändert gegenüber der Story' }, ' ●') : null);
-  let ctl;
-  const opts = at.options;
-  if (value && typeof value === 'object' && value.$wf === 'element') ctl = h('span', { class: 'code', title: 'React-Element – im Code ändern' }, `‹${value.name}›`);
-  else if (opts && opts.length <= 5 && opts.join('').length <= 34) {
-    ctl = h('div', { class: 'segctl', role: 'group', id: key, 'aria-label': name }, ...opts.map(o => h('button', {
-      type: 'button', 'aria-pressed': String(value !== undefined && String(value) === o), onclick: () => set(o),
-    }, o)));
-  } else if (opts) {
-    ctl = h('select', { id: key, 'data-key': key, onchange: ev => set(ev.target.value) }, ...opts.map(o => h('option', { value: o, selected: String(value) === o }, o)));
-  } else if (at.type === 'boolean' || at.control === 'boolean' || typeof value === 'boolean') {
-    const on = value === true;
-    ctl = h('button', { type: 'button', role: 'switch', class: 'switch', id: key, 'aria-checked': String(on), 'aria-label': name, onclick: () => set(!on) }, h('i'));
-  } else if (at.type === 'number' || at.control === 'number' || at.control === 'range' || typeof value === 'number') {
-    ctl = h('input', { type: 'number', id: key, 'data-key': key });
-    ctl.value = value === undefined ? '' : String(value);
-    ctl.addEventListener('change', () => set(ctl.value === '' ? undefined : Number(ctl.value)));
-    ctl.addEventListener('keydown', e => { if (e.key === 'Enter') ctl.blur(); });
-  } else if (value === undefined || typeof value === 'string') {
-    ctl = h('input', { type: 'text', id: key, 'data-key': key, placeholder: 'Nicht gesetzt' });
-    ctl.value = value ?? '';
-    ctl.addEventListener('change', () => set(ctl.value));
-    ctl.addEventListener('keydown', e => { if (e.key === 'Enter') ctl.blur(); });
-  } else {
-    ctl = h('textarea', { id: key, 'data-key': key, rows: '3', title: 'JSON' });
-    ctl.value = JSON.stringify(value);
-    ctl.addEventListener('change', () => { try { set(JSON.parse(ctl.value)); } catch { toast('Kein gültiges JSON', 'bad'); } });
-  }
-  if (ctl.classList?.contains('segctl')) return h('div', { class: 'row stack' }, h('div', { class: 'rlabel' }, label), ctl);
-  return h('div', { class: 'row' }, label, h('div', { class: 'ctl' }, ctl));
-}
-function sbElementInspector(pane, n) {
-  const el = sbEl(n);
-  if (!el) { sbStoryInspector(pane, n); return; }
-  const sp = spec(el.name);
-  const path = [];
-  for (let id = el.id; id; id = id.includes('/') ? id.slice(0, id.lastIndexOf('/')) : '') path.unshift(id.slice(id.lastIndexOf('/') + 1).replace(/\.\d+$/, ''));
-  pane.append(h('div', { class: 'ihead' },
-    h('h2', {}, el.name, el.text ? h('span', { class: 'hsub' }, ` · ${el.text.length > 26 ? `${el.text.slice(0, 25)}…` : el.text}`) : null),
-    h('code', { title: el.id }, path.join(' › ')),
-    sp ? h('span', { class: 'tag ok' }, S.data.ds.name || 'DS') : h('span', { class: 'tag' }, 'Komponente')));
-  if (sp?.description) pane.append(h('p', { class: 'hint' }, sp.description));
-  pane.append(h('div', { class: 'seg elseg', role: 'tablist', 'aria-label': 'Props oder Style' }, ...[['props', 'Props'], ['style', 'Style']].map(([id, label]) => h('button', {
-    type: 'button', role: 'tab', 'aria-selected': String(S.elTab === id), 'aria-pressed': String(S.elTab === id),
-    onclick: () => { S.elTab = id; renderRight(); },
-  }, label))));
-  const fr = S.frames.get(n.id);
-  if (S.elTab === 'style') {
-    const b = fr?.boxes?.[el.id];
-    pane.append(h('div', { class: 'grp' }, 'Größe', h('em', {}, b ? `${b[2]} × ${b[3]} px` : '–')));
-    const look = computedLook(fr, el.id);
-    pane.append(h('div', { class: 'grp' }, 'Aussehen', h('em', {}, `Tokens aus ${S.data.ds.name || 'dem Design System'}`)));
-    if (!look) pane.append(h('p', { class: 'hint' }, 'Wird gelesen …'));
-    else {
-      pane.append(h('div', { class: 'looks' }, ...look.rows.map(lookRow)));
-      if (look.contrast) {
-        const ok = look.contrast.ratio >= look.contrast.need;
-        pane.append(h('div', { class: `contrast ${ok ? 'ok' : 'bad'}` },
-          h('b', {}, `Kontrast ${look.contrast.ratio.toFixed(2).replace('.', ',')} : 1`),
-          h('span', {}, ok ? `erfüllt WCAG AA (${look.contrast.need.toString().replace('.', ',')} : 1${look.contrast.large ? ', großer Text' : ''})` : `zu gering – braucht ${look.contrast.need.toString().replace('.', ',')} : 1`)));
-      }
-      if (look.untokened) pane.append(h('p', { class: 'hint' }, `${look.untokened} Wert${look.untokened === 1 ? '' : 'e'} ohne Token.`));
-    }
-  } else {
-    pane.append(h('div', { class: 'grp' }, 'Props', h('em', {}, 'wie gerendert')));
-    if (!el.props?.length) pane.append(h('p', { class: 'hint' }, 'Keine Props.'));
-    for (const p of el.props || []) pane.append(h('div', { class: 'row' }, h('label', { title: p.name }, p.name), h('div', { class: 'ctl' }, h('span', { class: 'code', title: p.raw }, p.raw))));
-    if (el.src) pane.append(h('p', { class: 'hint' }, 'Im Code: ', h('code', {}, sbSrc(el.src))));
-  }
-  const inp = h('textarea', { class: 'ask', rows: '2', 'data-key': 'sb:ask', placeholder: `Was soll sich an ${el.name} ändern?` });
-  const go = () => {
-    const t = inp.value.trim();
-    if (!t) return;
-    askClaude(`${t}\n\nGemeint ist <${el.name}> (${el.id}) in der Storybook-Story „${n.title}“ (Datei ${n.file}${el.src ? `, Element entsteht in ${sbSrc(el.src)}` : ''}). Ändere den Code des Projekts, nutze Komponenten und Tokens des Design Systems und antworte kurz per canvas_reply.`, 'auftrag');
-  };
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); go(); } });
-  pane.append(h('div', { class: 'grp' }, 'Ändern', h('em', {}, 'durch Claude')), inp, h('div', { class: 'btns' }, btn('An Claude', go, false, 'pri')));
-}
-function sbCodePane(pane, n) {
-  const el = sbEl(n);
-  const files = [];
-  if (el?.src && !el.src.startsWith('/')) files.push(['Element', sbSrc(el.src)]);
-  if (n.file) files.push(['Story', n.file]);
-  if (n.component) files.push(['Komponente', n.component]);
-  const seen = new Set();
-  const list = files.filter(([, f]) => (seen.has(f) ? false : seen.add(f)));
-  if (!list.length) { pane.append(h('p', { class: 'hint' }, 'Für diese Story ist keine Datei bekannt.')); return; }
-  const cur = list.find(([, f]) => f === S.sb.file)?.[1] || list[0][1];
-  const key = `file:${cur}@${Math.floor(Date.now() / 4000)}`;
-  const d = S.codeCache.get(key);
-  if (!d) {
-    pane.append(h('p', { class: 'hint' }, 'Lade Code …'));
-    api(`/api/file?path=${encodeURIComponent(cur)}`).then(x => { S.codeCache.set(key, x); if (S.rightTab === 'code') renderRight(); }).catch(e => toast(e.message, 'bad'));
-    return;
-  }
-  const mark = el && cur === sbSrc(el.src) ? new RegExp(`<${el.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`) : null;
-  const pre = h('pre', { class: 'codeview', tabindex: '0', 'aria-label': `Quelltext ${cur}` });
-  d.source.split('\n').forEach((line, i) => {
-    const row = document.createElement('div');
-    row.className = `cl${mark && mark.test(line) ? ' on' : ''}`;
-    row.innerHTML = `<span class="ln">${i + 1}</span>${syntax(esc(line)) || ' '}`;
-    pre.append(row);
-  });
-  pane.append(
-    h('div', { class: 'ihead' }, h('code', {}, cur)),
-    list.length > 1 ? h('div', { class: 'seg sub', role: 'group', 'aria-label': 'Datei' }, ...list.map(([l, f]) => h('button', { type: 'button', 'aria-pressed': String(f === cur), title: f, onclick: () => { S.sb.file = f; renderRight(); } }, l))) : null,
-    pre,
-    h('p', { class: 'hint' }, 'Code des Projekts, wie Storybook ihn rendert. Änderungen (auch durch Claude) erscheinen über Storybook sofort im Frame.'),
-  );
-  requestAnimationFrame(() => pre.querySelector('.cl.on')?.scrollIntoView({ block: 'center' }));
-}
-function sbMenuItems(n, hit) {
-  const where = `Storybook-Story „${n.title}“ (ID ${n.story}, Datei ${n.file}${n.component ? `, Komponente ${n.component}` : ''})`;
-  const el = hit && hit.node.id && hit.parent ? hit.node : null;
-  const elInfo = el ? ` – mit Fokus auf <${el.name}> (${el.id}${el.src ? `, entsteht in ${sbSrc(el.src)}` : ''})` : '';
-  const ask = (text, kind) => () => askClaude(text, kind);
-  const toCode = () => { S.rightTab = 'code'; renderRight(); };
-  const toChat = () => {
-    S.rightTab = 'chat';
-    S.chat.attach = true;
-    S.chat.unread = 0;
-    renderRight();
-    setTimeout(() => $('#right [data-key="chat:input"]')?.focus(), 30);
-  };
-  const variants = mode => `Erzeuge 2 Varianten der ${where}${elInfo} im Modus ${MODE_LABEL[mode]}: ${MODE_HINT[mode]} Lege jede Variante als neue Story im selben Stories-File an (z. B. ${n.exportName || 'Story'}Variante1). Braucht eine Variante einen anderen Aufbau, kopiere die Komponente daneben (z. B. Name.variante-1.tsx) und lass das Original unverändert. Nenne den Unterschied je Variante in einem Satz per canvas_reply.`;
-  return [
-    { id: 'variants', label: 'Varianten', icon: '▦', angle: -90, sub: ['strict', 'guided', 'free'].map(mode => ({ label: MODE_LABEL[mode], title: MODE_HINT[mode], run: ask(variants(mode), 'varianten') })) },
-    { id: 'next', label: 'Weiter', icon: '→', angle: -30, sub: [{ label: '+ Nächster Screen', run: ask(`Entwirf den Screen, der auf die ${where}${elInfo} folgt: neue Komponente mit Story in derselben Gruppe, aus Komponenten des Design Systems und mit realistischen Args. Sag per canvas_reply, welche Datei und Story entstanden sind.`, 'weiter') }] },
-    { id: 'states', label: 'Zustände', icon: '◫', angle: 30, sub: ['Leer', 'Fehler', 'Laden', 'Erstnutzung', 'Offline'].map(z => ({ label: z, run: ask(`Lege für die ${where} den Zustand „${z}“ als neue Story im selben Stories-File an – passend zu den Patterns des Design Systems und mit realistischen Args. Ändere die Komponente nur, wenn sich der Zustand sonst nicht zeigen lässt, und sag kurz per canvas_reply, was er zeigt.`, 'zustand') })) },
-    { id: 'code', label: 'Code', icon: '</>', angle: 90, run: toCode },
-    { id: 'chat', label: 'Chat', icon: '✦', angle: 150, run: toChat },
-    { id: 'review', label: 'Review', icon: '◎', angle: 210, sub: reviewItems(`„${n.title}“ (Storybook-Story ${n.story}, Datei ${n.file})${elInfo}`) },
-  ];
-}
-
 // ---------- Kopf, Status, Modus ----------
 // Darstellung des Werkzeugs: wie das System, dunkel oder hell (wie im Click-Dummy)
 const THEMES = ['auto', 'dark', 'light'];
@@ -3142,28 +2676,15 @@ function renderTop() {
   darkBtn.hidden = !(S.data.ds.modes || []).includes('dark');
   if (darkBtn.hidden && S.fid === 'dark') S.fid = 'hifi';
   const sel = $('#flowSel');
-  const sbCount = S.sb.groups.reduce((k, g) => k + g.stories.length, 0);
-  const sbOpt = S.sb.status === 'verbunden' || S.sb.dirs.length || S.flowId === SB
-    ? `<option value="${SB}"${S.flowId === SB ? ' selected' : ''}>${S.sb.status === 'verbunden' ? `Storybook · ${sbCount} ${sbCount === 1 ? 'Story' : 'Stories'}` : 'Storybook (läuft nicht)'}</option>`
-    : '';
-  const opts = S.data.flows.map(f => `<option value="${esc(f.id)}"${f.id === S.flowId ? ' selected' : ''}>${esc(f.title || f.id)}</option>`).join('') + sbOpt;
+  const opts = S.data.flows.map(f => `<option value="${esc(f.id)}"${f.id === S.flowId ? ' selected' : ''}>${esc(f.title || f.id)}</option>`).join('');
   if (sel.innerHTML !== opts) sel.innerHTML = opts || '<option>Kein Flow</option>';
   sel.disabled = !opts;
-  document.querySelectorAll('[data-fid]').forEach(b => { b.disabled = S.flowId === SB; b.title = S.flowId === SB ? 'Storybook-Stories rendert Storybook selbst – mit euren Decorators und Styles' : b.dataset.fid === 'dark' ? 'Screens im Dunkelmodus des Design Systems' : ''; });
   document.querySelectorAll('[data-fid]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.fid === S.fid)));
 }
 function renderStatus() {
   const d = S.data;
   const f = flow();
   const hints = { design: 'Rechtsklick oder .: Kontextmenü · Titel ziehen: verschieben · Fläche ziehen: schwenken · ⌘/Strg+Scrollen: zoomen · 0: alles zeigen', prototype: 'Variablen rechts steuern die Entscheidungen', journey: 'Plus zwischen Schritten: einfügen · Doppelklick: umbenennen · ⌥+Pfeile: verschieben · ⌘Z: rückgängig', knowledge: 'Annahmen nach Risiko sortiert' };
-  if (f?.storybook) {
-    const stories = S.sb.groups.reduce((k, g) => k + g.stories.length, 0);
-    fill($('#status'),
-      h('span', {}, S.sb.status === 'verbunden' ? `Storybook ${S.sb.url.replace(/^https?:\/\//, '')}` : 'Storybook läuft nicht'),
-      h('span', {}, `${stories} Stories · ${S.sb.groups.filter(g => g.screen).length} Screens · ${f.nodes.length} auf dem Canvas`),
-      h('span', { class: 'sp' }, 'Klick: Story oder Komponente wählen · Args rechts ändern die Story live · Rechtsklick oder .: Kontextmenü'));
-    return;
-  }
   fill($('#status'), 
     h('span', {}, `${d.ds.name || 'Design System'} ${d.ds.version || ''} · ${d.ds.components.length} Komponenten · ${d.ds.patterns.length} Patterns`),
     h('span', {}, `${Object.keys(d.screens).length} Screens · ${d.flows.length} Flow(s)`),
@@ -3192,11 +2713,6 @@ function setMode(m) {
   $('#proto').hidden = m !== 'prototype';
   $('#doc').hidden = !(m === 'journey' || m === 'knowledge');
   stage.querySelector(':scope > .empty')?.toggleAttribute('hidden', m !== 'design');
-  if (m === 'prototype' && S.flowId === SB) {
-    S.flowId = S.data.flows[0]?.id || null;
-    S.sel = { node: null, el: null, edge: null, variant: null };
-    toast('Der Prototyp läuft über Flows – Storybook-Stories haben noch keine Verbindungen.', 'warn');
-  }
   if (m === 'prototype' && (S.proto.flowId !== S.flowId || !nodeById(S.proto.node))) protoStart();
   renderAll();
   syncSelection();
@@ -3267,8 +2783,6 @@ async function init() {
     return;
   }
   S.flowId = S.data.flows[0]?.id || null;
-  await loadSb();
-  if ((!S.data.flows.length || new URLSearchParams(location.search).get('board') === 'storybook') && (S.sb.status === 'verbunden' || S.sb.dirs.length)) S.flowId = SB;
   try {
     const c = await api('/api/chat');
     Object.assign(S.chat, { connected: !!c.connected, channel: !!c.channel, messages: c.messages || [] });

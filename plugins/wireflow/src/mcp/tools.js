@@ -11,7 +11,6 @@ import { applyFlowOp } from '../core/flows.js';
 import { initProject } from '../core/init.js';
 import { walk, getAttr, textOf, findById } from '../core/jsx.js';
 import { createBridge } from './bridge.js';
-import { storybookStatus } from '../core/storybook.js';
 import { journeyGaps } from '../core/journey.js';
 import { saveJourney } from '../core/journeys.js';
 
@@ -363,20 +362,11 @@ export const TOOLS = [
   },
   {
     name: 'canvas_selection',
-    description: 'Was die Person gerade im Canvas ausgewählt hat (Screen, Element, Modus – im Storybook-Brett: Story mit Datei, Args und Element mit Quelldatei). Für Aufträge wie „ändere das Ausgewählte“.',
+    description: 'Was die Person gerade im Canvas ausgewählt hat (Screen, Element, Modus). Für Aufträge wie „ändere das Ausgewählte“.',
     inputSchema: obj({}),
     run: () => {
       const m = model();
       return readJson(path.join(m.wf, '.canvas-state.json'), { auswahl: null, hinweis: 'Im Canvas ist nichts ausgewählt.' });
-    },
-  },
-  {
-    name: 'storybook_status',
-    description: 'Storybook des Projekts: läuft es (URL), welche Stories gibt es (nach Komponente gruppiert, mit Story-ID, Datei und Komponente) und welche gelten als Screens. Der Canvas zeigt sie im Storybook-Brett ohne Migration. Läuft es nicht: Hinweis, wie es zu starten ist.',
-    inputSchema: obj({}),
-    run: async () => {
-      const m = model();
-      return storybookStatus(m.root, m);
     },
   },
   {

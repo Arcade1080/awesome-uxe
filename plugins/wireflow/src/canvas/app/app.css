@@ -477,16 +477,3 @@ code,.code{font-family:var(--mono);font-size:12px}
 .chathead .via.monitor{color:var(--ok)}
 .chathead .via.hooks,.chathead .via.kanal{color:var(--warn)}
 
-/* Storybook-Brett: Stories als Frames, gerendert von Storybook selbst */
-.sbtree .sbg{margin:8px 0 2px;padding:0 6px;color:var(--muted);font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sbtree .sbi{display:flex;align-items:center}
-.sbtree .sbi>button:first-child{flex:1;min-width:0}
-.sbtree .unpin{flex:none;width:24px;height:24px;padding:0;border:0;border-radius:6px;background:none;color:var(--muted)}
-.sbtree .unpin:hover{background:var(--panel2);color:var(--ink)}
-.chg{color:var(--sel)}
-.steps{margin:4px 0;padding-left:18px}
-.steps li{margin:3px 0}
-.sberr{margin:8px 0;padding:6px 8px;border-radius:7px;background:var(--bad-soft);color:var(--bad)}
-a.btn{text-decoration:none;color:inherit}
-.pane>textarea.ask{display:block;width:100%;resize:vertical;min-height:54px;margin-top:4px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
-.node.story .frame{background:#fff}
