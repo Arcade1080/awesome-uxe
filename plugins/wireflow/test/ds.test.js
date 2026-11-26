@@ -47,3 +47,27 @@ test('Renderer: Provider des Design Systems umschließt jeden Screen und bekommt
     await c.close();
   }
 });
+
+test('Einfügen: Pflicht-Props mit Platzhaltern, Unterkomponenten nur in ihrer Komponente', async () => {
+  const { applyOp } = await import('../src/core/screens.js');
+  const root = tempProject();
+  const mf = path.join(root, '.wireflow', 'ds', 'manifest.json');
+  const man = JSON.parse(fs.readFileSync(mf, 'utf8'));
+  man.components.push(
+    { name: 'Hinweis', props: { title: { type: 'node', required: true }, tone: { type: 'string', enum: ['info', 'warn'], required: true }, items: { type: 'code', ts: 'Item[]', required: true } } },
+    { name: 'Leiste', props: { children: { type: 'node' } } },
+    { name: 'Leiste.Knopf', props: { children: { type: 'node', required: true } } },
+  );
+  fs.writeFileSync(mf, JSON.stringify(man));
+  const ref = 'screens/pruefen.screen.tsx';
+  const root0 = loadProject(root).screens[ref].tree.id;
+  const r = applyOp(loadProject(root), ref, { op: 'insert', component: 'Hinweis', parent: root0 });
+  assert.deepEqual(r.filled.sort(), ['items', 'title', 'tone']);
+  const src = fs.readFileSync(path.join(root, '.wireflow', ref), 'utf8');
+  assert.match(src, /<Hinweis data-wf="[\w-]+" title="Titel" tone="info" items=\{\[\]\} \/>/);
+  assert.throws(() => applyOp(loadProject(root), ref, { op: 'insert', component: 'Leiste.Knopf', parent: root0 }), /gehört in eine <Leiste>/);
+  const l = applyOp(loadProject(root), ref, { op: 'insert', component: 'Leiste', parent: root0 });
+  const k = applyOp(loadProject(root), ref, { op: 'insert', component: 'Leiste.Knopf', parent: l.selected });
+  assert.ok(k.selected);
+  assert.match(fs.readFileSync(path.join(root, '.wireflow', ref), 'utf8'), /<Leiste\.Knopf data-wf="[\w-]+">Knopf<\/Leiste\.Knopf>/);
+});

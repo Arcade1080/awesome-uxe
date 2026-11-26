@@ -96,6 +96,7 @@ async function screenOp(ref, o) {
   try {
     const r = await api('/api/op', { ref, ...o });
     scheduleReload(r.files || [], r.v);
+    if (r.filled?.length) toast(`Pflicht-Props mit Platzhaltern gefüllt: ${r.filled.join(', ')} – bitte rechts anpassen.`, 'warn');
     return r;
   } catch (e) {
     toast(e.message, 'bad');

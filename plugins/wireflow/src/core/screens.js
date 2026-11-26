@@ -44,6 +44,39 @@ function anchoredIndex(parent, after, fallback, skipId) {
   return a >= 0 ? a + 1 : Math.min(fallback ?? kids.length, kids.length);
 }
 
+
+// Pflicht-Props ohne Standardwert bekommen beim Einfügen einen Platzhalter, damit die
+// Komponente rendert. Gibt die gefüllten Namen zurück (für den Hinweis im Canvas).
+const LABELS = { title: 'Titel', label: 'Beschriftung', 'aria-label': 'Beschriftung', description: 'Beschreibung', text: 'Text', heading: 'Überschrift', placeholder: 'Platzhalter', name: 'feld', value: 'wert', datetime: '2026-01-01T09:00:00Z' };
+export function placeholderFor(name, ps, component) {
+  if (ps.default !== undefined) return ps.default;
+  if (ps.enum?.length) return ps.enum[0];
+  if (ps.type === 'boolean') return false;
+  if (ps.type === 'number') return 1;
+  if (ps.type === 'string' || ps.type === 'node') return LABELS[name] || `${component} ${name}`;
+  if (ps.type === 'code' && /\[\]\s*$|Array</.test(ps.ts || '')) return { expr: '[]' };
+  return undefined;
+}
+function fillRequired(n, spec, filled = []) {
+  for (const [k, ps] of Object.entries(spec.props || {})) {
+    if (k === 'children' || !ps.required || n.attrs.some(a => a.name === k)) continue;
+    const v = placeholderFor(k, ps, spec.name);
+    if (v === undefined || v === false) continue;
+    setProp(n, k, v);
+    filled.push(k);
+  }
+  return filled;
+}
+// Unterkomponenten (Name.Teil) gehören in ihre Komponente – sonst fehlt ihr der Kontext.
+function assertInsideParent(root, parentNode, name) {
+  const base = name.includes('.') ? name.split('.')[0] : null;
+  if (!base) return;
+  let inside = false;
+  const visit = (n, anc) => { if (n === parentNode) inside = [...anc, n].some(a => a.name === base || a.name.startsWith(`${base}.`)); else n.children?.forEach(c => c.type === 'el' && visit(c, [...anc, n])); };
+  visit(root, []);
+  if (!inside) throw new Error(`${name} gehört in eine <${base}> – dort einfügen oder <${base}> verwenden.`);
+}
+
 export function applyOp(model, ref, op) {
   const file = path.join(model.root, WF, assertScreenRef(ref));
   const mod = parseModule(fs.readFileSync(file, 'utf8'));
@@ -55,13 +88,16 @@ export function applyOp(model, ref, op) {
     return hit;
   };
   let selected = op.id || null;
+  let filled = [];
   switch (op.op) {
     case 'insert': {
       const spec = comps.get(op.component);
       if (!spec) throw new Error(`„${op.component}“ ist keine Komponente des Design Systems`);
       const d = spec.defaults || {};
-      const el = makeEl(op.component, { ...(d.props || {}), ...(op.props || {}) }, op.text ?? d.text ?? '');
+      const el = makeEl(op.component, { ...(d.props || {}), ...(op.props || {}) }, op.text ?? d.text ?? (['node', 'string'].includes(spec.props?.children?.type) && spec.props.children.required ? op.component.split('.').pop() : ''));
+      filled = fillRequired(el, spec);
       const parent = op.parent ? need(op.parent).node : root;
+      assertInsideParent(root, parent, op.component);
       insertEl(parent, op.index ?? Number.MAX_SAFE_INTEGER, el);
       ensureIds(root);
       selected = getAttr(el, 'data-wf');
@@ -107,6 +143,7 @@ export function applyOp(model, ref, op) {
         const d = to.defaults?.props?.[k];
         if (d !== undefined) setProp(n, k, d);
       }
+      filled = fillRequired(n, to);
       if (!to.props?.children && n.children.length) { n.children = []; n.inline = true; n.innerRaw = null; }
       else if (to.props?.children?.type === 'string' && n.children.some(c => c.type === 'el')) setText(n, textOf(n) || to.defaults?.text || '');
       else if (to.props?.children?.type === 'string' && !n.children.length && to.defaults?.text) setText(n, to.defaults.text);
@@ -132,7 +169,7 @@ export function applyOp(model, ref, op) {
   }
   ensureIds(root);
   writeTracked(file, fmt(mod, model));
-  return { ref, selected };
+  return { ref, selected, ...(filled.length ? { filled } : {}) };
 }
 
 // Beschreibt eine Operation vor dem Ausführen: Text für die Änderungsliste und Gegenoperation.
