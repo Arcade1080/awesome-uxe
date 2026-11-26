@@ -152,14 +152,14 @@ export function applyFlowOp(model, flowId, op) {
   return out;
 }
 
-/** Legt einen leeren Flow an – im Canvas eine neue Seite. */
-export function createFlow(model, title = 'Neue Seite') {
-  const name = String(title).trim().slice(0, 120) || 'Neue Seite';
-  const base = `flw_${slugify(name).replace(/-/g, '_') || 'seite'}`;
+/** Legt einen leeren Flow an (im Canvas: + bei „Flows“). */
+export function createFlow(model, title = 'Neuer Flow') {
+  const name = String(title).trim().slice(0, 120) || 'Neuer Flow';
+  const base = `flw_${slugify(name).replace(/-/g, '_') || 'flow'}`;
   let id = base;
   for (let k = 2; model.flows.some(f => f.id === id); k++) id = `${base}_${k}`;
-  let file = `flows/${slugify(name) || 'seite'}.flow.json`;
-  for (let k = 2; model.flows.some(f => f.file === file); k++) file = `flows/${slugify(name) || 'seite'}-${k}.flow.json`;
+  let file = `flows/${slugify(name) || 'flow'}.flow.json`;
+  for (let k = 2; model.flows.some(f => f.file === file); k++) file = `flows/${slugify(name) || 'flow'}-${k}.flow.json`;
   writeJson(path.join(model.wf, file), { schema: 'wireflow/flow@1', id, title: name, entry: null, variables: {}, nodes: [], edges: [] });
   return { flow: id, file };
 }

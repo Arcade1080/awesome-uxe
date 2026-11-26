@@ -875,8 +875,10 @@ function renderLeft() {
   ({ layers: layersPane, components: componentsPane, patterns: patternsPane, tokens: tokensPane })[S.leftTab](pane);
   fill(L, t, pane);
 }
-// Linke Spalte wie in Figma: oben die Seiten (Flows), darunter die Ebenen der Seite –
+// Linke Spalte wie in Figma: oben die Flows (wie Seiten), darunter die Ebenen des Flows –
 // Screens und Entscheidungen, aufklappbar bis zu den Elementen.
+// Flow-Symbol: zwei Screens mit Verbindung (wie das Logo).
+const flowIcon = () => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 16 16'); s.setAttribute('class', 'ico flowico'); s.setAttribute('aria-hidden', 'true'); s.innerHTML = '<rect x="1.5" y="2.5" width="5" height="7.5" rx="1"/><rect x="9.5" y="6" width="5" height="7.5" rx="1"/><path d="M6.5 6.2h1.4a1.6 1.6 0 0 1 1.6 1.6v1.5"/>'; return s; };
 function goPage(id) {
   if (id === S.flowId) return;
   S.flowId = id;
@@ -888,7 +890,7 @@ function goPage(id) {
 async function newPage() {
   try {
     const n = S.data.flows.length + 1;
-    const r = await api('/api/flow', { op: 'createFlow', title: `Seite ${n}` });
+    const r = await api('/api/flow', { op: 'createFlow', title: `Flow ${n}` });
     S.renamePage = r.flow;
     await doReload();
     goPage(r.flow);
@@ -907,7 +909,7 @@ async function renamePage(f, title) {
 function pagesSection() {
   const rows = S.data.flows.map(f => {
     if (S.renamePage === f.id) {
-      const inp = h('input', { class: 'rename', value: f.title || f.id, 'aria-label': 'Name der Seite' });
+      const inp = h('input', { class: 'rename', value: f.title || f.id, 'aria-label': 'Name des Flows' });
       let done = false;
       const finish = keep => { if (done) return; done = true; if (keep) renamePage(f, inp.value); else { S.renamePage = null; renderLeft(); } };
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } });
@@ -922,12 +924,12 @@ function pagesSection() {
       title: 'Doppelklick: umbenennen',
       onclick: () => goPage(f.id),
       ondblclick: () => { S.renamePage = f.id; renderLeft(); },
-    }, h('span', { class: 'ico' }, f.id === S.flowId ? '✓' : ''), h('span', { class: 'nm' }, f.title || f.id), h('em', {}, screens ? `${screens} ${screens === 1 ? 'Screen' : 'Screens'}` : 'leer')));
+    }, flowIcon(), h('span', { class: 'nm' }, f.title || f.id), h('em', {}, screens ? `${screens} ${screens === 1 ? 'Screen' : 'Screens'}` : 'leer')));
   });
   return h('section', { class: 'lsec pages' },
     h('div', { class: 'sechead' },
-      h('button', { type: 'button', class: 'chev', 'aria-expanded': String(S.pagesOpen), onclick: () => { S.pagesOpen = !S.pagesOpen; renderLeft(); } }, h('span', { class: 'ar' }, S.pagesOpen ? '▾' : '▸'), 'Seiten'),
-      h('button', { type: 'button', class: 'addbtn', title: 'Neue Seite', 'aria-label': 'Neue Seite', onclick: newPage }, '+')),
+      h('button', { type: 'button', class: 'chev', 'aria-expanded': String(S.pagesOpen), onclick: () => { S.pagesOpen = !S.pagesOpen; renderLeft(); } }, h('span', { class: 'ar' }, S.pagesOpen ? '▾' : '▸'), 'Flows'),
+      h('button', { type: 'button', class: 'addbtn', title: 'Neuer Flow', 'aria-label': 'Neuer Flow', onclick: newPage }, '+')),
     S.pagesOpen ? h('ul', { class: 'tree pagelist' }, rows) : null);
 }
 function layerRow({ depth, open, onToggle, current, onClick, onHover, ico, name, nameCls, text, meta, title }) {
@@ -943,8 +945,8 @@ function layerRow({ depth, open, onToggle, current, onClick, onHover, ico, name,
 function layersSection() {
   const f = flow();
   const sec = h('section', { class: 'lsec layers' }, h('div', { class: 'sechead' }, h('span', { class: 'ttl' }, 'Ebenen'), f ? h('em', {}, f.title || f.id) : null));
-  if (!f) { sec.append(h('p', { class: 'hint' }, 'Keine Seite. Mit + oben eine anlegen.')); return sec; }
-  if (!f.nodes.length) { sec.append(h('p', { class: 'hint' }, 'Leere Seite. Rechts „+ Screen“ oder Claude bitten: „Lege die Screens für … an“.')); return sec; }
+  if (!f) { sec.append(h('p', { class: 'hint' }, 'Kein Flow. Mit + oben einen anlegen.')); return sec; }
+  if (!f.nodes.length) { sec.append(h('p', { class: 'hint' }, 'Leerer Flow. Rechts „+ Screen“ oder Claude bitten: „Lege die Screens für … an“.')); return sec; }
   if (S.sel.node && S.autoOpen !== S.sel.node) { S.open.add(S.sel.node); S.autoOpen = S.sel.node; }
   const rows = [];
   const toggle = id => () => { if (S.open.has(id)) S.open.delete(id); else S.open.add(id); renderLeft(); };
