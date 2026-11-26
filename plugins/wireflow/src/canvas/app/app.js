@@ -924,11 +924,11 @@ function pagesSection() {
       title: 'Doppelklick: umbenennen',
       onclick: () => goPage(f.id),
       ondblclick: () => { S.renamePage = f.id; renderLeft(); },
-    }, flowIcon(), h('span', { class: 'nm' }, f.title || f.id), h('em', {}, screens ? `${screens} ${screens === 1 ? 'Screen' : 'Screens'}` : 'leer')));
+    }, h('span', { class: 'nm' }, f.title || f.id), h('em', {}, screens ? `${screens} ${screens === 1 ? 'Screen' : 'Screens'}` : 'leer')));
   });
   return h('section', { class: 'lsec pages' },
     h('div', { class: 'sechead' },
-      h('button', { type: 'button', class: 'chev', 'aria-expanded': String(S.pagesOpen), onclick: () => { S.pagesOpen = !S.pagesOpen; renderLeft(); } }, h('span', { class: 'ar' }, S.pagesOpen ? '▾' : '▸'), 'Flows'),
+      h('button', { type: 'button', class: 'chev', 'aria-expanded': String(S.pagesOpen), onclick: () => { S.pagesOpen = !S.pagesOpen; renderLeft(); } }, h('span', { class: 'ar' }, S.pagesOpen ? '▾' : '▸'), flowIcon(), 'Flows'),
       h('button', { type: 'button', class: 'addbtn', title: 'Neuer Flow', 'aria-label': 'Neuer Flow', onclick: newPage }, '+')),
     S.pagesOpen ? h('ul', { class: 'tree pagelist' }, rows) : null);
 }
