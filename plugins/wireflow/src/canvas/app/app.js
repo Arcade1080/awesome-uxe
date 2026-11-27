@@ -1386,7 +1386,7 @@ function deviationBlock(pane, n, el) {
       : `Gestaltungswunsch für ${el.name} ${el.id} in „${n.title || n.id}“ (${n.ref}): „${wish}“ – nur dieses Element. Löse es mit dem Design System: passende Prop, Variante, Token oder eine andere DS-Komponente (screen_edit). Gibt das DS es nicht her, keine freien Werte: schlag eine neue Variante oder ein Prop für ${el.name} vor und dokumentiere die Lücke. Antworte per canvas_reply.`;
     askClaude(text, 'stil');
   };
-  pane.append(ta, h('div', { class: 'btns' }, btn('An Claude', go, !S.chat.connected, 'pri'), !S.chat.connected ? h('span', { class: 'hint' }, 'Braucht den Canvas aus Claude Code (/wireflow:canvas).') : null));
+  pane.append(ta, h('div', { class: 'btns' }, btn('An Claude', go, !S.chat.connected, 'ai'), !S.chat.connected ? h('span', { class: 'hint' }, 'Braucht den Canvas aus Claude Code (/wireflow:canvas).') : null));
 }
 
 // ---------- Änderungsliste mit Rückgängig je Eintrag ----------
@@ -2581,7 +2581,7 @@ function sbStoryInspector(pane, n) {
     const diff = Object.fromEntries(changed.map(k => [k, info.args?.[k]]));
     pane.append(h('p', { class: 'hint' }, `${changed.length} ${changed.length === 1 ? 'Arg' : 'Args'} geändert – nur im Canvas, die Story-Datei ist unverändert.`));
     pane.append(h('div', { class: 'btns' },
-      btn('In Code übernehmen', () => askClaude(`Übernimm diese Args in die Storybook-Story „${n.title}“ (Datei ${n.file}, Export ${n.exportName || n.name}, ID ${n.story}): ${JSON.stringify(diff)}. Ändere nur die args dieser Story, sonst nichts, und sag kurz per canvas_reply Bescheid.`, 'auftrag'), false, 'pri'),
+      btn('In Code übernehmen', () => askClaude(`Übernimm diese Args in die Storybook-Story „${n.title}“ (Datei ${n.file}, Export ${n.exportName || n.name}, ID ${n.story}): ${JSON.stringify(diff)}. Ändere nur die args dieser Story, sonst nichts, und sag kurz per canvas_reply Bescheid.`, 'auftrag'), false, 'ai'),
       btn('Zurücksetzen', () => fr.iframe?.contentWindow?.postMessage({ wf: 1, type: 'sbReset' }, location.origin))));
   }
   pane.append(h('div', { class: 'btns' }, sbLink(n.story) ? h('a', { class: 'btn', href: sbLink(n.story), target: '_blank', rel: 'noopener' }, 'In Storybook öffnen ↗') : null));
@@ -2666,7 +2666,7 @@ function sbElementInspector(pane, n) {
     askClaude(`${t}\n\nGemeint ist <${el.name}> (${el.id}) in der Storybook-Story „${n.title}“ (Datei ${n.file}${el.src ? `, Element entsteht in ${sbSrc(el.src)}` : ''}). Ändere den Code des Projekts, nutze Komponenten und Tokens des Design Systems und antworte kurz per canvas_reply.`, 'auftrag');
   };
   inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); go(); } });
-  pane.append(h('div', { class: 'grp' }, 'Ändern', h('em', {}, 'durch Claude')), inp, h('div', { class: 'btns' }, btn('An Claude', go, false, 'pri')));
+  pane.append(h('div', { class: 'grp' }, 'Ändern', h('em', {}, 'durch Claude')), inp, h('div', { class: 'btns' }, btn('An Claude', go, false, 'ai')));
 }
 function sbCodePane(pane, n) {
   const el = sbEl(n);
