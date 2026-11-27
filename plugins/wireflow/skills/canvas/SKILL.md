@@ -14,15 +14,9 @@ argument-hint: "[flow-id]"
 
 - **Design:** Screens als echte Komponenten; Elemente anklicken und im Inspector Props, Text und Interaktion ändern; Komponenten aus der Liste auf Screens ziehen; Elemente per Drag & Drop umordnen; Screens am Titel verschieben; Wireframe/Hi-Fi umschalten. Alles wird als Code in die Screen-Module geschrieben.
 - **Prototyp:** den Flow durchklicken; Variablen steuern Entscheidungen; fehlende Pfade werden gemeldet.
-- **Journey** und **Wissen:** Pain Points mit Wissensstand, Insights, Annahmen nach Risiko, offene Fragen.
-
-## Storybook-Brett
-
-Hat das Projekt Storybook (`storybook_status` sagt, ob es läuft und welche Stories es gibt), zeigt der Canvas die Stories im Flow-Menü unter „Storybook“ – ohne Migration.
-
-- Läuft Storybook nicht, vor `canvas_open` im Hintergrund starten (z. B. `npm run storybook -- --no-open` oder `npx storybook dev -p 6006 --no-open --ci`); der Canvas verbindet sich von selbst.
-- Aufträge aus dem Storybook-Brett nennen Story-ID, Stories-Datei, Komponente und die Datei, in der das Element entsteht (`canvas_selection` liefert dazu Args und Props). Ändere dann den **Code des Projekts** und seine Stories – nicht `.wireflow/screens`. Varianten und Zustände entstehen als neue Stories im selben Stories-File; das Original bleibt.
-- Danach wie immer mit `canvas_reply` antworten. Storybook lädt Änderungen selbst neu.
+- **Sektionen:** benannte Rahmen auf dem Canvas, die Screens zu Phasen zusammenfassen (`flow_edit` mit `addSection`, `updateSection`, `removeSection`; `phase` = Phasen-ID der Journey). Wer gefragt wird, Screens nach Phasen zu ordnen: Sektionen um die passenden Screens legen und mit der Journey verknüpfen.
+- **Journey:** Story Map – Phasen, Schritte, Pain Points und Bedarfe ohne Lösung; darunter Anforderungen mit Screens. Bearbeitbar; speichert in die Journey-Datei. Offene Punkte liefert auch `journey_get`.
+- **Wissen:** Insights, Annahmen nach Risiko, offene Fragen.
 
 ## Zusammenarbeit mit Claude
 

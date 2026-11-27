@@ -1,6 +1,6 @@
 # Wireflow Studio – Plugin für Claude Code
 
-Journeys, Wireflows und Prototypen aus **echtem Code des eigenen Design Systems** – mit einem Canvas im Browser, einer Wissensbasis zu Nutzer:innen und Claude als Co-Designer. Hat das Projekt **Storybook**, zeigt der Canvas dessen Stories direkt – ohne Migration. Das Konzept dazu steht in [`concepts/wireflow-studio`](../../concepts/wireflow-studio/README.md); dieses Plugin setzt **Stufe 1 (Einzelmodus)** um. Wie die Teile zusammenspielen: [Architektur](docs/architektur.md).
+Journeys, Wireflows und Prototypen aus **echtem Code des eigenen Design Systems** – mit einem Canvas im Browser, einer Wissensbasis zu Nutzer:innen und Claude als Co-Designer. Das Konzept dazu steht in [`concepts/wireflow-studio`](../../concepts/wireflow-studio/README.md); dieses Plugin setzt **Stufe 1 (Einzelmodus)** um. Wie die Teile zusammenspielen: [Architektur](docs/architektur.md).
 
 ```text
 Design System verknüpfen → Wissen erfassen → Journey → Flow → Screens aus DS-Komponenten → Prototyp
@@ -22,7 +22,7 @@ Voraussetzungen im Projekt: Node.js ≥ 20, React-Design-System als npm-Paket (a
 ```text
 /wireflow:init @firma/ui        Projekt anlegen, Design System verknüpfen
 /wireflow:research interviews/   Insights mit Belegen, Annahmen, offene Fragen
-/wireflow:journey                Journey mit Pain Points und Wissensstand
+/wireflow:journey                Journey als Story Map: Schritte, Pain Points, Bedarfe, Anforderungen
 /wireflow:flow                   Wireflow mit Entscheidungen und Fehlerpfaden
 /wireflow:hifi                   Screens als Code aus DS-Komponenten
 /wireflow:canvas                 Canvas öffnen: ansehen, anordnen, verbinden
@@ -43,14 +43,6 @@ node ../../bin/wireflow serve --open
 
 Das Beispiel enthält ein kleines, fiktives Design System (Acme UI: 14 Komponenten, Tokens, drei Patterns), Research-Wissen, eine Journey und einen Buchungs-Flow mit sechs Screens. Ein Pfad fehlt absichtlich („Slot noch frei?“ → Nein) – der Canvas zeigt ihn rot, der Prototyp meldet ihn, und im Inspector lässt er sich mit einem neuen Screen schließen.
 
-Mit Storybook (die Konfiguration liegt in `.storybook/` bereit):
-
-```bash
-npm install -D storybook@10 @storybook/react-vite@10 vite@7
-npx storybook dev -p 6006 --no-open &
-node ../../bin/wireflow serve --open    # im Flow-Menü „Storybook · 10 Stories“ wählen
-```
-
 ## Was im Repository entsteht
 
 ```text
@@ -58,12 +50,13 @@ node ../../bin/wireflow serve --open    # im Flow-Menü „Storybook · 10 Stori
 ├── project.json                 Name, Viewport, erlaubte Imports
 ├── ds/manifest.json             Komponenten, Props, Defaults, Intents, Richtlinien, Tokens, Regeln
 ├── ds/patterns/*.md             Pattern-Karten: wann welche Komponente, verlangte Zustände
+├── ds/provider.tsx              optional: Provider des DS (Theme, Grundstile) für alle Screens
 ├── knowledge/                   insights.json, assumptions.json, questions.json
 ├── research/                    Rohmaterial (pseudonymisiert), Testaufgaben
-├── journeys/*.journey.json      Phasen, Emotion, Pain Points mit Belegen, Chancen
+├── journeys/*.journey.json      Story Map: Phasen → Schritte → Pain Points → Bedarfe → Anforderungen → Screens
 ├── flows/*.flow.json            Screens, Entscheidungen, Kanten von Elementen zu Zielen
 ├── screens/*.screen.tsx         Screen-Module: React aus DS-Komponenten
-├── screens/*.stories.tsx        Zustände als Storybook-Stories (CSF 3)
+├── screens/*.stories.tsx        Zustände als Stories (CSF 3, auch in Storybook nutzbar)
 └── fixtures/*.ts                typisierte Testdaten
 ```
 
@@ -94,12 +87,12 @@ Regeln: nur Komponenten aus dem Manifest, kein HTML, kein `style`/`className`, P
 |---|---|---|
 | Skills | `skills/*/SKILL.md` | `/wireflow:init`, `ds`, `research`, `journey`, `flow`, `hifi`, `canvas`, `prototype`, `review`, `export`; Methodenwissen in `ux-methods` |
 | Subagents | `agents/*.md` | `ds-curator`, `journey-analyst`, `flow-architect`, `ui-composer`, `ux-critic`, `research-scout` |
-| MCP-Server | `.mcp.json` → `wireflow mcp` | 27 Werkzeuge: Projekt, DS, Journeys, Flows, Screens, Varianten, Wissen, Canvas und Chat, Storybook, Export, Rückgängig; zugleich Kanal für den Chat im Canvas |
+| MCP-Server | `.mcp.json` → `wireflow mcp` | 26 Werkzeuge: Projekt, DS, Journeys, Flows, Screens, Varianten, Wissen, Canvas und Chat, Export, Rückgängig; zugleich Kanal für den Chat im Canvas |
 | Hooks | `hooks/hooks.json` | `SessionStart`: Projektstatus als Kontext; `PostToolUse`: prüft jede Datei unter `.wireflow/` – Fehler gehen an Claude zurück; `UserPromptSubmit` und `Stop`: wartende Nachrichten aus dem Canvas-Chat, falls kein Kanal läuft |
 | Monitor | `plugin.json` → `experimental.monitors` | `canvas-chat`: stellt Chat-Nachrichten und Aufträge aus dem Canvas sofort in der Sitzung zu |
 | Kanal | `plugin.json` → `channels` | optionaler zweiter Weg (Research Preview), still, solange der Monitor läuft |
 | CLI | `bin/wireflow` | `init`, `serve`, `status`, `validate`, `lint`, `export`, `doctor` – im Plugin auf dem `PATH`, ohne Plugin für CI |
-| Canvas | `src/canvas/` | lokaler Server (nur `127.0.0.1`, Token im Link) und Web-App ohne Build; reicht ein laufendes Storybook unter demselben Ursprung durch |
+| Canvas | `src/canvas/` | lokaler Server (nur `127.0.0.1`, Token im Link) und Web-App ohne Build |
 
 Keine Laufzeit-Abhängigkeiten: Das Plugin nutzt nur Node.js; React und esbuild kommen aus dem Projekt.
 
@@ -108,8 +101,10 @@ Keine Laufzeit-Abhängigkeiten: Das Plugin nutzt nur Node.js; React und esbuild 
 ![Kontextmenü am ausgewählten Element: Varianten mit Strikt, Geführt, Frei](docs/kontextmenue.png)
 
 - **Design:** Screens als echte Komponenten auf einer unendlichen Fläche. Element anklicken → Inspector mit Props laut Manifest (Enums, Tokens, Text), Interaktion (Ziel im Flow), Richtlinien und Prüfung. Komponenten aus der Liste auf Screens ziehen oder mit „+“ einfügen; Elemente per Drag & Drop umordnen; Entf, ⌘/Strg+D, Alt+↑/↓, ⌘/Strg+Z. Screens am Titel verschieben. Kanten starten am auslösenden Element. Wireframe/Hi-Fi tauscht nur Tokens.
+- **Gerätegrößen:** Jeder Screen ist Mobile, Tablet oder Desktop – Symbol am Frame-Titel, Wahl rechts im Inspector (auch für mehrere zugleich) und beim Frame-Werkzeug. Standard ist die Größe aus `renderer.viewport`; eigene Größen über `renderer.devices` in `project.json`. Prototyp und Varianten übernehmen die Größe.
+- **Werkzeuge und Sektionen:** Werkzeugleiste unten wie in Figma – Bewegen (V), Hand (H oder Leertaste halten), Frame (F: neuer Screen), Sektion (S). Ziehen auf freier Fläche markiert mehrere Screens (⇧ ergänzt); sie lassen sich gemeinsam verschieben, löschen oder mit einer Sektion umgeben. Sektionen fassen Screens zu Phasen zusammen, lassen sich mit einer Phase der Journey verknüpfen und nehmen ihren Inhalt beim Verschieben mit. Links stehen oben die Flows, darunter die Ebenen – Sektionen mit ihren Screens, Screens bis zu den Elementen; Ebenen lassen sich ziehen und löschen.
 - **Prototyp:** derselbe Code, klickbar. Variablen steuern Entscheidungen; fehlende Pfade und unverbundene Elemente werden gemeldet; Klick ins Leere zeigt Hotspots.
-- **Journey:** Phasen mit Emotionskurve, Pain Points mit Wissensstand und Beleg.
+- **Journey:** eine Story Map ohne Lösung – Phasen, Schritte, Pain Points und Bedarfe (was Menschen brauchen), jeweils mit Beleg. Unter der Linie „ab hier mit Produkt“ stehen die Anforderungen, und erst sie verweisen auf Screens im Flow. Schritte über das Plus zwischen zwei Schritten einfügen, Karten ziehen oder mit ⌥+Pfeilen verschieben; der Inspector rechts zeigt offene Punkte (Pain Point ohne Bedarf, Bedarf ohne Beleg, Anforderung ohne Screen). Aus einem Pain Point lässt sich ein Bedarf ableiten. Speichert direkt in die Journey-Datei.
 - **Wissen:** Wissensstand je Flow-Schritt, Insights mit Belegen, Annahmen nach Risiko, offene Fragen – jeweils mit „Genutzt in“.
 - **Live:** Ändert Claude oder ein Editor eine Datei, aktualisiert sich der Canvas sofort und markiert die betroffenen Screens. Die Auswahl im Canvas liest Claude mit `canvas_selection`.
 - **Rechte Spalte – Design · Code · Chat:** *Design* ist der Inspector, *Code* zeigt Screen-Modul und Stories mit markiertem Element, *Chat* ist das Gespräch mit Claude – die Auswahl geht als Kontext mit.
@@ -130,19 +125,6 @@ Keine Laufzeit-Abhängigkeiten: Das Plugin nutzt nur Node.js; React und esbuild 
 - **Varianten** liegen gestrichelt unter dem Original (`screens/<name>--<variante>.screen.tsx`), mit Modus, Begründung und DS-Prüfung. *Tauschen* macht eine Variante zum Screen im Flow, *Verwerfen* löscht sie (rückgängig mit ⌘/Strg+Z).
 
 ![Design-Panel: Style eines Buttons mit verwendeten Tokens, Kontrast und „Anders gestalten“](docs/props-und-style.png)
-
-### Storybook als Renderer – ohne Migration
-
-![Storybook-Brett: Screens als Stories, Komponentenbaum aus React, Props der ausgewählten Komponente](docs/storybook-brett.png)
-
-Läuft im Projekt ein Storybook (Storybook 7 oder neuer), erscheint im Flow-Menü **„Storybook · N Stories“**. Das Storybook-Brett zeigt die Stories als Frames – gerendert von Storybook selbst, mit den Decorators, Providern und Styles des Projekts. Nichts wird kopiert oder umgeschrieben.
-
-- **Finden:** Der Canvas sucht auf `127.0.0.1` und `[::1]` an den Ports 6006–6008 und nimmt nur ein Storybook, dessen Stories-Dateien im Projekt liegen (auch in Unterordnern mit `.storybook/`, etwa in Monorepos). Eine feste Adresse geht über `.wireflow/project.json` → `"storybook": { "url": "http://localhost:6006" }` oder `WIREFLOW_STORYBOOK_URL`; erlaubt sind nur Adressen auf diesem Rechner.
-- **Screens und Komponenten:** Als Screens gelten Titel wie `Screens/…` oder `Pages/…` und Stories aus Ordnern wie `screens/` oder `pages/` – je Komponente eine Spalte, die Zustände darunter. Mit `"screens": ["Bereich/"]` in `storybook` lässt sich das festlegen. Komponenten-Stories holt ein Klick in der linken Spalte auf den Canvas.
-- **Story auswählen:** rechts die **Args** wie in den Controls – live im Frame, ohne Datei zu ändern. *In Code übernehmen* schickt die geänderten Args als Auftrag an Claude.
-- **Element auswählen:** Der Komponentenbaum kommt live aus React (ohne Storybook-Hüllen). *Props* zeigt die Werte wie gerendert und die Datei, in der das Element entsteht; *Style* die Tokens aus dem Rendering und den Kontrast. Ändern lässt sich das über Claude („Was soll sich ändern?“).
-- **Kontextmenü:** *Varianten* (Strikt, Geführt, Frei) und *Zustände* entstehen als neue Stories, *Weiter* als neuer Screen mit Story, *Review* wie bei Screens. Claude bekommt Story-ID, Stories-Datei, Komponente und die Quelle des Elements.
-- **Technik:** Der Canvas reicht das Storybook unter seinem eigenen Ursprung durch (auch die WebSockets für Hot Reload). So kann er den Frame direkt lesen; ein kleines Skript in `iframe.html` meldet Komponentenbaum, Lage und Args. Das Zugangstoken des Canvas geht nicht an Storybook.
 
 ### Chat mit der laufenden Claude-Sitzung
 
@@ -170,4 +152,3 @@ claude plugin validate .          # Plugin-Manifest prüfen
 - Renderer: React mit esbuild. Andere Frameworks (Vue, Web Components) folgen über Renderer-Adapter.
 - Die Code-Brücke versteht eine TSX-Teilmenge (eine exportierte Screen-Funktion mit `return (<…>)`). Alles andere bleibt als Code-Block erhalten.
 - Figma-Export, visuelle Diffs und Screenshots im Review sind noch nicht enthalten.
-- Storybook-Brett: Stories haben noch keine Verbindungen (kein Prototyp, keine Lückenkarten) – Verbindungen aus dem Router-Code folgen. Den Komponentenbaum gibt es für React; Props von Elementen ändert Claude im Code des Projekts.

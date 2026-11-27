@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseModule } from './jsx.js';
+import { normalizeJourney } from './journey.js';
 
 export const WF = '.wireflow';
 
@@ -111,7 +112,7 @@ export function loadProject(root) {
     return { id: path.basename(file, '.md'), file: path.relative(wf, file), text, meta: frontmatter(text) };
   });
   const flows = listFiles(path.join(wf, 'flows'), '.flow.json').map(file => ({ ...readJson(file), file: path.relative(wf, file) }));
-  const journeys = listFiles(path.join(wf, 'journeys'), '.journey.json').map(file => ({ ...readJson(file), file: path.relative(wf, file) }));
+  const journeys = listFiles(path.join(wf, 'journeys'), '.journey.json').map(file => normalizeJourney({ ...readJson(file), file: path.relative(wf, file) }));
   const refs = new Set(listFiles(path.join(wf, 'screens'), '.screen.tsx').map(f => path.relative(wf, f)));
   flows.forEach(f => (f.nodes || []).forEach(n => { if (n.ref) refs.add(n.ref); }));
   const screens = Object.fromEntries([...refs].sort().map(ref => [ref, loadScreen(root, ref)]));

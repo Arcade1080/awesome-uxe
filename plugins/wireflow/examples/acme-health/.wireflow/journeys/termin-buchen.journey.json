@@ -1,5 +1,5 @@
 {
-  "schema": "wireflow/journey@1",
+  "schema": "wireflow/journey@2",
   "id": "jrn_termin",
   "title": "Arzttermin online buchen",
   "variant": "ist",
@@ -9,94 +9,322 @@
     {
       "id": "ph_bedarf",
       "title": "Bedarf bemerken",
-      "actions": [
-        "Ausschlag bemerkt",
-        "Dringlichkeit einschätzen"
-      ],
       "emotion": -1,
-      "painPoints": [
-        {
-          "text": "Unklar, welche Fachrichtung zuständig ist",
-          "insight": "ins_fach"
-        }
-      ],
       "opportunities": [
         "Symptom-Check schlägt die passende Fachrichtung vor"
+      ],
+      "steps": [
+        {
+          "id": "st_bemerken",
+          "text": "Beschwerde bemerken",
+          "painPoints": [],
+          "needs": []
+        },
+        {
+          "id": "st_dringlich",
+          "text": "Dringlichkeit einschätzen",
+          "painPoints": [
+            {
+              "id": "pp_fach",
+              "text": "Unklar, welche Fachrichtung zuständig ist",
+              "insight": "ins_fach"
+            }
+          ],
+          "needs": []
+        },
+        {
+          "id": "st_fach",
+          "text": "Zuständige Fachrichtung herausfinden",
+          "painPoints": [],
+          "needs": [
+            {
+              "id": "bd_fach",
+              "text": "Wissen, welche Fachrichtung für meine Beschwerde zuständig ist, damit ich nicht bei der falschen Praxis lande.",
+              "insight": "ins_fach",
+              "solves": [
+                "pp_fach"
+              ],
+              "requirements": [
+                {
+                  "id": "an_beschwerde",
+                  "text": "Beschwerde in eigenen Worten nennen und passende Fachrichtungen vorgeschlagen bekommen.",
+                  "screens": [
+                    "scr_suche"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
       ]
     },
     {
       "id": "ph_finden",
       "title": "Praxis finden",
-      "actions": [
-        "Praxen suchen",
-        "Bewertungen vergleichen",
-        "Kassenzulassung prüfen"
-      ],
       "emotion": -1,
-      "painPoints": [
-        {
-          "text": "Freie Termine und Kassenzulassung nicht auf einen Blick",
-          "insight": "ins_frei"
-        }
-      ],
       "opportunities": [
         "Ergebnisliste zeigt den nächsten freien Termin"
       ],
-      "flow": "flw_buchung"
+      "flow": "flw_buchung",
+      "steps": [
+        {
+          "id": "st_naehe",
+          "text": "Praxen in der Nähe finden",
+          "painPoints": [],
+          "needs": [
+            {
+              "id": "bd_naehe",
+              "text": "Wissen, welche Praxen für mich gut erreichbar sind.",
+              "solves": [],
+              "requirements": [
+                {
+                  "id": "an_entfernung",
+                  "text": "Bei jeder Praxis sehen, wie weit sie vom angegebenen Ort entfernt ist.",
+                  "screens": [
+                    "scr_ergebnisse"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "st_vergleichen",
+          "text": "Praxen vergleichen",
+          "painPoints": [],
+          "needs": [
+            {
+              "id": "bd_vergleichen",
+              "text": "Praxen nach dem nächsten freien Termin vergleichen, weil ich noch diese Woche drankommen will.",
+              "insight": "ins_frei",
+              "solves": [
+                "pp_frei"
+              ],
+              "requirements": [
+                {
+                  "id": "an_naechster",
+                  "text": "Bei jeder Praxis den nächsten freien Termin sehen.",
+                  "screens": [
+                    "scr_ergebnisse"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "st_kasse",
+          "text": "Kassenzulassung klären",
+          "painPoints": [
+            {
+              "id": "pp_frei",
+              "text": "Freie Termine und Kassenzulassung nicht auf einen Blick",
+              "insight": "ins_frei"
+            }
+          ],
+          "needs": [
+            {
+              "id": "bd_kasse",
+              "text": "Vor der Wahl einer Praxis wissen, ob sie meine Versicherung annimmt.",
+              "insight": "ins_frei",
+              "solves": [
+                "pp_frei"
+              ],
+              "requirements": [
+                {
+                  "id": "an_kasse",
+                  "text": "In der Übersicht bei jeder Praxis sehen, ob sie gesetzlich Versicherte annimmt.",
+                  "screens": [
+                    "scr_profil"
+                  ],
+                  "partial": "nur im Profil, nicht in der Übersicht"
+                }
+              ]
+            },
+            {
+              "id": "bd_versicherung",
+              "text": "Angeben, wie ich versichert bin, damit nur passende Praxen übrig bleiben.",
+              "solves": [],
+              "requirements": [
+                {
+                  "id": "an_versicherung",
+                  "text": "Versicherungsart einmal angeben; sie gilt für die ganze Suche.",
+                  "screens": [
+                    "scr_suche"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "ph_buchen",
       "title": "Termin buchen",
-      "actions": [
-        "Slot wählen",
-        "Daten eingeben",
-        "Absenden"
-      ],
       "emotion": -2,
-      "painPoints": [
-        {
-          "text": "Slot beim Absenden vergeben, Eingaben weg",
-          "insight": "ins_slot_weg"
-        }
-      ],
       "opportunities": [
         "Slot 5 Minuten reservieren, Eingaben behalten"
       ],
-      "flow": "flw_buchung"
+      "flow": "flw_buchung",
+      "steps": [
+        {
+          "id": "st_zeit",
+          "text": "Passende Zeit finden",
+          "painPoints": [],
+          "needs": [
+            {
+              "id": "bd_zeit",
+              "text": "Einen Termin auswählen, der zu meinen Arbeitszeiten passt.",
+              "solves": [],
+              "requirements": [
+                {
+                  "id": "an_tageszeit",
+                  "text": "Termine auf Tageszeiten eingrenzen.",
+                  "screens": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "st_angaben",
+          "text": "Angaben machen",
+          "painPoints": [],
+          "needs": [
+            {
+              "id": "bd_angaben",
+              "text": "Ohne Konto buchen können, weil ich nur einen Termin brauche.",
+              "solves": [],
+              "requirements": [
+                {
+                  "id": "an_gast",
+                  "text": "Als Gast buchen, Anmelden ist freiwillig.",
+                  "screens": [
+                    "scr_login",
+                    "scr_pruefen"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "st_verbindlich",
+          "text": "Termin verbindlich machen",
+          "painPoints": [
+            {
+              "id": "pp_slot",
+              "text": "Termin beim Absenden weg, Angaben verloren",
+              "insight": "ins_slot_weg"
+            }
+          ],
+          "needs": [
+            {
+              "id": "bd_halten",
+              "text": "Erkennen, dass mein Termin für mich zurückgehalten wird, solange ich meine Angaben mache.",
+              "insight": "ins_slot_weg",
+              "solves": [
+                "pp_slot"
+              ],
+              "requirements": [
+                {
+                  "id": "an_reserviert",
+                  "text": "Sehen, wie lange der Termin noch reserviert ist.",
+                  "screens": [
+                    "scr_pruefen"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "bd_absage",
+              "text": "Wissen, bis wann ich kostenlos absagen kann.",
+              "solves": [],
+              "requirements": []
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "ph_vorbereiten",
       "title": "Vorbereiten",
-      "actions": [
-        "Bestätigung lesen",
-        "Termin eintragen"
-      ],
       "emotion": 1,
-      "painPoints": [
-        {
-          "text": "Erinnerung kommt erst am Morgen des Termins",
-          "insight": "ins_erinnerung"
-        }
-      ],
       "opportunities": [
         "Erinnerung 24 h vorher und Kalender-Export"
+      ],
+      "steps": [
+        {
+          "id": "st_bestaetigung",
+          "text": "Bestätigung erhalten",
+          "painPoints": [],
+          "needs": [
+            {
+              "id": "bd_bestaetigt",
+              "text": "Sicher wissen, dass der Termin gebucht ist.",
+              "solves": [],
+              "requirements": [
+                {
+                  "id": "an_bestaetigung",
+                  "text": "Bestätigung mit Praxis, Zeit und Adresse sehen.",
+                  "screens": [
+                    "scr_bestaetigung"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "st_erinnert",
+          "text": "Rechtzeitig erinnert werden",
+          "painPoints": [
+            {
+              "id": "pp_erinnerung",
+              "text": "Erinnerung kommt erst am Morgen des Termins",
+              "insight": "ins_erinnerung"
+            }
+          ],
+          "needs": [
+            {
+              "id": "bd_erinnerung",
+              "text": "Rechtzeitig vorher wissen, dass der Termin ansteht, um noch umplanen zu können.",
+              "insight": "ins_erinnerung",
+              "solves": [
+                "pp_erinnerung"
+              ],
+              "requirements": []
+            }
+          ]
+        }
       ]
     },
     {
       "id": "ph_besuch",
       "title": "Besuch & Nachsorge",
-      "actions": [
-        "Einchecken",
-        "Folgetermin vereinbaren"
-      ],
       "emotion": 0,
-      "painPoints": [
-        {
-          "text": "Folgetermin nur telefonisch möglich"
-        }
-      ],
       "opportunities": [
         "Folgetermin direkt in der App buchen"
+      ],
+      "steps": [
+        {
+          "id": "st_ankommen",
+          "text": "Ankommen",
+          "painPoints": [],
+          "needs": []
+        },
+        {
+          "id": "st_folge",
+          "text": "Folgetermin vereinbaren",
+          "painPoints": [
+            {
+              "id": "pp_folge",
+              "text": "Folgetermin nur telefonisch möglich"
+            }
+          ],
+          "needs": []
+        }
       ]
     }
   ]

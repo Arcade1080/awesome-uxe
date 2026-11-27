@@ -11,7 +11,8 @@ import { applyFlowOp } from '../core/flows.js';
 import { initProject } from '../core/init.js';
 import { walk, getAttr, textOf, findById } from '../core/jsx.js';
 import { createBridge } from './bridge.js';
-import { storybookStatus } from '../core/storybook.js';
+import { journeyGaps } from '../core/journey.js';
+import { saveJourney } from '../core/journeys.js';
 
 const rootDir = () => findRoot(process.env.WIREFLOW_ROOT || undefined);
 const model = () => loadProject(rootDir());
@@ -132,25 +133,24 @@ export const TOOLS = [
   },
   {
     name: 'journey_get',
-    description: 'Liest eine User Journey (ohne id: alle).',
+    description: 'Liest eine User Journey als Story Map (wireflow/journey@2) samt offenen Punkten (ohne id: alle, ohne Befunde).',
     inputSchema: obj({ id: str('Journey-ID') }),
     run: ({ id }) => {
       const m = model();
-      return id ? m.journeys.find(j => j.id === id) || (() => { throw new Error('Journey nicht gefunden'); })() : m.journeys;
+      if (!id) return m.journeys;
+      const j = m.journeys.find(x => x.id === id);
+      if (!j) throw new Error('Journey nicht gefunden');
+      return { ...j, offen: journeyGaps(j, m) };
     },
   },
   {
     name: 'journey_upsert',
-    description: 'Legt eine Journey an oder ersetzt sie. Pain Points mit Beleg (insight-ID) verknüpfen; Unbelegtes als Annahme anlegen (knowledge_upsert).',
+    description: 'Legt eine Journey an oder ersetzt sie (Story Map, wireflow/journey@2): phases[] → steps[] { text, painPoints[] { text, insight? }, needs[] { text, insight?, solves[painPointId], requirements[] { text, screens[Knoten-ID], partial? } } }. Bis zu den Bedarfen ohne Lösung formulieren; erst Anforderungen nennen Screens. Das alte Format (actions[], painPoints[] je Phase) wird übernommen. Gibt die offenen Punkte zurück.',
     inputSchema: obj({ journey: { type: 'object', description: 'Journey-Objekt mit id, title, phases[]' } }, ['journey']),
     run: ({ journey }) => {
-      if (!journey.id || !Array.isArray(journey.phases)) throw new Error('journey braucht id und phases[]');
       const m = model();
-      const existing = m.journeys.find(j => j.id === journey.id);
-      const file = path.join(m.wf, existing?.file || `journeys/${slug(journey.title || journey.id)}.journey.json`);
-      const { file: _f, ...data } = journey;
-      writeJson(file, { schema: 'wireflow/journey@1', ...data });
-      return { gespeichert: path.relative(m.root, file) };
+      const r = saveJourney(m, journey);
+      return { gespeichert: path.join(WF, r.file), offen: journeyGaps(r.journey, m) };
     },
   },
   {
@@ -181,14 +181,14 @@ export const TOOLS = [
   },
   {
     name: 'flow_edit',
-    description: 'Strukturierte Änderung an einem Flow – wie auf dem Canvas. op: addScreen {title, x, y, ref?} (legt Screen-Modul aus DS-Komponenten an) | addDecision {label, var, x, y} | connect {from, el?, to, label?, when?} (verdrahtet flow.trigger im Code) | updateEdge {index, props} | disconnect {index} | moveNode {id, x, y} | setNode {id, props:{title,label,var,story,exit}} | removeNode {id} | setEntry {id} | setVariable {name, value}.',
+    description: 'Strukturierte Änderung an einem Flow – wie auf dem Canvas. op: addScreen {title, x, y, ref?, device?} (legt Screen-Modul aus DS-Komponenten an; device: mobile|tablet|desktop) | addDecision {label, var, x, y} | connect {from, el?, to, label?, when?} (verdrahtet flow.trigger im Code) | updateEdge {index, props} | disconnect {index} | moveNode {id, x, y} | setNode {id, props:{title,label,var,story,exit,device}} | removeNode {id} | setEntry {id} | setVariable {name, value} | addSection {title, x, y, w, h, phase?} (Sektion: fasst Screens zu einer Phase zusammen, phase = Phasen-ID der Journey) | updateSection {id, props:{title,x,y,w,h,phase}} | removeSection {id}.',
     inputSchema: obj({
       flow: str('Flow-ID (ohne: erster Flow)'),
-      op: { type: 'string', enum: ['addScreen', 'addDecision', 'connect', 'updateEdge', 'disconnect', 'moveNode', 'setNode', 'removeNode', 'setEntry', 'setVariable'] },
+      op: { type: 'string', enum: ['addScreen', 'addDecision', 'connect', 'updateEdge', 'disconnect', 'moveNode', 'setNode', 'removeNode', 'setEntry', 'setVariable', 'addSection', 'updateSection', 'removeSection'] },
       id: str('Knoten-ID'), from: str('Start-Knoten'), to: str('Ziel-Knoten'), el: str('data-wf des auslösenden Elements'),
       label: str('Beschriftung'), when: str('Variable oder else'), title: str('Titel eines neuen Screens'), ref: str('bestehendes Screen-Modul'),
       var: str('Variable einer Entscheidung'), name: str('Variablenname'), value: { description: 'Variablenwert' },
-      index: { type: 'number' }, x: { type: 'number' }, y: { type: 'number' }, props: { type: 'object' },
+      index: { type: 'number' }, x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' }, phase: str('Phasen-ID der Journey (Sektion)'), device: { type: 'string', enum: ['mobile', 'tablet', 'desktop'], description: 'Gerätegröße eines neuen Screens' }, props: { type: 'object' },
     }, ['op']),
     run: ({ flow, ...op }) => {
       const m = model();
@@ -362,20 +362,11 @@ export const TOOLS = [
   },
   {
     name: 'canvas_selection',
-    description: 'Was die Person gerade im Canvas ausgewählt hat (Screen, Element, Modus – im Storybook-Brett: Story mit Datei, Args und Element mit Quelldatei). Für Aufträge wie „ändere das Ausgewählte“.',
+    description: 'Was die Person gerade im Canvas ausgewählt hat (Screen, Element, Modus). Für Aufträge wie „ändere das Ausgewählte“.',
     inputSchema: obj({}),
     run: () => {
       const m = model();
       return readJson(path.join(m.wf, '.canvas-state.json'), { auswahl: null, hinweis: 'Im Canvas ist nichts ausgewählt.' });
-    },
-  },
-  {
-    name: 'storybook_status',
-    description: 'Storybook des Projekts: läuft es (URL), welche Stories gibt es (nach Komponente gruppiert, mit Story-ID, Datei und Komponente) und welche gelten als Screens. Der Canvas zeigt sie im Storybook-Brett ohne Migration. Läuft es nicht: Hinweis, wie es zu starten ist.',
-    inputSchema: obj({}),
-    run: async () => {
-      const m = model();
-      return storybookStatus(m.root, m);
     },
   },
   {

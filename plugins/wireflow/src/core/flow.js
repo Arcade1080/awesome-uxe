@@ -33,7 +33,7 @@ export function flowIssues(flow, model) {
       for (const e of edges) if (e.from === id && !seen.has(e.to)) { seen.add(e.to); queue.push(e.to); }
     }
     for (const n of nodes.values()) if (!seen.has(n.id)) add('warning', 'unreachable', `${n.title || n.label || n.id} ist vom Einstieg aus nicht erreichbar.`, n.id);
-  } else add('error', 'entry', 'Der Flow hat keinen gültigen Einstieg (entry).');
+  } else if (nodes.size) add('error', 'entry', 'Der Flow hat keinen gültigen Einstieg (entry).');
   for (const n of nodes.values()) {
     if (n.type === 'screen' && !n.exit && !edges.some(e => e.from === n.id)) add('info', 'dead-end', `${n.title || n.id} hat keinen Ausgang – als Ausstieg markieren (exit) oder verbinden.`, n.id);
   }

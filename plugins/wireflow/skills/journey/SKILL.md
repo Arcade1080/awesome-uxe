@@ -1,6 +1,6 @@
 ---
 name: journey
-description: User Journey mappen – Phasen, Handlungen, Emotionen, Pain Points und Chancen, verknüpft mit belegtem Wissen. Verwenden, um aus Research, Interviews oder Teamwissen eine Ist- oder Soll-Journey zu erstellen oder zu ändern; Grundlage für /wireflow:flow.
+description: User Journey als Story Map mappen – Phasen, Schritte, Pain Points, Bedarfe und Anforderungen bis zu den Screens, verknüpft mit belegtem Wissen. Verwenden, um aus Research, Interviews oder Teamwissen eine Ist- oder Soll-Journey zu erstellen oder zu ändern; Grundlage für /wireflow:flow.
 argument-hint: "[quellen] [--persona <name>] [--soll]"
 ---
 
@@ -11,14 +11,13 @@ Eine Journey beschreibt das Erleben über die Zeit – vor, während und nach de
 ## Ablauf
 
 1. **Kontext klären.** `knowledge_get` und vorhandene Journeys (`journey_get`) lesen. Quellen aus `$ARGUMENTS` (Dateien unter `.wireflow/research/`, Notizen) lesen. Persona und Szenario mit der Person abstimmen, falls unklar.
-2. **Phasen entwerfen.** 4–7 Phasen aus Sicht der Nutzer:innen (nicht des Systems). Je Phase:
-   - `actions`: was Menschen tun (Verben)
-   - `emotion`: −2 bis +2, nur wenn das Material es hergibt; sonst weglassen
-   - `painPoints`: `{ text, insight }` – mit Insight-ID, wenn belegt; ohne Beleg als Annahme anlegen (`knowledge_upsert`) und verlinken
-   - `opportunities`: Chancen für das Produkt
-   - `flow`: Flow-ID, wenn eine Phase im Produkt stattfindet
-3. **Speichern.** `journey_upsert` mit `{ id, title, variant: "ist"|"soll", persona, scenario, phases }`.
-4. **Zeigen.** Im Canvas (Modus Journey) ist jeder Pain Point mit seinem Wissensstand markiert. Unbelegte Stellen benennen und `/wireflow:research` für Lücken vorschlagen.
+2. **Story Map entwerfen** (`wireflow/journey@2`). 4–7 Phasen aus Sicht der Nutzer:innen (nicht des Systems). Je Phase optional `emotion` (−2 bis +2, nur mit Material), `opportunities`, `flow`. Darunter `steps[]`, je Schritt:
+   - `text`: was Menschen erreichen wollen, mit Verb, ohne Lösung („Passende Zeit finden“, nicht „Kalender öffnen“; kein Slot, Login, Button)
+   - `painPoints[]`: `{ id, text, insight? }` – mit Insight-ID, wenn belegt; sonst ohne Beleg lassen und als Annahme anlegen (`knowledge_upsert`)
+   - `needs[]` (Bedarfe): `{ id, text, insight?, solves[], requirements[] }` – was Menschen brauchen, aus ihrer Sicht und mit Verb („Wissen, ob die Praxis meine Versicherung annimmt.“). Keine strenge Schablone; die Art (Information, Entscheidung, Handlung) ergibt sich aus dem Verb. `solves` nennt die Pain-Point-IDs, die der Bedarf adressiert.
+   - `requirements[]` (Anforderungen): `{ id, text, screens[], partial? }` – erst hier kommt das Produkt vor. `screens` sind Knoten-IDs aus dem Flow; `partial`, wenn ein Screen es nur halb löst.
+3. **Speichern.** `journey_upsert` mit `{ id, title, variant: "ist"|"soll", persona, scenario, phases }`. Die Antwort enthält die offenen Punkte (`offen`): Pain Points ohne Bedarf, Bedarfe ohne Beleg oder Anforderung, Anforderungen ohne Screen, Lösungsbegriffe. Die wichtigsten davon nennen.
+4. **Zeigen.** Im Canvas (Modus Journey) ist die Story Map bearbeitbar; Änderungen dort landen in derselben Datei. Unbelegte Stellen benennen und `/wireflow:research` für Lücken vorschlagen.
 
 ## Regeln
 

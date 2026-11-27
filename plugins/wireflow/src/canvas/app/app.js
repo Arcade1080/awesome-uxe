@@ -53,19 +53,41 @@ const S = {
   elTab: 'props',
   scope: 'one',
   picker: null,
-  sb: { status: 'sucht', url: null, base: '', hash: '', hint: '', dirs: [], groups: [], flow: null, pins: new Set(), pos: {}, file: null },
+  pagesOpen: true,
+  closedSec: new Set(),
+  tool: 'move',
+  space: false,
+  multi: new Set(),
+  open: new Set(),
+  autoOpen: null,
+  renamePage: null,
 };
 
 // ---------- Zugriff ----------
-const SB = '__storybook';
-const isSb = n => n?.type === 'story';
-const flow = () => (S.flowId === SB ? S.sb.flow : S.data?.flows.find(f => f.id === S.flowId) || null);
+const flow = () => S.data?.flows.find(f => f.id === S.flowId) || null;
 const nodeById = id => flow()?.nodes.find(n => n.id === id) || null;
 const nodeName = id => { const n = nodeById(id); return n ? n.title || n.label || n.id : id; };
-const screenOf = n => (n && n.type === 'screen' ? S.data.screens[n.ref] || null : isSb(n) ? sbScreen(n) : null);
+const screenOf = n => (n && n.type === 'screen' ? S.data.screens[n.ref] || null : null);
 const spec = name => S.data.ds.components.find(c => c.name === name) || null;
 const VW = () => S.data?.project.renderer?.viewport?.width || 360;
 const VH = () => S.data?.project.renderer?.viewport?.height || 740;
+// Gerätegrößen: Mobile, Tablet, Desktop. Standard je Projekt aus renderer.viewport; überschreibbar mit renderer.devices.
+const DEVICE_ICON = {
+  mobile: '<rect x="4.5" y="1.5" width="7" height="13" rx="1.6"/><path d="M7 12.5h2"/>',
+  tablet: '<rect x="2.5" y="1.5" width="11" height="13" rx="1.6"/><path d="M7 12.5h2"/>',
+  desktop: '<rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2"/><path d="M6 14h4M8 11v3"/>',
+};
+const DEVICE_LABEL = { mobile: 'Mobile', tablet: 'Tablet', desktop: 'Desktop' };
+function devices() {
+  const vw = VW(), vh = VH();
+  const base = { mobile: { w: 390, h: 844 }, tablet: { w: 834, h: 1194 }, desktop: { w: 1440, h: 900 } };
+  const def = vw < 600 ? 'mobile' : vw < 1100 ? 'tablet' : 'desktop';
+  base[def] = { w: vw, h: vh };
+  return { ...base, ...(S.data?.project.renderer?.devices || {}), def };
+}
+const devOf = n => (n?.device && DEVICE_ICON[n.device] ? n.device : devices().def);
+const devSize = n => devices()[devOf(n)];
+const devIcon = (d, cls = 'devico') => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 16 16'); s.setAttribute('class', cls); s.setAttribute('aria-hidden', 'true'); s.innerHTML = DEVICE_ICON[d]; return s; };
 const isContainer = n => { const s = spec(n.name); return s ? s.props?.children?.type === 'node' : n.children.length > 0; };
 
 function findEl(tree, id, parent = null) {
@@ -95,6 +117,7 @@ async function screenOp(ref, o) {
   try {
     const r = await api('/api/op', { ref, ...o });
     scheduleReload(r.files || [], r.v);
+    if (r.filled?.length) toast(`Pflicht-Props mit Platzhaltern gefüllt: ${r.filled.join(', ')} – bitte rechts anpassen.`, 'warn');
     return r;
   } catch (e) {
     toast(e.message, 'bad');
@@ -166,7 +189,6 @@ function connect() {
   const es = new EventSource('/api/events');
   es.addEventListener('hello', () => setLive(true));
   es.addEventListener('chat', e => onChat(JSON.parse(e.data)));
-  es.addEventListener('storybook', () => loadSb());
   es.addEventListener('change', e => {
     const d = JSON.parse(e.data);
     if (d.by !== S.client) external(d.files || []);
@@ -206,7 +228,7 @@ function syncSelection() {
     const scr = screenOf(n);
     const el = scr && S.sel.el ? findEl(scr.tree, S.sel.el)?.node : null;
     const e = S.sel.edge != null ? flow()?.edges[S.sel.edge] : null;
-    const selection = flow()?.storybook ? sbSelection() : {
+    const selection = {
       flow: S.flowId,
       modus: S.mode,
       knoten: n?.id || null,
@@ -224,7 +246,8 @@ function syncSelection() {
 
 // ---------- Auswahl ----------
 function select(sel) {
-  S.sel = { node: sel.node ?? null, el: sel.el ?? null, edge: sel.edge ?? null, variant: sel.variant ?? null };
+  S.sel = { node: sel.node ?? null, el: sel.el ?? null, edge: sel.edge ?? null, variant: sel.variant ?? null, section: sel.section ?? null };
+  S.multi = new Set(sel.multi || []);
   closeMenu();
   if (S.mode === 'design') renderCanvas();
   renderLeft();
@@ -235,11 +258,13 @@ function validateSelection() {
   const f = flow();
   if (!f) { S.sel = { node: null, el: null, edge: null, variant: null }; return; }
   if (S.sel.edge != null && !f.edges[S.sel.edge]) S.sel.edge = null;
+  if (S.sel.section && !(f.sections || []).some(x => x.id === S.sel.section)) S.sel.section = null;
+  S.multi = new Set([...S.multi].filter(id => f.nodes.some(n => n.id === id)));
   const n = nodeById(S.sel.node);
   if (!n) { S.sel.node = null; S.sel.el = null; S.sel.variant = null; return; }
   if (S.sel.variant && !(n.variants || []).some(v => v.ref === S.sel.variant)) S.sel.variant = null;
   const scr = screenOf(n);
-  if (S.sel.el && !(isSb(n) && !scr?.tree) && !(scr?.tree && findEl(scr.tree, S.sel.el))) S.sel.el = null;
+  if (S.sel.el && !(scr?.tree && findEl(scr.tree, S.sel.el))) S.sel.el = null;
 }
 function selectParent() {
   if (S.sel.el) {
@@ -256,19 +281,19 @@ function selected() {
 }
 async function removeSelected() {
   const { n, hit, isRoot } = selected();
-  if (!hit || isRoot || isSb(n)) return;
+  if (!hit || isRoot) return;
   const r = await screenOp(n.ref, { op: 'remove', id: hit.node.id });
   if (r) select({ node: n.id, el: hit.parent?.id || null });
 }
 async function duplicateSelected() {
   const { n, hit, isRoot } = selected();
-  if (!hit || isRoot || isSb(n)) return;
+  if (!hit || isRoot) return;
   const r = await screenOp(n.ref, { op: 'duplicate', id: hit.node.id });
   if (r?.selected) select({ node: n.id, el: r.selected });
 }
 async function moveSelected(delta) {
   const { n, hit, isRoot } = selected();
-  if (!hit || isRoot || isSb(n)) return;
+  if (!hit || isRoot) return;
   const sibs = hit.parent.children;
   const i = sibs.indexOf(hit.node);
   if (i + delta < 0 || i + delta >= sibs.length) return;
@@ -304,15 +329,15 @@ function zoomCenter(f) {
   zoomAt(r.left + r.width / 2, r.top + r.height / 2, f);
 }
 function nodeRect(n) {
-  const p = S.drag?.kind === 'node' && S.drag.id === n.id ? S.drag.pos : n;
+  const p = S.drag?.kind === 'node' && S.drag.id === n.id ? S.drag.pos : S.drag?.kind === 'group' && S.drag.pos[n.id] ? S.drag.pos[n.id] : n;
   if (n.type === 'decision') return { x: p.x, y: p.y, w: D, h: D };
-  return { x: p.x, y: p.y, w: n.w || VW(), h: S.frames.get(n.id)?.h || VH() };
+  return { x: p.x, y: p.y, w: devSize(n).w, h: S.frames.get(n.id)?.h || devSize(n).h };
 }
 function fit() {
   const f = flow();
   if (!f || !f.nodes.length) return;
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
-  for (const r of [...f.nodes.map(nodeRect), ...variantRects(f).map(v => v.rect)]) {
+  for (const r of [...f.nodes.map(nodeRect), ...variantRects(f).map(v => v.rect), ...(f.sections || []).map(sectionRect)]) {
     x1 = Math.min(x1, r.x); y1 = Math.min(y1, r.y); x2 = Math.max(x2, r.x + r.w); y2 = Math.max(y2, r.y + r.h + 30);
   }
   const sr = stage.getBoundingClientRect();
@@ -346,7 +371,6 @@ function beginPointer({ move, up }) {
 
 // ---------- Canvas: Knoten und Frames ----------
 function frameUrl(fr) {
-  if (fr.sb) return `/iframe.html?${new URLSearchParams({ viewMode: 'story', id: fr.sb, wfv: String(fr.sbv || 1) })}`;
   const q = new URLSearchParams({ ref: fr.ref, story: fr.story || '', mode: S.fid, ui: fr.proto ? 'prototype' : 'design', v: String(fr.v) });
   if (fr.proto) q.set('vars', JSON.stringify(S.proto.vars));
   return `/render?${q}`;
@@ -355,7 +379,7 @@ function ensureIframe(fr) {
   const url = frameUrl(fr);
   if (fr.url === url) return;
   fr.url = url;
-  const ifr = h('iframe', { src: url, title: fr.sb ? `Story ${fr.sb}` : `Screen ${fr.ref}`, tabindex: fr.proto ? '0' : '-1' });
+  const ifr = h('iframe', { src: url, title: `Screen ${fr.ref}`, tabindex: fr.proto ? '0' : '-1' });
   if (!fr.iframe) {
     fr.iframe = ifr;
     fr.box.insertBefore(ifr, fr.ov || null);
@@ -363,7 +387,7 @@ function ensureIframe(fr) {
   }
   if (fr.next) fr.next.remove();
   ifr.classList.add('loading');
-  if (!fr.proto) ifr.style.height = `${VH()}px`;
+  if (!fr.proto) ifr.style.height = `${fr.vh || VH()}px`;
   fr.next = ifr;
   fr.box.insertBefore(ifr, fr.ov || null);
   setTimeout(() => { if (fr.next === ifr) promote(fr); }, 6000);
@@ -394,22 +418,16 @@ function renderCanvas() {
     }
   }
   let empty = stage.querySelector(':scope > .empty');
-  if (f?.storybook && !f.nodes.length) {
-    empty?.remove();
-    stage.append(h('div', { class: 'empty' }, h('div', {}, h('b', {}, S.sb.status === 'verbunden' ? 'Keine Stories' : 'Storybook läuft nicht'), S.sb.status === 'verbunden' ? 'Storybook ist verbunden, hat aber keine Stories.' : S.sb.hint || 'Suche Storybook …')));
-    edgesSvg.innerHTML = '';
-    fill(labelsEl);
-    renderVariants(null);
-    return;
-  }
   if (!f) {
     if (!empty) stage.append(h('div', { class: 'empty' }, h('div', {}, h('b', {}, 'Noch kein Flow'), 'In Claude Code: /wireflow:flow – oder eine Journey mit /wireflow:journey anlegen.')));
     edgesSvg.innerHTML = '';
+    renderSections(null);
     fill(labelsEl, );
     renderVariants(null);
     return;
   }
   empty?.remove();
+  renderSections(f);
   for (const n of f.nodes) renderNode(n);
   renderVariants(f);
   renderEdges();
@@ -431,10 +449,10 @@ function renderNode(n) {
     world.append(el);
     S.nodeEls.set(n.id, el);
   }
-  const p = S.drag?.kind === 'node' && S.drag.id === n.id ? S.drag.pos : n;
+  const p = S.drag?.kind === 'node' && S.drag.id === n.id ? S.drag.pos : S.drag?.kind === 'group' && S.drag.pos[n.id] ? S.drag.pos[n.id] : n;
   el.style.left = `${p.x}px`;
   el.style.top = `${p.y}px`;
-  el.classList.toggle('sel', S.sel.node === n.id && !S.sel.el && S.sel.edge == null);
+  el.classList.toggle('sel', (S.sel.node === n.id && !S.sel.el && S.sel.edge == null) || S.multi.has(n.id));
   el.classList.toggle('entry', flow().entry === n.id);
   if (n.type === 'decision') {
     el.querySelector('.dl').textContent = n.label || n.id;
@@ -473,7 +491,7 @@ function createDecision(id) {
 }
 const kchip = (level, text) => h('span', { class: `kchip k-${level}` }, text || KLABEL[level] || level);
 
-function updateScreen(n) {
+function updateNode(n) {
   const fr = S.frames.get(n.id);
   fr.ref = n.ref;
   fr.story = n.story || '';
@@ -482,6 +500,7 @@ function updateScreen(n) {
   const l = scr?.lint;
   fill(fr.title, 
     k ? h('i', { class: 'kdot', style: `background:var(--k-${k.level})`, title: `Wissensstand: ${KLABEL[k.level]}` }) : null,
+    h('span', { class: 'fdev', title: `${DEVICE_LABEL[devOf(n)]} · ${devSize(n).w} × ${devSize(n).h}` }, devIcon(devOf(n))),
     h('b', {}, n.title || n.id),
     scr?.stories?.length > 1 || n.story ? h('span', { class: 'tag', title: 'Zustand (Story)' }, n.story || scr.stories[0]) : null,
     k ? h('span', { class: `tag k-${k.level}`, title: 'Wissensstand' }, KLABEL[k.level]) : null,
@@ -501,7 +520,9 @@ function updateScreen(n) {
     }, '✦'),
   );
   fr.el.classList.toggle('working', S.working.has(n.ref));
-  fr.box.style.width = `${VW()}px`;
+  const ds = devSize(n);
+  if (fr.w !== ds.w || fr.vh !== ds.h) { fr.w = ds.w; fr.vh = ds.h; fr.h = ds.h; fr.url = ''; }
+  fr.box.style.width = `${ds.w}px`;
   fr.box.style.height = `${fr.h}px`;
   ensureIframe(fr);
 }
@@ -612,7 +633,6 @@ function onOvDown(e, fr) {
   const id = hitTest(fr, p.x, p.y);
   if (!id) { select({ node: fr.id }); return; }
   select({ node: fr.id, el: id });
-  if (fr.sb) return;
   const scr = S.data.screens[fr.ref];
   if (!scr?.tree || id === scr.tree.id) return;
   const start = { x: e.clientX, y: e.clientY };
@@ -675,7 +695,6 @@ async function finishDrop() {
 }
 // Wohin fällt ein Element? Tiefster Container unter dem Zeiger, Position nach Lage der Geschwister.
 function dropTarget(fr, x, y, movingId) {
-  if (fr.sb) return null;
   const scr = S.data.screens[fr.ref];
   if (!scr?.tree) return null;
   const banned = new Set();
@@ -688,7 +707,7 @@ function dropTarget(fr, x, y, movingId) {
   });
   if (!c) {
     if (!isContainer(scr.tree)) return null;
-    c = { n: scr.tree, depth: 0, b: fr.boxes[scr.tree.id] || [0, 0, VW(), fr.h] };
+    c = { n: scr.tree, depth: 0, b: fr.boxes[scr.tree.id] || [0, 0, fr.w || VW(), fr.h] };
   }
   const all = c.n.children.filter(k => k.id !== movingId);
   const kids = all.filter(k => fr.boxes[k.id]);
@@ -717,7 +736,8 @@ function renderOverlays() {
   for (const fr of S.frames.values()) {
     if (!fr.ov) continue;
     const kids = [];
-    if (fr.kind !== 'component' && fr.h > VH() + 2) kids.push(h('div', { class: 'fold', style: `top:${VH()}px` }, h('span', {}, `Sichtbereich ${VH()} px`)));
+    const fvh = fr.vh || VH();
+    if (fr.h > fvh + 2) kids.push(h('div', { class: 'fold', style: `top:${fvh}px` }, h('span', {}, `Sichtbereich ${fvh} px`)));
     const box = (id, cls, label) => {
       const b = fr.boxes[id];
       if (!b) return null;
@@ -725,12 +745,12 @@ function renderOverlays() {
     };
     if (S.hover?.node === fr.id && S.hover.el && S.hover.el !== S.sel.el && !S.drag) kids.push(box(S.hover.el, 'hb'));
     if (S.sel.node === fr.id && S.sel.el && S.drag?.kind !== 'move' && !S.sel.variant) {
-      const scr = fr.sb ? sbScreen(nodeById(fr.id)) : S.data.screens[fr.ref];
+      const scr = S.data.screens[fr.ref];
       const hitSel = findEl(scr?.tree, S.sel.el);
       const b = fr.boxes[S.sel.el];
       if (b && hitSel) {
         kids.push(box(S.sel.el, 'sb', `${hitSel.node.name} · ${b[2]} × ${b[3]}`));
-        if (hitSel.parent && !fr.sb) {
+        if (hitSel.parent) {
           kids.push(h('button', {
             type: 'button', class: 'hdl add', title: 'Komponente darunter einfügen', 'aria-label': 'Komponente darunter einfügen',
             style: `left:${b[0] + b[2] / 2}px;top:${b[1] + b[3]}px`,
@@ -738,7 +758,7 @@ function renderOverlays() {
             onclick: ev => { ev.stopPropagation(); const r = ev.currentTarget.getBoundingClientRect(); openPicker(r.left - 10, r.bottom + 8); },
           }, '+'));
         }
-        if (!fr.sb && spec(hitSel.node.name)?.handler) {
+        if (spec(hitSel.node.name)?.handler) {
           kids.push(h('button', {
             type: 'button', class: 'hdl link', title: 'Ziehen: mit einem anderen Screen verbinden', 'aria-label': 'Verbindung ziehen',
             style: `left:${b[0] + b[2]}px;top:${b[1]}px`,
@@ -764,6 +784,9 @@ function startNodeDrag(e, id) {
   e.preventDefault();
   const n = nodeById(id);
   if (!n) return;
+  if (S.space || S.tool === 'hand') { startPan(e); return; }
+  if (e.shiftKey) { const ids = new Set(S.multi.size ? S.multi : S.sel.node ? [S.sel.node] : []); if (ids.has(id)) ids.delete(id); else ids.add(id); const l = [...ids]; select(l.length === 1 ? { node: l[0] } : { multi: l }); return; }
+  if (S.multi.size > 1 && S.multi.has(id)) { startGroupDrag(e, [...S.multi]); return; }
   select({ node: id });
   const k = S.view.k;
   const start = { x: e.clientX, y: e.clientY, nx: n.x, ny: n.y };
@@ -787,34 +810,246 @@ function startNodeDrag(e, id) {
         n.x = d.pos.x;
         n.y = d.pos.y;
         renderEdges();
-        if (flow()?.storybook) sbMoved(id, d.pos);
-        else await flowOp({ op: 'moveNode', id, x: d.pos.x, y: d.pos.y });
+        await flowOp({ op: 'moveNode', id, x: d.pos.x, y: d.pos.y });
       }
     },
   });
 }
 
-stage.addEventListener('pointerdown', e => {
-  if (S.mode !== 'design' || (e.button !== 0 && e.button !== 1)) return;
-  if (e.target.closest('.node,.elabel,.zoom')) return;
-  const start = { x: e.clientX, y: e.clientY, vx: S.view.x, vy: S.view.y };
+// ---------- Werkzeuge: Auswahlrahmen, Hand, Frame, Sektion ----------
+// Wie in Figma: Ziehen auf freier Fläche markiert (⇧ ergänzt), Leertaste oder H schiebt die Ansicht,
+// F setzt einen neuen Screen, S zieht eine Sektion auf. Sektionen fassen Screens zu Phasen zusammen.
+const TOOLS = [
+  ['move', 'Bewegen und markieren', 'V', '<path d="M4 2.5l8.5 5.2-3.7.8 2.2 4.3-1.6.8-2.2-4.3L4.5 12z"/>'],
+  ['hand', 'Hand – Ansicht schieben (Leertaste halten)', 'H', '<path d="M5.5 8V3.6a1 1 0 0 1 2 0V7.5M7.5 7V2.6a1 1 0 0 1 2 0V7M9.5 7V3.4a1 1 0 0 1 2 0v5.8c0 2.7-1.7 4.6-4.2 4.6-1.6 0-2.6-.8-3.5-2.2L2.4 8.8a1 1 0 0 1 1.6-1.1L5.5 9.4"/>'],
+  ['frame', 'Frame – neuer Screen', 'F', '<path d="M5 1.5v13M11 1.5v13M1.5 5h13M1.5 11h13"/>'],
+  ['section', 'Sektion – Screens zu einer Phase zusammenfassen', 'S', '<rect x="2" y="4" width="12" height="9.5" rx="1.2"/><path d="M2 2.5h5"/>'],
+];
+function setTool(t) {
+  S.tool = t;
+  stage.classList.remove('tool-move', 'tool-hand', 'tool-frame', 'tool-section');
+  stage.classList.add(`tool-${t}`);
+  document.querySelectorAll('#toolbar button[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+  const cur = S.frameDevice || (S.data ? devices().def : 'mobile');
+  document.querySelectorAll('#toolbar [data-dev]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dev === cur)));
+}
+function buildToolbar() {
+  const bar = h('div', { class: 'toolbar', id: 'toolbar', role: 'toolbar', 'aria-label': 'Werkzeuge' }, TOOLS.map(([id, label, key, svg]) => {
+    const b = h('button', { type: 'button', 'data-tool': id, title: `${label} (${key})`, 'aria-label': label, 'aria-pressed': 'false', onclick: () => setTool(id) });
+    b.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true">${svg}</svg>`;
+    return b;
+  }));
+  // Beim Frame-Werkzeug: Gerät für den neuen Screen wählen.
+  const devs = h('div', { class: 'tooldev', role: 'group', 'aria-label': 'Gerät des neuen Screens' }, Object.keys(DEVICE_ICON).map(d => {
+    const b = h('button', { type: 'button', 'data-dev': d, title: `Frame: ${DEVICE_LABEL[d]}`, 'aria-label': `Frame ${DEVICE_LABEL[d]}`, onclick: () => { S.frameDevice = d; setTool('frame'); } }, devIcon(d), h('span', {}, DEVICE_LABEL[d]));
+    return b;
+  }));
+  bar.append(devs);
+  stage.append(bar);
+  setTool('move');
+}
+const toWorld = (cx, cy) => { const r = stage.getBoundingClientRect(); return { x: (cx - r.left - S.view.x) / S.view.k, y: (cy - r.top - S.view.y) / S.view.k }; };
+const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+const centerIn = (r, s) => { const cx = r.x + r.w / 2, cy = r.y + Math.min(r.h, 400) / 2; return cx >= s.x && cx <= s.x + s.w && cy >= s.y && cy <= s.y + s.h; };
+function sectionRect(sec) { const p = S.drag?.kind === 'group' && S.drag.sec?.[sec.id] ? S.drag.sec[sec.id] : S.drag?.kind === 'resize' && S.drag.id === sec.id ? S.drag.rect : sec; return { x: p.x, y: p.y, w: p.w ?? sec.w, h: p.h ?? sec.h }; }
+function sectionMembers(f, sec) { return f.nodes.filter(n => centerIn(nodeRect(n), sec)).map(n => n.id); }
+function journeyPhases() {
+  const f = flow();
+  const j = S.data.journeys.find(x => x.id === f?.journey) || S.data.journeys[0];
+  return j ? j.phases.map(p => ({ id: p.id, title: p.title })) : [];
+}
+
+// Ziehen auf freier Fläche: Auswahlrahmen bzw. Rechteck für Frame und Sektion.
+function dragRect(e, done) {
+  const r0 = stage.getBoundingClientRect();
+  const start = { x: e.clientX, y: e.clientY };
+  const box = h('div', { class: `marquee ${S.tool === 'section' ? 'sec' : ''}` });
   let moved = false;
-  stage.classList.add('panning');
   beginPointer({
     move: ev => {
-      const dx = ev.clientX - start.x;
-      const dy = ev.clientY - start.y;
-      if (!moved && Math.hypot(dx, dy) < 3) return;
-      moved = true;
-      S.view.x = start.vx + dx;
-      S.view.y = start.vy + dy;
-      applyView();
+      if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 4) return;
+      if (!moved) { moved = true; stage.append(box); }
+      const x = Math.min(start.x, ev.clientX) - r0.left, y = Math.min(start.y, ev.clientY) - r0.top;
+      Object.assign(box.style, { left: `${x}px`, top: `${y}px`, width: `${Math.abs(ev.clientX - start.x)}px`, height: `${Math.abs(ev.clientY - start.y)}px` });
     },
-    up: () => {
-      stage.classList.remove('panning');
-      if (!moved) select({});
+    up: ev => {
+      box.remove();
+      const a = toWorld(start.x, start.y), b = toWorld(ev.clientX, ev.clientY);
+      done({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) }, moved, ev);
     },
   });
+}
+function marquee(e) {
+  const f = flow();
+  const before = e.shiftKey ? new Set(S.multi.size ? S.multi : S.sel.node ? [S.sel.node] : []) : new Set();
+  dragRect(e, (rect, moved) => {
+    if (!moved) { if (!e.shiftKey) select({}); return; }
+    const hits = new Set(before);
+    for (const n of f?.nodes || []) if (overlaps(nodeRect(n), rect)) hits.add(n.id);
+    const ids = [...hits];
+    if (ids.length === 1) select({ node: ids[0] });
+    else if (ids.length) select({ multi: ids });
+    else select({});
+  });
+}
+async function drawCreate(e) {
+  const tool = S.tool;
+  dragRect(e, async (rect, moved) => {
+    setTool('move');
+    if (tool === 'frame') {
+      const n = flow().nodes.filter(x => x.type === 'screen').length + 1;
+      const dev = S.frameDevice || devices().def;
+      const r = await flowOp({ op: 'addScreen', title: `Screen ${n}`, x: Math.round(rect.x / 10) * 10, y: Math.round(rect.y / 10) * 10, ...(dev !== devices().def ? { device: dev } : {}) });
+      if (r?.node) setTimeout(() => select({ node: r.node }), 200);
+      return;
+    }
+    const n = (flow().sections || []).length + 1;
+    const w = moved ? rect.w : 900, hh = moved ? rect.h : 900;
+    const r = await flowOp({ op: 'addSection', title: `Phase ${n}`, x: rect.x, y: rect.y, w, h: hh });
+    if (r?.section) setTimeout(() => { select({ section: r.section }); $('#right [data-key="sec:title"]')?.select(); }, 200);
+  });
+}
+function startPan(e) {
+  const start = { x: e.clientX, y: e.clientY, vx: S.view.x, vy: S.view.y };
+  stage.classList.add('panning');
+  beginPointer({
+    move: ev => { S.view.x = start.vx + ev.clientX - start.x; S.view.y = start.vy + ev.clientY - start.y; applyView(); },
+    up: () => stage.classList.remove('panning'),
+  });
+}
+
+// Mehrere Knoten (und Sektionen) gemeinsam ziehen.
+function startGroupDrag(e, nodeIds, sectionIds = []) {
+  const f = flow();
+  const k = S.view.k;
+  const start = { x: e.clientX, y: e.clientY };
+  const base = Object.fromEntries(nodeIds.map(id => { const n = nodeById(id); return [id, { x: n.x, y: n.y }]; }));
+  const sbase = Object.fromEntries(sectionIds.map(id => { const s = f.sections.find(x => x.id === id); return [id, { x: s.x, y: s.y, w: s.w, h: s.h }]; }));
+  let moved = false;
+  beginPointer({
+    move: ev => {
+      const dx = Math.round((ev.clientX - start.x) / k / 10) * 10, dy = Math.round((ev.clientY - start.y) / k / 10) * 10;
+      if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 4) return;
+      moved = true;
+      S.drag = { kind: 'group', pos: {}, sec: {} };
+      for (const [id, p] of Object.entries(base)) { S.drag.pos[id] = { x: p.x + dx, y: p.y + dy }; const el = S.nodeEls.get(id); if (el) { el.style.left = `${p.x + dx}px`; el.style.top = `${p.y + dy}px`; } }
+      for (const [id, p] of Object.entries(sbase)) { S.drag.sec[id] = { ...p, x: p.x + dx, y: p.y + dy }; const el = world.querySelector(`.section[data-sec="${id}"]`); if (el) { el.style.left = `${p.x + dx}px`; el.style.top = `${p.y + dy}px`; } }
+      renderEdges();
+    },
+    up: async () => {
+      const d = S.drag;
+      S.drag = null;
+      if (!moved || !d) return;
+      for (const [id, p] of Object.entries(d.pos)) Object.assign(nodeById(id), p);
+      for (const [id, p] of Object.entries(d.sec)) Object.assign(f.sections.find(x => x.id === id), { x: p.x, y: p.y });
+      renderEdges();
+      await flowOp({ op: 'moveGroup', moves: Object.entries(d.pos).map(([id, p]) => ({ id, ...p })), sections: Object.entries(d.sec).map(([id, p]) => ({ id, x: p.x, y: p.y })) });
+    },
+  });
+}
+function startSectionResize(e, sec) {
+  e.stopPropagation();
+  e.preventDefault();
+  const k = S.view.k, start = { x: e.clientX, y: e.clientY, w: sec.w, h: sec.h };
+  beginPointer({
+    move: ev => {
+      S.drag = { kind: 'resize', id: sec.id, rect: { x: sec.x, y: sec.y, w: Math.max(120, Math.round((start.w + (ev.clientX - start.x) / k) / 10) * 10), h: Math.max(80, Math.round((start.h + (ev.clientY - start.y) / k) / 10) * 10) } };
+      const el = world.querySelector(`.section[data-sec="${sec.id}"]`);
+      if (el) { el.style.width = `${S.drag.rect.w}px`; el.style.height = `${S.drag.rect.h}px`; }
+    },
+    up: async () => {
+      const d = S.drag;
+      S.drag = null;
+      if (!d) return;
+      Object.assign(sec, { w: d.rect.w, h: d.rect.h });
+      await flowOp({ op: 'updateSection', id: sec.id, props: { w: d.rect.w, h: d.rect.h } });
+    },
+  });
+}
+function renderSections(f) {
+  let layer = world.querySelector(':scope > .sections');
+  if (!layer) { layer = h('div', { class: 'sections' }); world.prepend(layer); }
+  const phases = journeyPhases();
+  fill(layer, (f?.sections || []).map(sec => {
+    const r = sectionRect(sec);
+    const ph = sec.phase ? phases.find(p => p.id === sec.phase) : null;
+    const title = h('div', { class: 'sectitle', title: 'Ziehen: Sektion mit Inhalt verschieben · Doppelklick: umbenennen' },
+      h('b', {}, sec.title), ph ? h('span', { class: 'secphase' }, `Phase: ${ph.title}`) : null);
+    title.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || S.space || S.tool === 'hand') return;
+      e.stopPropagation();
+      e.preventDefault();
+      select({ section: sec.id });
+      startGroupDrag(e, sectionMembers(f, sec), [sec.id]);
+    });
+    title.addEventListener('dblclick', () => setTimeout(() => $('#right [data-key="sec:title"]')?.select(), 30));
+    const grip = h('div', { class: 'sechandle', title: 'Größe ändern' });
+    grip.addEventListener('pointerdown', e => startSectionResize(e, sec));
+    return h('div', { class: `section${S.sel.section === sec.id ? ' sel' : ''}`, 'data-sec': sec.id, style: `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px` }, title, grip);
+  }));
+}
+
+// Rechte Spalte: Sektion und Mehrfachauswahl.
+function sectionInspector(pane, sec) {
+  const f = flow();
+  const members = sectionMembers(f, sec).map(nodeById).filter(Boolean);
+  const phases = journeyPhases();
+  const ph = h('select', { id: 'sec:phase', 'data-key': 'sec:phase' }, h('option', { value: '' }, '– keine –'), phases.map(p => h('option', { value: p.id, selected: sec.phase === p.id || null }, p.title)));
+  ph.addEventListener('change', () => flowOp({ op: 'updateSection', id: sec.id, props: { phase: ph.value || null } }));
+  pane.append(
+    h('h2', { class: 'ttl' }, 'Sektion'),
+    inputRow('Titel', 'sec:title', sec.title, v => v && flowOp({ op: 'updateSection', id: sec.id, props: { title: v } })),
+    h('label', { class: 'row' }, h('span', {}, 'Phase der Journey'), ph),
+    phases.length ? '' : h('p', { class: 'hint' }, 'Noch keine Journey – mit /wireflow:journey anlegen.'),
+    h('div', { class: 'grp' }, 'Enthält', h('em', {}, `${members.length}`)),
+    members.length ? h('ul', { class: 'tree' }, members.map(n => h('li', {}, h('button', { type: 'button', onclick: () => { select({ node: n.id }); centerOn(n.id); } }, h('span', { class: 'ico' }, n.type === 'decision' ? '◆' : '#'), h('span', { class: 'nm' }, n.title || n.label || n.id))))) : h('p', { class: 'hint' }, 'Leer. Screens hineinziehen – was mit der Mitte in der Sektion liegt, gehört dazu.'),
+    h('div', { class: 'btns' },
+      btn('An Inhalt anpassen', () => { const rs = members.map(nodeRect); if (!rs.length) return; const x = Math.min(...rs.map(r => r.x)) - 60, y = Math.min(...rs.map(r => r.y)) - 90, x2 = Math.max(...rs.map(r => r.x + r.w)) + 60, y2 = Math.max(...rs.map(r => r.y + r.h)) + 60; flowOp({ op: 'updateSection', id: sec.id, props: { x, y, w: x2 - x, h: y2 - y } }); }, !members.length),
+      btn('Sektion löschen', () => { flowOp({ op: 'removeSection', id: sec.id }); select({}); toast(`Sektion „${sec.title}“ gelöscht – die Screens bleiben. ⌘Z macht es rückgängig.`); }, false, 'danger')),
+  );
+}
+function multiInspector(pane) {
+  const ids = [...S.multi];
+  const ns = ids.map(nodeById).filter(Boolean);
+  pane.append(
+    h('h2', { class: 'ttl' }, `${ns.length} ausgewählt`),
+    h('ul', { class: 'tree' }, ns.map(n => h('li', {}, h('button', { type: 'button', onclick: () => { select({ node: n.id }); centerOn(n.id); } }, h('span', { class: 'ico' }, n.type === 'decision' ? '◆' : '#'), h('span', { class: 'nm' }, n.title || n.label || n.id))))),
+    ns.some(n => n.type === 'screen') ? devicePicker((() => { const d = new Set(ns.filter(n => n.type === 'screen').map(devOf)); return d.size === 1 ? [...d][0] : null; })(), async d => { for (const n of ns.filter(x => x.type === 'screen')) await flowOp({ op: 'setNode', id: n.id, props: { device: d === devices().def ? null : d } }); }, 'Gerät (alle)') : '',
+    h('p', { class: 'hint' }, 'Ziehen an einem Titel verschiebt alle. ⇧ + Rahmen ergänzt die Auswahl.'),
+    h('div', { class: 'btns' },
+      btn('Sektion um Auswahl', async () => {
+        const rs = ns.map(nodeRect);
+        const x = Math.min(...rs.map(r => r.x)) - 60, y = Math.min(...rs.map(r => r.y)) - 90, x2 = Math.max(...rs.map(r => r.x + r.w)) + 60, y2 = Math.max(...rs.map(r => r.y + r.h)) + 60;
+        const r = await flowOp({ op: 'addSection', title: `Phase ${(flow().sections || []).length + 1}`, x, y, w: x2 - x, h: y2 - y });
+        if (r?.section) setTimeout(() => { select({ section: r.section }); $('#right [data-key="sec:title"]')?.select(); }, 200);
+      }),
+      btn('Aus dem Flow entfernen', () => removeMulti(), false, 'danger')),
+  );
+}
+// Leertaste halten: Hand-Werkzeug (wie in Figma).
+addEventListener('keydown', e => {
+  if (e.code !== 'Space' || S.mode !== 'design' || e.target.closest?.('input,textarea,select,[contenteditable]')) return;
+  e.preventDefault();
+  if (!S.space) { S.space = true; stage.classList.add('hand'); }
+});
+addEventListener('keyup', e => { if (e.code === 'Space' && S.space) { S.space = false; stage.classList.remove('hand'); } });
+addEventListener('blur', () => { S.space = false; stage.classList.remove('hand'); });
+async function removeMulti() {
+  const ids = [...S.multi];
+  const r = await flowOp({ op: 'removeNodes', ids });
+  if (r) { select({}); toast(`${ids.length} Knoten aus dem Flow entfernt – Screen-Module bleiben. ⌘Z macht es rückgängig.`); }
+}
+
+stage.addEventListener('pointerdown', e => {
+  if (S.mode !== 'design' || (e.button !== 0 && e.button !== 1)) return;
+  if (e.target.closest('.elabel,.zoom,.toolbar,.sectitle,.sechandle')) return;
+  const pan = e.button === 1 || S.space || S.tool === 'hand';
+  if (!pan && e.target.closest('.node')) return;
+  e.preventDefault();
+  closeMenu();
+  if (pan) startPan(e);
+  else if (S.tool === 'frame' || S.tool === 'section') drawCreate(e);
+  else marquee(e);
 });
 stage.addEventListener('wheel', e => {
   if (S.mode !== 'design') return;
@@ -848,14 +1083,13 @@ addEventListener('message', e => {
     }
     fr.boxes = d.boxes || {};
     fr.failed = !!d.failed;
-    if (d.sb) sbTreeArrived(fr, d.tree || []);
     if (!fr.proto) {
-      const nh = fr.kind === 'component' ? Math.max(80, Math.min(Math.round(d.content || 0), 1400)) : Math.max(VH(), Math.min(Math.round(d.height || 0), 6000));
-      if (nh !== fr.h) { fr.h = nh; fr.box.style.height = `${nh}px`; if (fr.sb) sbRelayoutSoon(); }
+      const nh = Math.max(fr.vh || VH(), Math.min(Math.round(d.height || 0), 6000));
+      if (nh !== fr.h) { fr.h = nh; fr.box.style.height = `${nh}px`; }
       renderEdges();
       renderOverlays();
       const n = nodeById(fr.id);
-      if (n && (d.failed || fr.sb)) updateNode(n);
+      if (n && d.failed) updateNode(n);
       if (S.sel.node === fr.id && S.sel.el && S.rightTab === 'design' && S.elTab === 'style') {
         clearTimeout(S.styleTimer);
         S.styleTimer = setTimeout(renderRight, 60);
@@ -866,17 +1100,8 @@ addEventListener('message', e => {
   }
   if (d.type === 'error' && hit.current && !fr.proto) {
     fr.failed = true;
-    if (d.sb) fr.sbError = d.message;
     const n = nodeById(fr.id);
     if (n) updateNode(n);
-  }
-  if (d.sb && d.type === 'story') {
-    fr.sbInfo = d.info;
-    if (S.sel.node === fr.id && S.rightTab === 'design') renderRight();
-  }
-  if (d.sb && d.type === 'args') {
-    if (fr.sbInfo) fr.sbInfo.args = d.args;
-    if (S.sel.node === fr.id && !S.sel.el && S.rightTab === 'design') renderRight();
   }
   if (fr.proto && hit.current) {
     if (d.type === 'trigger') protoTrigger(d.el);
@@ -897,36 +1122,196 @@ function renderLeft() {
   ({ layers: layersPane, components: componentsPane, patterns: patternsPane, tokens: tokensPane })[S.leftTab](pane);
   fill(L, t, pane);
 }
-function layersPane(pane) {
-  const f = flow();
-  if (f?.storybook) { sbLayers(pane); return; }
-  if (!f) { pane.append(h('p', { class: 'hint' }, 'Kein Flow.')); return; }
-  const n = nodeById(S.sel.node);
-  const scr = screenOf(n);
-  if (scr?.tree) {
-    pane.append(h('div', { class: 'grp' }, n.title || n.id, h('em', {}, scr.component || '')));
-    const warn = new Set([...scr.lint.warnings, ...scr.lint.errors].map(w => w.el).filter(Boolean));
-    const items = [];
-    walkTree(scr.tree, (el, depth) => {
-      const sp = spec(el.name);
-      items.push(h('li', {}, h('button', {
-        type: 'button',
-        'aria-current': String(S.sel.el === el.id),
-        style: `padding-left:${6 + depth * 14}px`,
-        onclick: () => select({ node: n.id, el: el.id }),
-        onmouseenter: () => { S.hover = { node: n.id, el: el.id }; renderOverlays(); },
-        onmouseleave: () => { S.hover = null; renderOverlays(); },
-      }, h('span', { class: 'ico' }, !sp ? '!' : isContainer(el) ? '▤' : '◇'), h('span', { class: `nm${sp ? '' : ' gap'}`, title: sp ? '' : 'Keine Komponente des Design Systems' }, el.name), el.text ? h('span', { class: 'tx' }, el.text) : null, h('em', {}, warn.has(el.id) ? '⚠ ' : '', el.id || ''))));
-    });
-    pane.append(h('ul', { class: 'tree' }, ...items));
-    pane.append(h('p', { class: 'hint' }, 'Ziehen auf dem Screen ordnet um. Entf löscht, ⌘/Strg+D dupliziert, Alt+↑/↓ verschiebt.'));
+// Linke Spalte wie in Figma: oben die Flows (wie Seiten), darunter die Ebenen des Flows –
+// Screens und Entscheidungen, aufklappbar bis zu den Elementen.
+// Flow-Symbol: zwei Screens mit Verbindung (wie das Logo).
+const flowIcon = () => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 16 16'); s.setAttribute('class', 'ico flowico'); s.setAttribute('aria-hidden', 'true'); s.innerHTML = '<rect x="1.5" y="2.5" width="5" height="7.5" rx="1"/><rect x="9.5" y="6" width="5" height="7.5" rx="1"/><path d="M6.5 6.2h1.4a1.6 1.6 0 0 1 1.6 1.6v1.5"/>'; return s; };
+function goPage(id) {
+  if (id === S.flowId) return;
+  S.flowId = id;
+  S.sel = { node: null, el: null, edge: null, variant: null };
+  S.fitted = false;
+  renderAll();
+  syncSelection();
+}
+async function newPage() {
+  try {
+    const n = S.data.flows.length + 1;
+    const r = await api('/api/flow', { op: 'createFlow', title: `Flow ${n}` });
+    S.renamePage = r.flow;
+    await doReload();
+    goPage(r.flow);
+    renderLeft();
+  } catch (e) { toast(e.message, 'bad'); }
+}
+async function renamePage(f, title) {
+  S.renamePage = null;
+  const t = title.trim();
+  if (!t || t === f.title) { renderLeft(); return; }
+  try {
+    const r = await api('/api/flow', { flow: f.id, op: 'setFlow', title: t });
+    scheduleReload(r.files || [], r.v);
+  } catch (e) { toast(e.message, 'bad'); renderLeft(); }
+}
+function pagesSection() {
+  const rows = S.data.flows.map(f => {
+    if (S.renamePage === f.id) {
+      const inp = h('input', { class: 'rename', value: f.title || f.id, 'aria-label': 'Name des Flows' });
+      let done = false;
+      const finish = keep => { if (done) return; done = true; if (keep) renamePage(f, inp.value); else { S.renamePage = null; renderLeft(); } };
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } });
+      inp.addEventListener('blur', () => finish(true));
+      requestAnimationFrame(() => { inp.focus(); inp.select(); });
+      return h('li', {}, inp);
+    }
+    const screens = f.nodes.filter(n => n.type === 'screen').length;
+    return h('li', {}, h('button', {
+      type: 'button',
+      'aria-current': String(f.id === S.flowId),
+      title: 'Doppelklick: umbenennen',
+      onclick: () => goPage(f.id),
+      ondblclick: () => { S.renamePage = f.id; renderLeft(); },
+    }, h('span', { class: 'nm' }, f.title || f.id), h('em', {}, screens ? `${screens} ${screens === 1 ? 'Screen' : 'Screens'}` : 'leer')));
+  });
+  return h('section', { class: 'lsec pages' },
+    h('div', { class: 'sechead' },
+      h('button', { type: 'button', class: 'chev', 'aria-expanded': String(S.pagesOpen), onclick: () => { S.pagesOpen = !S.pagesOpen; renderLeft(); } }, h('span', { class: 'ar' }, S.pagesOpen ? '▾' : '▸'), flowIcon(), 'Flows'),
+      h('button', { type: 'button', class: 'addbtn', title: 'Neuer Flow', 'aria-label': 'Neuer Flow', onclick: newPage }, '+')),
+    S.pagesOpen ? h('ul', { class: 'tree pagelist' }, rows) : null);
+}
+function layerRow({ depth, open, onToggle, current, onClick, onHover, ico, name, nameCls, text, meta, title, drag, onDelete, delLabel }) {
+  const row = h('div', { class: `lrow${current ? ' cur' : ''}`, style: `--d:${depth}`, draggable: drag?.canDrag ? 'true' : null },
+    onToggle ? h('button', { type: 'button', class: 'tog', 'aria-label': open ? 'Zuklappen' : 'Aufklappen', 'aria-expanded': String(open), onclick: e => { e.stopPropagation(); onToggle(); } }, open ? '▾' : '▸') : h('span', { class: 'tog' }),
+    h('button', {
+      type: 'button', class: 'lbtn', 'aria-current': String(!!current), title,
+      onclick: onClick,
+      onkeydown: onDelete ? e => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); onDelete(); } } : null,
+      onmouseenter: onHover ? () => onHover(true) : null,
+      onmouseleave: onHover ? () => onHover(false) : null,
+    }, h('span', { class: 'ico' }, ico), h('span', { class: `nm${nameCls ? ` ${nameCls}` : ''}` }, name), text ? h('span', { class: 'tx' }, text) : null, meta ? h('em', {}, meta) : null),
+    onDelete ? h('button', { type: 'button', class: 'ldel', title: delLabel, 'aria-label': delLabel, onclick: e => { e.stopPropagation(); onDelete(); } }, '×') : null);
+  if (drag) {
+    row.addEventListener('dragstart', e => { S.ldrag = drag; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', drag.id); row.classList.add('dragging'); });
+    row.addEventListener('dragend', () => { S.ldrag = null; row.classList.remove('dragging'); });
+    const pos = e => {
+      const d = S.ldrag;
+      if (!d || d.id === drag.id || d.kind !== drag.kind || (d.kind === 'el' && (d.node !== drag.node || drag.inside?.(d.id)))) return null;
+      const r = row.getBoundingClientRect(), y = (e.clientY - r.top) / r.height;
+      if (drag.kind === 'el' && drag.isRoot) return 'inside';
+      if (drag.kind === 'el' && drag.container && y > 0.3 && y < 0.7) return 'inside';
+      return y < 0.5 ? 'before' : 'after';
+    };
+    const clear = () => row.classList.remove('drop-before', 'drop-after', 'drop-inside');
+    row.addEventListener('dragover', e => { const p = pos(e); clear(); if (!p) return; e.preventDefault(); row.classList.add(`drop-${p}`); });
+    row.addEventListener('dragleave', clear);
+    row.addEventListener('drop', e => { const p = pos(e); clear(); if (!p) return; e.preventDefault(); const d = S.ldrag; S.ldrag = null; drag.onDrop(d, p); });
   }
-  pane.append(h('div', { class: 'grp' }, 'Flow', h('em', {}, `${f.nodes.length} Knoten`)));
-  pane.append(h('ul', { class: 'tree' }, ...f.nodes.map(x => h('li', {}, h('button', {
-    type: 'button',
-    'aria-current': String(S.sel.node === x.id && !S.sel.el),
-    onclick: () => { select({ node: x.id }); centerOn(x.id); },
-  }, h('span', { class: 'ico' }, x.type === 'decision' ? '◆' : '▢'), h('span', { class: 'nm' }, x.title || x.label || x.id), f.entry === x.id ? h('em', {}, 'Einstieg') : x.exit ? h('em', {}, 'Ausstieg') : null)))));
+  return h('li', {}, row);
+}
+async function deleteNode(f, n) {
+  const r = await flowOp({ op: 'removeNode', id: n.id });
+  if (r) { select({}); toast(`„${n.title || n.label || n.id}“ aus dem Flow entfernt${n.ref ? ' – das Screen-Modul bleibt erhalten' : ''}. ⌘Z macht es rückgängig.`); }
+}
+async function deleteEl(n, el, parent) {
+  const r = await screenOp(n.ref, { op: 'remove', id: el.id });
+  if (r) { select({ node: n.id, el: parent?.id || null }); toast(`${el.name} entfernt – ⌘Z macht es rückgängig.`); }
+}
+function layersSection() {
+  const f = flow();
+  const sec = h('section', { class: 'lsec layers' }, h('div', { class: 'sechead' }, h('span', { class: 'ttl' }, 'Ebenen'), f ? h('em', {}, f.title || f.id) : null));
+  if (!f) { sec.append(h('p', { class: 'hint' }, 'Kein Flow. Mit + oben einen anlegen.')); return sec; }
+  if (!f.nodes.length) { sec.append(h('p', { class: 'hint' }, 'Leerer Flow. Rechts „+ Screen“ oder Claude bitten: „Lege die Screens für … an“.')); return sec; }
+  if (S.sel.node && S.autoOpen !== S.sel.node) { S.open.add(S.sel.node); S.autoOpen = S.sel.node; }
+  const rows = [];
+  const toggle = id => () => { if (S.open.has(id)) S.open.delete(id); else S.open.add(id); renderLeft(); };
+  const nodeDrag = n => ({
+    kind: 'node', id: n.id, canDrag: true,
+    onDrop: (d, p) => {
+      const from = f.nodes.findIndex(x => x.id === d.id);
+      let to = f.nodes.findIndex(x => x.id === n.id) + (p === 'after' ? 1 : 0);
+      if (from < to) to--;
+      if (from !== to) flowOp({ op: 'reorderNode', id: d.id, index: to });
+    },
+  });
+  const emit = (n, base) => {
+    if (n.type === 'decision') {
+      rows.push(layerRow({ depth: base, current: (S.sel.node === n.id && !S.sel.el) || S.multi.has(n.id), onClick: () => { select({ node: n.id }); centerOn(n.id); }, ico: '◆', name: n.label || n.title || n.id, meta: n.var ? `${n.var} ?` : '', drag: nodeDrag(n), onDelete: () => deleteNode(f, n), delLabel: 'Aus dem Flow entfernen' }));
+      return;
+    }
+    const scr = S.data.screens[n.ref];
+    const open = S.open.has(n.id);
+    const issues = scr ? scr.lint.errors.length + scr.lint.warnings.length : 0;
+    rows.push(layerRow({
+      depth: base, open, onToggle: scr?.tree ? toggle(n.id) : null,
+      current: (S.sel.node === n.id && !S.sel.el && !S.sel.variant) || S.multi.has(n.id),
+      onClick: () => { select({ node: n.id }); centerOn(n.id); },
+      ico: '#', name: n.title || n.id, nameCls: 'scrname',
+      meta: [f.entry === n.id ? 'Einstieg' : n.exit ? 'Ausstieg' : '', issues ? `⚠ ${issues}` : ''].filter(Boolean).join(' · '),
+      title: n.ref, drag: nodeDrag(n), onDelete: () => deleteNode(f, n), delLabel: 'Aus dem Flow entfernen (Screen-Modul bleibt)',
+    }));
+    if (!open || !scr?.tree) return;
+    const warn = new Set([...scr.lint.warnings, ...scr.lint.errors].map(w => w.el).filter(Boolean));
+    walkTree(scr.tree, (el, depth, parent) => {
+      const sp = spec(el.name);
+      const isRoot = !parent;
+      rows.push(layerRow({
+        depth: depth + 1 + base,
+        current: S.sel.node === n.id && S.sel.el === el.id,
+        onClick: () => select({ node: n.id, el: el.id }),
+        onHover: on => { S.hover = on ? { node: n.id, el: el.id } : null; renderOverlays(); },
+        ico: !sp ? '!' : isContainer(el) ? '▤' : '◇',
+        name: el.name, nameCls: sp ? '' : 'gap', text: el.text,
+        meta: `${warn.has(el.id) ? '⚠ ' : ''}${el.id || ''}`,
+        title: sp ? '' : 'Keine Komponente des Design Systems',
+        onDelete: isRoot || !el.id ? null : () => deleteEl(n, el, parent), delLabel: 'Element löschen',
+        drag: el.id ? {
+          kind: 'el', node: n.id, id: el.id, canDrag: !isRoot, isRoot, container: isContainer(el),
+          inside: id => !!findEl(findEl(scr.tree, id)?.node, el.id),
+          onDrop: async (d, p) => {
+            let o;
+            if (p === 'inside') o = { op: 'move', id: d.id, parent: el.id, index: Number.MAX_SAFE_INTEGER };
+            else if (p === 'after') o = { op: 'move', id: d.id, parent: parent.id, after: el.id };
+            else {
+              const kids = parent.children.filter(c => c.id && c.id !== d.id);
+              const i = kids.findIndex(c => c.id === el.id);
+              o = { op: 'move', id: d.id, parent: parent.id, after: i > 0 ? kids[i - 1].id : null };
+            }
+            const r = await screenOp(n.ref, o);
+            if (r) select({ node: n.id, el: d.id });
+          },
+        } : null,
+      }));
+    });
+    for (const v of n.variants || []) {
+      rows.push(layerRow({
+        depth: 1 + base, current: S.sel.node === n.id && S.sel.variant === v.ref,
+        onClick: () => select({ node: n.id, variant: v.ref }),
+        ico: '◌', name: v.label || path0(v.ref), nameCls: 'var', meta: 'Variante', title: v.rationale || v.ref,
+      }));
+    }
+  };
+  const inSec = new Set();
+  for (const sc of f.sections || []) {
+    const mem = sectionMembers(f, sc);
+    mem.forEach(id => inSec.add(id));
+    const ph = sc.phase ? journeyPhases().find(p => p.id === sc.phase) : null;
+    rows.push(layerRow({
+      depth: 0, open: !S.closedSec.has(sc.id), onToggle: () => { if (S.closedSec.has(sc.id)) S.closedSec.delete(sc.id); else S.closedSec.add(sc.id); renderLeft(); },
+      current: S.sel.section === sc.id, onClick: () => select({ section: sc.id }),
+      ico: '▭', name: sc.title, nameCls: 'secname', meta: ph ? ph.title : `${mem.length}`,
+      onDelete: () => { flowOp({ op: 'removeSection', id: sc.id }); select({}); }, delLabel: 'Sektion löschen (Screens bleiben)',
+    }));
+    if (!S.closedSec.has(sc.id)) for (const id of mem) emit(nodeById(id), 1);
+  }
+  for (const n of f.nodes) if (!inSec.has(n.id)) emit(n, 0);
+  sec.append(h('ul', { class: 'tree ltree' }, rows), h('p', { class: 'hint lhint' }, 'Ziehen ordnet um (auf einen Container: hinein). × oder Entf löscht, ⌘Z macht rückgängig.'));
+  return sec;
+}
+const path0 = r => String(r).replace(/^screens\//, '').replace(/\.screen\.tsx$/, '');
+function layersPane(pane) {
+  pane.classList.add('lpane');
+  pane.append(pagesSection(), layersSection());
+  requestAnimationFrame(() => pane.querySelector('.ltree .lrow.cur')?.scrollIntoView({ block: 'nearest' }));
 }
 function insertTarget() {
   const n = nodeById(S.sel.node);
@@ -1050,13 +1435,10 @@ function renderRight() {
 }
 function designPane(pane) {
   const n = nodeById(S.sel.node);
-  if (flow()?.storybook) {
-    if (isSb(n) && S.sel.el) sbElementInspector(pane, n);
-    else if (isSb(n)) sbStoryInspector(pane, n);
-    else sbBoardInspector(pane);
-    return;
-  }
-  if (S.sel.edge != null && flow()?.edges[S.sel.edge]) edgeInspector(pane, S.sel.edge);
+  const sec = S.sel.section && (flow()?.sections || []).find(x => x.id === S.sel.section);
+  if (S.multi.size > 1) multiInspector(pane);
+  else if (sec) sectionInspector(pane, sec);
+  else if (S.sel.edge != null && flow()?.edges[S.sel.edge]) edgeInspector(pane, S.sel.edge);
   else if (n?.type === 'screen' && S.sel.variant) variantInspector(pane, n, S.sel.variant);
   else if (n?.type === 'screen' && S.sel.el) elementInspector(pane, n);
   else if (n?.type === 'screen') screenInspector(pane, n);
@@ -1260,7 +1642,7 @@ function computedLook(fr, id) {
   const win = fr?.iframe?.contentWindow;
   const doc = fr?.iframe?.contentDocument;
   let el = null;
-  try { el = fr?.sb ? win?.__wfSb?.node(id) : doc?.querySelector(`[data-wf="${CSS.escape(id)}"]`); } catch { el = null; }
+  try { el = doc?.querySelector(`[data-wf="${CSS.escape(id)}"]`); } catch { el = null; }
   if (!el || !win) return null;
   const cs = win.getComputedStyle(el);
   const idx = tokenIndex(win, doc);
@@ -1517,12 +1899,18 @@ function knowledgeBlock(pane, g) {
     h('div', {}, r.kind === 'insight' ? kchip(r.level) : kchip(r.status === 'bestätigt' ? 'belegt' : r.status === 'widerlegt' ? 'widerspruch' : 'annahme'), ' ', h('code', {}, r.id)),
     h('div', {}, r.text)))));
 }
+function devicePicker(current, onPick, label = 'Gerät') {
+  const ds = devices();
+  return h('div', { class: 'row' }, h('span', {}, label), h('div', { class: 'devseg', role: 'group', 'aria-label': label },
+    Object.keys(DEVICE_ICON).map(d => h('button', { type: 'button', 'aria-pressed': String(current === d), title: `${DEVICE_LABEL[d]} · ${ds[d].w} × ${ds[d].h}`, onclick: () => onPick(d) }, devIcon(d), h('span', {}, DEVICE_LABEL[d])))));
+}
 function screenInspector(pane, n) {
   const scr = screenOf(n);
   const f = flow();
   pane.append(h('div', { class: 'ihead' }, h('h2', {}, n.title || n.id), f.entry === n.id ? h('span', { class: 'tag ai' }, 'Einstieg') : null, n.exit ? h('span', { class: 'tag' }, 'Ausstieg') : null));
   pane.append(h('p', { class: 'hint' }, h('code', {}, `.wireflow/${n.ref}`), scr?.component ? ` · ${scr.component}` : ''));
   pane.append(inputRow('Titel', `${n.id}:title`, n.title || '', v => v && flowOp({ op: 'setNode', id: n.id, props: { title: v } })));
+  pane.append(devicePicker(devOf(n), d => flowOp({ op: 'setNode', id: n.id, props: { device: d === devices().def ? null : d } })));
   if (scr?.stories?.length) {
     pane.append(h('div', { class: 'row' }, h('label', { for: `${n.id}:story` }, 'Zustand'), h('select', {
       id: `${n.id}:story`,
@@ -1675,17 +2063,20 @@ function renderProto() {
   fr.ref = n.ref;
   fr.story = n.story || '';
   fr.v = Math.max(fr.v, S.frames.get(n.id)?.v || 0);
-  fr.box.style.width = `${VW()}px`;
-  fr.box.style.height = `${VH()}px`;
+  const { w: pw, h: ph } = devSize(n);
+  if (fr.w !== pw) { fr.w = pw; fr.vh = ph; fr.url = ''; }
+  fr.box.style.width = `${pw}px`;
+  fr.box.style.height = `${ph}px`;
   ensureIframe(fr);
   const sr = stage.getBoundingClientRect();
-  const s = Math.max(0.3, Math.min(1, (sr.height - 120) / (VH() + 20), (sr.width - 40) / (VW() + 20)));
-  P.device.style.width = `${VW() + 20}px`;
-  P.device.style.height = `${VH() + 20}px`;
+  const s = Math.max(0.2, Math.min(1, (sr.height - 120) / (ph + 20), (sr.width - 40) / (pw + 20)));
+  P.device.style.width = `${pw + 20}px`;
+  P.device.style.height = `${ph + 20}px`;
   P.device.style.transform = `scale(${s})`;
   P.device.style.transformOrigin = 'top left';
-  P.wrap.style.width = `${(VW() + 20) * s}px`;
-  P.wrap.style.height = `${(VH() + 20) * s}px`;
+  P.wrap.style.width = `${(pw + 20) * s}px`;
+  P.wrap.style.height = `${(ph + 20) * s}px`;
+  P.device.dataset.device = devOf(n);
   fill(P.bar, h('b', {}, n.title || n.id), n.story ? h('span', { class: 'tag' }, n.story) : null, h('span', {}, `Schritt ${S.proto.history.length + 1}`));
   fill(P.foot, n.exit ? h('div', { class: 'endbanner' }, 'Ende des Flows erreicht.', btn('Neu starten', () => protoStart())) : 'Bedienen wie in der App. Klick ins Leere zeigt, wo es weitergeht.');
 }
@@ -1759,39 +2150,417 @@ function protoPanel(pane) {
   pane.append(h('div', { class: 'grp' }, 'Pfad'), h('ol', { class: 'path' }, ...[...S.proto.history, S.proto.node].map((id, i, a) => h('li', { class: i === a.length - 1 ? 'cur' : '' }, nodeName(id)))));
 }
 
-// ---------- Journey ----------
+// ---------- Journey (Story Map) ----------
+// Phasen → Schritte → Pain Points → Bedarfe | ab hier mit Produkt | Anforderungen → Screens.
+// Arbeitskopie im Client, gespeichert über /api/journey (wireflow/journey@2). Eigene Rückgängig-Liste.
+const J = { id: null, data: null, base: '', hist: [], fut: [], sel: null, edit: null, fresh: null, focus: null, pending: false, timer: 0, lint: true, drag: null, pre: null, refocus: false, saved: true };
+const J_TERMS = [[/tipp/i, 'tippen', 'wählen, sich entscheiden'], [/klick/i, 'klicken', 'wählen, bestätigen'], [/button|knopf/i, 'Button', 'das Ziel dahinter'], [/screen|bildschirm|\bseite\b|maske/i, 'Screen', 'was dort erreicht wird'], [/formular|feld\b|felder/i, 'Feld', 'was angegeben wird'], [/dropdown|menü|popup|\bliste\b|filter/i, 'Bauteil', 'was gefunden oder entschieden wird'], [/eingeben|ausfüllen/i, 'eingeben', 'angeben, mitteilen'], [/\bslot/i, 'Slot', 'Termin, Zeit'], [/log ?in|anmelden|registrier/i, 'Login', 'sich ausweisen, nur wenn nötig'], [/\bapp\b|website|portal/i, 'App', 'offen lassen, wo es passiert']];
+const J_TYPES = [
+  ['info', 'Information', /\b(wissen|erkennen|verstehen|sehen|erfahren|nachvollziehen)\b/i, ['Vor der Wahl einer Praxis wissen, ob sie meine Versicherung annimmt.', 'Erkennen, dass mein Termin für mich zurückgehalten wird.']],
+  ['ent', 'Entscheidung', /\b(vergleichen|auswählen|wählen|entscheiden|abwägen|einschätzen)\b/i, ['Praxen nach dem nächsten freien Termin vergleichen.', 'Einen Termin auswählen, der zu meinen Arbeitszeiten passt.']],
+  ['hand', 'Handlung', /\b(angeben|ändern|korrigieren|erledigen|absagen|verschieben|mitteilen|bezahlen)\b/i, ['Angeben, wie ich versichert bin.', 'Einen Termin kurzfristig absagen oder verschieben.']],
+];
+const jTerm = t => { if (!J.lint) return null; for (const [r, w, b] of J_TERMS) if (r.test(t || '')) return { w, b }; return null; };
+const jType = t => { let best = null, pos = Infinity; for (const [k, , r] of J_TYPES) { const m = (t || '').match(r); if (m && m.index < pos) { pos = m.index; best = k; } } return best; };
+const jTypeLabel = k => J_TYPES.find(x => x[0] === k)?.[1];
+const jUid = p => `${p}_${Math.random().toString(36).slice(2, 8)}`;
+const canon = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).filter(y => y !== 'file').sort().map(y => [y, x[y]])) : x));
+const jSnap = () => JSON.stringify(J.data);
+const jSteps = () => J.data.phases.flatMap(p => p.steps);
+const jPains = () => jSteps().flatMap(s => s.painPoints);
+const jNeeds = () => jSteps().flatMap(s => s.needs);
+const jPnum = p => `P${jPains().indexOf(p) + 1}`;
+const jPain = id => jPains().find(p => p.id === id);
+const jSolvers = p => jNeeds().filter(n => n.solves.includes(p.id));
+const jInsight = id => S.data.knowledge.insights.find(i => i.id === id);
+const jLevel = id => (id ? jInsight(id)?.wissensstand || 'offen' : null);
+function jScreens() {
+  const fl = S.data.flows.filter(f => f.journey === J.id);
+  const list = (fl.length ? fl : S.data.flows).flatMap(f => f.nodes.filter(n => n.type === 'screen').map(n => ({ id: n.id, title: n.title || n.id, flow: f })));
+  return list;
+}
+const jScreenTitle = id => jScreens().find(x => x.id === id)?.title || id;
+function jLocate(id) {
+  for (const [ai, a] of J.data.phases.entries()) {
+    if (a.id === id) return { kind: 'act', a, ai };
+    for (const [si, s] of a.steps.entries()) {
+      if (s.id === id) return { kind: 'step', a, ai, s, si };
+      for (const [pi, p] of s.painPoints.entries()) if (p.id === id) return { kind: 'pain', a, ai, s, si, p, pi };
+      for (const [ni, n] of s.needs.entries()) {
+        if (n.id === id) return { kind: 'need', a, ai, s, si, n, ni };
+        for (const [ri, r] of n.requirements.entries()) if (r.id === id) return { kind: 'req', a, ai, s, si, n, ni, r, ri };
+      }
+    }
+  }
+  return null;
+}
+function jClean(j) {
+  const d = JSON.parse(JSON.stringify(j));
+  for (const p of d.phases) for (const s of p.steps) {
+    for (const x of s.painPoints) if (!x.insight) delete x.insight;
+    for (const n of s.needs) { if (!n.insight) delete n.insight; for (const r of n.requirements) if (!r.partial) delete r.partial; }
+  }
+  return d;
+}
+
+function jSync() {
+  const list = S.data.journeys;
+  const want = J.id && list.find(x => x.id === J.id) || list.find(x => x.id === flow()?.journey) || list[0];
+  if (!want) { J.id = null; J.data = null; return 'none'; }
+  const { file: _f, ...fresh } = want;
+  if (J.id !== want.id || !J.data) {
+    Object.assign(J, { id: want.id, data: JSON.parse(JSON.stringify(fresh)), base: canon(fresh), hist: [], fut: [], sel: null, edit: null });
+    return 'reset';
+  }
+  if (!J.pending && canon(fresh) !== J.base) {
+    Object.assign(J, { data: JSON.parse(JSON.stringify(fresh)), base: canon(fresh), hist: [], fut: [], edit: null });
+    if (J.sel && !jLocate(J.sel)) J.sel = null;
+    return 'reset';
+  }
+  return 'same';
+}
+function jSave() {
+  J.saved = false;
+  J.pending = true;
+  jStat();
+  clearTimeout(J.timer);
+  J.timer = setTimeout(async () => {
+    const body = jClean(J.data);
+    try {
+      const r = await api('/api/journey', { journey: body });
+      J.base = canon(body);
+      J.saved = true;
+      J.pending = false;
+      jStat();
+      scheduleReload(r.files || [], r.v);
+    } catch (e) {
+      J.pending = false;
+      toast(`Journey nicht gespeichert: ${e.message}`, 'bad');
+      jStat();
+    }
+  }, 350);
+}
+function jChange(fn) { J.hist.push(jSnap()); if (J.hist.length > 100) J.hist.shift(); J.fut = []; fn(); jRender(); jSave(); }
+function jUndo() { if (!J.hist.length) return; J.fut.push(jSnap()); J.data = JSON.parse(J.hist.pop()); J.edit = J.fresh = null; if (J.sel && !jLocate(J.sel)) J.sel = null; jRender(); jSave(); }
+function jRedo() { if (!J.fut.length) return; J.hist.push(jSnap()); J.data = JSON.parse(J.fut.pop()); J.edit = J.fresh = null; if (J.sel && !jLocate(J.sel)) J.sel = null; jRender(); jSave(); }
+
+function jAddAct(i) { jChange(() => { const a = { id: jUid('ph'), title: '', steps: [] }; J.data.phases.splice(i, 0, a); J.sel = J.edit = J.fresh = a.id; }); }
+function jAddStep(a, i) { jChange(() => { const s = { id: jUid('st'), text: '', painPoints: [], needs: [] }; a.steps.splice(i, 0, s); J.sel = J.edit = J.fresh = s.id; }); }
+function jAddPain(s) { jChange(() => { const p = { id: jUid('pp'), text: '' }; s.painPoints.push(p); J.sel = p.id; J.focus = 'jf-pain'; }); }
+function jAddNeed(s) { jChange(() => { const n = { id: jUid('bd'), text: '', solves: [], requirements: [] }; s.needs.push(n); J.sel = n.id; J.focus = 'jf-need'; }); }
+function jAddReq(n) { jChange(() => { const r = { id: jUid('an'), text: '', screens: [] }; n.requirements.push(r); J.sel = r.id; J.focus = 'jf-req'; }); }
+function jDerive(id) { const L = jLocate(id); if (!L) return; jChange(() => { const n = { id: jUid('bd'), text: '', insight: L.p.insight, solves: [L.p.id], requirements: [] }; L.s.needs.push(n); J.sel = n.id; J.focus = 'jf-need'; }); toast(`Bedarf zu ${jPnum(L.p)} angelegt – Beleg übernommen.`); }
+function jSibling(id) { const L = jLocate(id); if (L?.kind === 'act') jAddAct(L.ai + 1); else if (L?.kind === 'step') jAddStep(L.a, L.si + 1); }
+function jRemove(id) {
+  const L = jLocate(id);
+  if (!L) return;
+  const what = { act: () => `Phase „${L.a.title}“`, step: () => `Schritt „${L.s.text}“`, pain: () => `Pain Point ${jPnum(L.p)}`, need: () => `Bedarf B${L.ni + 1}`, req: () => 'Anforderung' }[L.kind]();
+  jChange(() => {
+    if (L.kind === 'act') J.data.phases.splice(L.ai, 1);
+    else if (L.kind === 'step') L.a.steps.splice(L.si, 1);
+    else if (L.kind === 'pain') L.s.painPoints.splice(L.pi, 1);
+    else if (L.kind === 'need') L.s.needs.splice(L.ni, 1);
+    else L.n.requirements.splice(L.ri, 1);
+    const pains = new Set(jPains().map(p => p.id));
+    for (const n of jNeeds()) n.solves = n.solves.filter(x => pains.has(x));
+    J.sel = null;
+  });
+  toast(`${what} gelöscht – ⌘Z macht es rückgängig.`);
+}
+function jMoveIn(list, from, item, toList, toI) { list.splice(from, 1); if (list === toList && from < toI) toI--; toList.splice(toI ?? toList.length, 0, item); }
+function jMove(id, target, before) {
+  const L = jLocate(id), T = target && jLocate(target);
+  jChange(() => {
+    if (L.kind === 'act') jMoveIn(J.data.phases, L.ai, L.a, J.data.phases, T.ai);
+    else if (L.kind === 'step') { if (T.kind === 'act') jMoveIn(L.a.steps, L.si, L.s, T.a.steps, T.a.steps.length); else jMoveIn(L.a.steps, L.si, L.s, T.a.steps, T.si); }
+    else if (L.kind === 'pain') jMoveIn(L.s.painPoints, L.pi, L.p, T.s.painPoints, T.kind === 'pain' ? T.pi : undefined);
+    else if (L.kind === 'need') jMoveIn(L.s.needs, L.ni, L.n, T.s.needs, T.kind === 'need' ? T.ni : undefined);
+  });
+}
+function jNudge(id, dir) {
+  const L = jLocate(id);
+  if (!L) return;
+  J.refocus = true;
+  const fs = jSteps(), k = L.s ? fs.indexOf(L.s) : -1;
+  const lists = { act: [J.data.phases, L.ai, L.a], pain: [L.s?.painPoints, L.pi, L.p], need: [L.s?.needs, L.ni, L.n], req: [L.n?.requirements, L.ri, L.r] };
+  if (L.kind === 'step') {
+    if (dir === 'r') { if (L.si < L.a.steps.length - 1) jChange(() => jMoveIn(L.a.steps, L.si, L.s, L.a.steps, L.si + 2)); else if (J.data.phases[L.ai + 1]) jChange(() => jMoveIn(L.a.steps, L.si, L.s, J.data.phases[L.ai + 1].steps, 0)); }
+    if (dir === 'l') { if (L.si > 0) jChange(() => jMoveIn(L.a.steps, L.si, L.s, L.a.steps, L.si - 1)); else if (J.data.phases[L.ai - 1]) jChange(() => jMoveIn(L.a.steps, L.si, L.s, J.data.phases[L.ai - 1].steps)); }
+    return;
+  }
+  const [list, i, item] = lists[L.kind];
+  const step = L.kind === 'act' ? (dir === 'r' ? 1 : dir === 'l' ? -1 : 0) : (dir === 'd' ? 1 : dir === 'u' ? -1 : 0);
+  if (step) { const j = i + step; if (j >= 0 && j < list.length) jChange(() => { list.splice(i, 1); list.splice(j, 0, item); }); return; }
+  if ((L.kind === 'pain' || L.kind === 'need') && (dir === 'l' || dir === 'r')) {
+    const to = fs[k + (dir === 'r' ? 1 : -1)];
+    if (to) jChange(() => jMoveIn(list, i, item, L.kind === 'pain' ? to.painPoints : to.needs));
+  }
+}
+
+function jFinish(ta, o, field, keep, next) {
+  if (ta._done) return;
+  ta._done = true;
+  const v = ta.value.replace(/\s+/g, ' ').trim(), wasFresh = J.fresh === o.id;
+  J.edit = J.fresh = null;
+  J.refocus = true;
+  if (!keep || !v) { if (wasFresh) { J.data = JSON.parse(J.hist.pop()); J.sel = null; jSave(); } jRender(); return; }
+  if (v !== o[field]) { if (!wasFresh) { J.hist.push(jSnap()); J.fut = []; } o[field] = v; jSave(); }
+  if (next) jSibling(o.id); else jRender();
+}
+function jCard(kind, o, body, extra) {
+  const field = kind === 'act' ? 'title' : 'text';
+  const isEdit = J.edit === o.id, L = J.sel && jLocate(J.sel);
+  const rel = L && ((kind === 'req' && L.kind === 'need' && L.n.requirements.includes(o)) || (kind === 'need' && L.kind === 'req' && L.n === o) || (kind === 'pain' && L.kind === 'need' && L.n.solves.includes(o.id)) || (kind === 'need' && L.kind === 'pain' && o.solves.includes(L.p.id)));
+  const label = { act: 'Phase', step: 'Schritt', pain: 'Pain Point', need: 'Bedarf', req: 'Anforderung' }[kind];
+  const inline = kind === 'act' || kind === 'step';
+  const el = h('div', {
+    class: `jc jc-${kind}${J.sel === o.id ? ' sel' : ''}${rel ? ' rel' : ''}`, tabindex: '0', role: 'button', draggable: isEdit || kind === 'req' ? null : 'true', 'data-jid': o.id, 'aria-label': `${label}: ${o[field] || 'leer'}`,
+    onclick: e => { if (e.target.closest('button,textarea')) return; J.sel = o.id; jRender(); },
+    ondblclick: e => { if (e.target.closest('button') || !inline) return; J.sel = J.edit = o.id; jRender(); },
+    onkeydown: e => {
+      if (e.target.tagName === 'TEXTAREA') return;
+      const ar = { ArrowLeft: 'l', ArrowRight: 'r', ArrowUp: 'u', ArrowDown: 'd' };
+      if (e.altKey && ar[e.key]) { e.preventDefault(); e.stopPropagation(); J.sel = o.id; jNudge(o.id, ar[e.key]); }
+      else if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); J.sel = o.id; if (inline) J.edit = o.id; else J.focus = { pain: 'jf-pain', need: 'jf-need', req: 'jf-req' }[kind]; jRender(); }
+      else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); jRemove(o.id); }
+    },
+    ondragstart: e => { J.drag = { kind, id: o.id }; e.dataTransfer.setData('text/plain', o.id); e.dataTransfer.effectAllowed = 'move'; el.classList.add('dragging'); },
+    ondragend: () => { J.drag = null; el.classList.remove('dragging'); },
+  });
+  if (isEdit) {
+    const ta = h('textarea', { 'aria-label': label, rows: '2', placeholder: kind === 'act' ? 'Phase, z. B. Praxis finden' : 'Was wollen Menschen erreichen?' });
+    ta.value = o[field];
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); jFinish(ta, o, field, true); }
+      else if (e.key === 'Tab') { e.preventDefault(); jFinish(ta, o, field, true, true); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); jFinish(ta, o, field, false); }
+    });
+    ta.addEventListener('blur', () => jFinish(ta, o, field, true));
+    el.append(ta);
+    requestAnimationFrame(() => { ta.focus(); ta.select(); });
+  } else el.append(...body.filter(Boolean));
+  if (extra && !isEdit) el.append(...[].concat(extra).filter(Boolean));
+  el.append(h('button', { type: 'button', class: 'jx', title: 'Löschen', 'aria-label': `${label} löschen`, onclick: e => { e.stopPropagation(); jRemove(o.id); } }, '×'));
+  const accepts = d => d && d.id !== o.id && (d.kind === kind || (kind === 'act' && d.kind === 'step'));
+  el.addEventListener('dragover', e => { if (!accepts(J.drag)) return; e.preventDefault(); e.stopPropagation(); el.classList.add('over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('over'));
+  el.addEventListener('drop', e => { el.classList.remove('over'); if (!accepts(J.drag)) return; e.preventDefault(); e.stopPropagation(); const d = J.drag; J.drag = null; jMove(d.id, o.id); });
+  return el;
+}
+const jChip = (cls, text, title) => h('span', { class: `jchip ${cls}`, title }, text);
+function jEvidence(id) {
+  if (!id) return jChip('k-annahme', 'Annahme', 'Ohne Beleg – Kandidat für /wireflow:research');
+  const i = jInsight(id), lv = i?.wissensstand || 'offen';
+  return jChip(`k-${lv}`, `${KLABEL[lv] || lv} · ${id}`, i ? `${i.aussage}${i.fakten?.length ? ` (${i.fakten.join(', ')})` : ''}` : 'Insight nicht gefunden');
+}
+function jStepCard(s, a, si) {
+  const t = jTerm(s.text);
+  const ins = (side, at) => h('button', { type: 'button', class: `jins jins-${side}`, title: 'Schritt einfügen', 'aria-label': `Schritt ${side === 'l' ? 'vor' : 'nach'} „${s.text}“ einfügen`, onclick: e => { e.stopPropagation(); jAddStep(a, at); } }, '+');
+  return jCard('step', s, [h('span', {}, s.text), t ? h('div', {}, jChip('lint', `Lösung? ${t.w}`, `„${t.w}“ beschreibt eine Lösung. Besser: ${t.b}`)) : null], [si === 0 ? ins('l', 0) : null, ins('r', si + 1)]);
+}
+function jPainCard(p) {
+  const sv = jSolvers(p);
+  return jCard('pain', p, [h('div', { class: 'jnum' }, jPnum(p)), h('span', {}, p.text),
+    h('div', { class: 'jmeta' }, p.insight ? jEvidence(p.insight) : jChip('k-offen', 'ohne Beleg'), sv.length ? jChip('solv', `→ ${sv.map(n => { const N = jLocate(n.id); return `B${N.ni + 1}${N.s === jLocate(p.id).s ? '' : ` (${N.s.text})`}`; }).join(', ')}`) : jChip('gap', 'kein Bedarf'))],
+  h('button', { type: 'button', class: 'jderive', title: 'Bedarf aus diesem Pain Point ableiten', onclick: e => { e.stopPropagation(); jDerive(p.id); } }, '→ B'));
+}
+function jNeedCard(n, i) {
+  const ty = jType(n.text), t = jTerm(n.text);
+  return jCard('need', n, [h('div', { class: 'jnum' }, `B${i + 1}`), h('span', {}, n.text),
+    h('div', { class: 'jmeta' }, ty ? jChip(`t-${ty}`, jTypeLabel(ty)) : null, jEvidence(n.insight),
+      n.solves.length ? jChip('solv', `löst ${n.solves.map(jPain).filter(Boolean).map(jPnum).join(', ')}`) : null,
+      t ? jChip('lint', `Lösung? ${t.w}`, `„${t.w}“ klingt nach Lösung. Besser: ${t.b}`) : null)]);
+}
+function jReqCard(r) {
+  const scr = jScreens();
+  return jCard('req', r, [h('span', {}, r.text || '(leer)'), h('div', { class: 'jmeta' },
+    r.screens.length ? r.screens.map(id => { const x = scr.find(y => y.id === id); return h('button', { type: 'button', class: 'jscr', title: x ? `Im Flow „${x.flow.title}“ öffnen` : 'Screen nicht gefunden', onclick: e => { e.stopPropagation(); if (!x) return; S.flowId = x.flow.id; setMode('design'); select({ node: id }); centerOn(id); } }, h('i'), x?.title || id); }) : jChip('gap', 'kein Screen'),
+    r.partial ? jChip('part', 'teilweise', r.partial) : null)]);
+}
+function jStack(kind, s, items, add, addLabel) {
+  const el = h('div', { class: 'jstack' }, items, h('button', { type: 'button', class: `jghost${kind === 'pain' ? ' sm' : ''}`, onclick: add }, addLabel));
+  el.addEventListener('dragover', e => { if (J.drag?.kind !== kind) return; e.preventDefault(); el.classList.add('over'); });
+  el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('over'); });
+  el.addEventListener('drop', e => { el.classList.remove('over'); if (J.drag?.kind !== kind) return; e.preventDefault(); const d = J.drag; J.drag = null; jMove(d.id, s.id); });
+  return el;
+}
+
+function jMap() {
+  const b = $('#jboard');
+  if (!b || !J.data) return;
+  const wall = b.parentElement, sx = wall.scrollLeft, sy = wall.scrollTop;
+  b.textContent = '';
+  let col = 2;
+  const tpl = ['var(--jlab)'];
+  const pos = J.data.phases.map(a => { const n = Math.max(1, a.steps.length), p = { c: col, n }; col += n; for (let i = 0; i < n; i++) tpl.push('var(--jcw)'); return p; });
+  tpl.push('var(--jcw)');
+  b.style.gridTemplateColumns = tpl.join(' ');
+  const place = (el, c, r, span = 1) => { el.style.gridColumn = `${c} / span ${span}`; el.style.gridRow = r; b.append(el); };
+  place(h('div', { class: 'jlab' }, 'Phasen'), 1, 1);
+  place(h('div', { class: 'jlab' }, 'Schritte'), 1, 2);
+  place(h('div', { class: 'jlab' }, 'Pain Points', h('small', {}, 'mit Beleg')), 1, 3);
+  place(h('div', { class: 'jlab' }, 'Bedarfe', h('small', {}, 'was Menschen brauchen')), 1, 4);
+  place(h('div', { class: 'jrule' }, 'ab hier mit Produkt'), 1, 5, col);
+  place(h('div', { class: 'jlab sys' }, 'Anforderungen', h('small', {}, 'ans Produkt, mit Screens')), 1, 6);
+  J.data.phases.forEach((a, ai) => {
+    place(jCard('act', a, [h('span', {}, a.title)]), pos[ai].c, 1, pos[ai].n);
+    if (!a.steps.length) {
+      const g = h('button', { type: 'button', class: 'jghost', onclick: () => jAddStep(a, 0) }, '+ Schritt');
+      g.addEventListener('dragover', e => { if (J.drag?.kind === 'step') e.preventDefault(); });
+      g.addEventListener('drop', e => { if (J.drag?.kind !== 'step') return; e.preventDefault(); const d = J.drag; J.drag = null; jMove(d.id, a.id); });
+      place(g, pos[ai].c, 2);
+    }
+    a.steps.forEach((s, si) => {
+      const c = pos[ai].c + si;
+      place(jStepCard(s, a, si), c, 2);
+      place(jStack('pain', s, s.painPoints.map(jPainCard), () => jAddPain(s), '+ Pain Point'), c, 3);
+      place(jStack('need', s, s.needs.map(jNeedCard), () => jAddNeed(s), '+ Bedarf'), c, 4);
+      place(h('div', { class: 'jstack' }, s.needs.map((n, i) => h('div', { class: 'jrg' }, h('div', { class: 'jnum' }, `zu B${i + 1}`),
+        n.requirements.length ? n.requirements.map(jReqCard) : h('div', { class: 'jmiss' }, 'Noch keine Anforderung'),
+        h('button', { type: 'button', class: 'jghost sm', onclick: () => jAddReq(n), 'aria-label': `Anforderung zu B${i + 1}` }, '+ Anforderung')))), c, 6);
+    });
+  });
+  place(h('button', { type: 'button', class: 'jghost', onclick: () => jAddAct(J.data.phases.length) }, '+ Phase'), col, 1);
+  wall.scrollLeft = sx;
+  wall.scrollTop = sy;
+  if (J.refocus && J.sel && !J.edit) b.querySelector(`[data-jid="${J.sel}"]`)?.focus({ preventScroll: false });
+  J.refocus = false;
+}
+function jGaps() {
+  const out = [];
+  for (const p of jPains()) if (!jSolvers(p).length) out.push([p.id, `${jPnum(p)} „${p.text}“`, 'noch kein Bedarf dazu']);
+  for (const a of J.data.phases) for (const s of a.steps) {
+    const t = jTerm(s.text);
+    if (t) out.push([s.id, `„${s.text}“`, `klingt nach Lösung (${t.w})`]);
+    if (!s.needs.length) out.push([s.id, `„${s.text}“`, 'hat noch keine Bedarfe']);
+    s.needs.forEach((n, i) => {
+      const lab = `${s.text}, B${i + 1}`, nt = jTerm(n.text);
+      if (nt) out.push([n.id, lab, `klingt nach Lösung (${nt.w})`]);
+      if (!n.insight) out.push([n.id, lab, 'ohne Beleg (Annahme)']);
+      if (!n.requirements.length) out.push([n.id, lab, 'noch keine Anforderung']);
+      for (const r of n.requirements) { if (!r.screens.length) out.push([r.id, lab, 'Anforderung ohne Screen']); else if (r.partial) out.push([r.id, lab, `nur teilweise gelöst: ${r.partial}`]); }
+    });
+  }
+  return out;
+}
+function jStat() {
+  const el = $('#jstat');
+  if (!el || !J.data) return;
+  const ns = jNeeds();
+  const gaps = ns.filter(n => !n.requirements.length).length + ns.flatMap(n => n.requirements).filter(r => !r.screens.length).length + jPains().filter(p => !jSolvers(p).length).length;
+  fill(el, `${jSteps().length} Schritte · ${jPains().length} Pain Points · ${ns.length} Bedarfe, ${ns.filter(n => n.insight).length} belegt`, gaps ? h('b', {}, ` · ${gaps} Lücken`) : null, h('span', { class: 'jsave' }, J.pending ? ' · speichert …' : J.saved ? ' · gespeichert' : ''));
+  const u = $('#jundo'), r = $('#jredo');
+  if (u) u.disabled = !J.hist.length;
+  if (r) r.disabled = !J.fut.length;
+}
+
+let jLive = () => {};
+function jBind(el, get, set) {
+  el.value = get() ?? '';
+  el.addEventListener('focus', () => { J.pre = jSnap(); });
+  el.addEventListener('input', () => { set(el.value); jMap(); jStat(); jLive(); jSave(); });
+  el.addEventListener('change', () => { if (J.pre && J.pre !== jSnap()) { J.hist.push(J.pre); J.fut = []; jStat(); } J.pre = null; });
+  return el;
+}
+const jFld = (label, ctl, hint) => h('label', { class: 'jfld' }, label, ctl, hint ? h('small', {}, hint) : null);
+function jInsightSelect(id, get, set, none) {
+  return jBind(h('select', { id }, h('option', { value: '' }, none), S.data.knowledge.insights.map(i => h('option', { value: i.id }, `${i.id} · ${KLABEL[i.wissensstand] || i.wissensstand} · ${i.aussage}`))), get, v => set(v || undefined));
+}
+function jInsp() {
+  const p = $('#jinsp');
+  if (!p) return;
+  jLive = () => {};
+  const L = J.sel && jLocate(J.sel);
+  const del = h('button', { type: 'button', class: 'btn danger', onclick: () => jRemove(J.sel) }, 'Löschen');
+  const btns = (...b) => h('div', { class: 'btns' }, ...b, del);
+  if (!L) {
+    const j = J.data, items = jGaps();
+    fill(p, h('div', { class: 'jkind' }, 'Journey'),
+      jFld('Titel', jBind(h('input', { id: 'jf-title' }), () => j.title, v => { j.title = v; })),
+      h('div', { class: 'jrow2' }, jFld('Persona', jBind(h('input', { id: 'jf-persona' }), () => j.persona, v => { j.persona = v; })), jFld('Art', jBind(h('select', { id: 'jf-variant' }, h('option', { value: 'ist' }, 'Ist'), h('option', { value: 'soll' }, 'Soll')), () => j.variant || 'ist', v => { j.variant = v; }))),
+      jFld('Szenario', jBind(h('textarea', { id: 'jf-scenario', rows: '2' }), () => j.scenario, v => { j.scenario = v; })),
+      h('h3', {}, `Offene Punkte (${items.length})`),
+      h('p', { class: 'hint' }, 'Annahmen sind kein Fehler, aber Kandidaten für /wireflow:research.'),
+      h('ul', { class: 'jtodo' }, items.slice(0, 60).map(([id, lab, t]) => h('li', {}, h('button', { type: 'button', onclick: () => { J.sel = id; J.refocus = true; jRender(); } }, lab, ': ', h('b', {}, t))))));
+    return;
+  }
+  if (L.kind === 'act') {
+    const f = L.a.flow && S.data.flows.find(x => x.id === L.a.flow);
+    fill(p, h('div', { class: 'jkind' }, 'Phase'), jFld('Titel', jBind(h('input', { id: 'jf-act' }), () => L.a.title, v => { L.a.title = v; })),
+      (L.a.opportunities || []).length ? h('div', { class: 'jfld' }, 'Chancen', h('ul', {}, L.a.opportunities.map(o => h('li', {}, o)))) : null,
+      btns(h('button', { type: 'button', class: 'btn', onclick: () => jAddStep(L.a, L.a.steps.length) }, '+ Schritt'), f ? h('button', { type: 'button', class: 'btn', onclick: () => { S.flowId = f.id; setMode('design'); } }, `Flow „${f.title}“ öffnen`) : null));
+    return;
+  }
+  if (L.kind === 'step') {
+    const s = L.s, box = h('div', {});
+    jLive = () => { const t = jTerm(s.text); fill(box, t ? h('p', { class: 'hint' }, `„${t.w}“ klingt nach Lösung. Besser: ${t.b}.`) : null); };
+    fill(p, h('div', { class: 'jkind' }, `Schritt in „${L.a.title}“`), jFld('Was wollen Menschen erreichen?', jBind(h('input', { id: 'jf-step' }), () => s.text, v => { s.text = v; })), box,
+      h('h3', {}, `Pain Points (${s.painPoints.length}) · Bedarfe (${s.needs.length})`),
+      h('ul', { class: 'jtodo' }, s.painPoints.map(x => h('li', {}, h('button', { type: 'button', onclick: () => { J.sel = x.id; jRender(); } }, `${jPnum(x)}: ${x.text}`))), s.needs.map((n, i) => h('li', {}, h('button', { type: 'button', onclick: () => { J.sel = n.id; jRender(); } }, `B${i + 1}: ${n.text}`)))),
+      btns(h('button', { type: 'button', class: 'btn', onclick: () => jAddPain(s) }, '+ Pain Point'), h('button', { type: 'button', class: 'btn', onclick: () => jAddNeed(s) }, '+ Bedarf')));
+    jLive();
+    return;
+  }
+  if (L.kind === 'pain') {
+    const x = L.p, sv = jSolvers(x);
+    fill(p, h('div', { class: 'jkind' }, `Pain Point ${jPnum(x)} bei „${L.s.text}“`),
+      jFld('Was geht schief?', jBind(h('textarea', { id: 'jf-pain', rows: '3', placeholder: 'z. B. Termin beim Absenden weg, Angaben verloren' }), () => x.text, v => { x.text = v; }), 'Aus Sicht der Menschen, ohne Lösung'),
+      jFld('Beleg', jInsightSelect('jf-pins', () => x.insight, v => { x.insight = v; }, 'ohne Beleg')),
+      h('h3', {}, sv.length ? `Gelöst durch (${sv.length})` : 'Noch kein Bedarf'),
+      h('ul', { class: 'jtodo' }, sv.map(n => { const N = jLocate(n.id); return h('li', {}, h('button', { type: 'button', onclick: () => { J.sel = n.id; jRender(); } }, `B${N.ni + 1} (${N.s.text}): ${n.text}`)); })),
+      btns(h('button', { type: 'button', class: 'btn', onclick: () => jDerive(x.id) }, 'Bedarf ableiten')));
+    return;
+  }
+  if (L.kind === 'need') {
+    const n = L.n, info = h('div', { 'aria-live': 'polite' });
+    const aps = L.a.steps.flatMap(s => s.painPoints);
+    jLive = () => { const ty = jType(n.text), t = jTerm(n.text); fill(info, h('div', { class: 'jmeta' }, ty ? jChip(`t-${ty}`, jTypeLabel(ty)) : jChip('k-offen', 'Art nicht erkannt'), t ? jChip('lint', `Lösung? ${t.w}`, `Besser: ${t.b}`) : null)); };
+    fill(p, h('div', { class: 'jkind' }, `Bedarf B${L.ni + 1} bei „${L.s.text}“`),
+      jFld('Was brauchen Menschen?', jBind(h('textarea', { id: 'jf-need', rows: '3', placeholder: 'z. B. Wissen, bis wann ich kostenlos absagen kann.' }), () => n.text, v => { n.text = v; })), info,
+      h('details', { class: 'jhelp', open: !n.text }, h('summary', {}, 'Beispiele'), J_TYPES.map(([k, lab, , ex]) => h('div', {}, jChip(`t-${k}`, lab), h('ul', {}, ex.map(e => h('li', {}, e))))), h('p', { class: 'hint' }, 'Aus Sicht der Menschen, mit einem Verb. Ein „um …“ oder „weil …“ hilft, ist aber kein Muss.')),
+      jFld('Beleg', jInsightSelect('jf-nins', () => n.insight, v => { n.insight = v; }, 'kein Beleg, als Annahme führen')),
+      h('div', { class: 'jfld' }, `Löst Pain Points in „${L.a.title}“`, aps.length ? h('div', { class: 'jchecks' }, aps.map(x => { const c = h('input', { type: 'checkbox' }); c.checked = n.solves.includes(x.id); c.addEventListener('change', () => jChange(() => { n.solves = c.checked ? [...n.solves, x.id] : n.solves.filter(y => y !== x.id); })); return h('label', {}, c, `${jPnum(x)} ${x.text}`); })) : h('span', { class: 'hint' }, 'Keine Pain Points in dieser Phase')),
+      h('h3', {}, n.requirements.length ? `Anforderungen (${n.requirements.length})` : 'Noch keine Anforderung'),
+      h('ul', { class: 'jtodo' }, n.requirements.map(r => h('li', {}, h('button', { type: 'button', onclick: () => { J.sel = r.id; jRender(); } }, r.text || '(leer)')))),
+      btns(h('button', { type: 'button', class: 'btn', onclick: () => jAddReq(n) }, '+ Anforderung')));
+    jLive();
+    return;
+  }
+  const r = L.r, scr = jScreens(), multi = new Set(scr.map(x => x.flow.id)).size > 1;
+  fill(p, h('div', { class: 'jkind' }, `Anforderung zu B${L.ni + 1}`), h('p', { class: 'hint' }, L.n.text),
+    jFld('Was muss das Produkt ermöglichen?', jBind(h('textarea', { id: 'jf-req', rows: '3', placeholder: 'z. B. Bei jeder Praxis den nächsten freien Termin sehen.' }), () => r.text, v => { r.text = v; })),
+    h('div', { class: 'jfld' }, 'Screens', scr.length ? h('div', { class: 'jchecks' }, scr.map(x => { const c = h('input', { type: 'checkbox' }); c.checked = r.screens.includes(x.id); c.addEventListener('change', () => jChange(() => { r.screens = c.checked ? [...r.screens, x.id] : r.screens.filter(y => y !== x.id); })); return h('label', {}, c, multi ? `${x.flow.title} › ${x.title}` : x.title); })) : h('span', { class: 'hint' }, 'Noch kein Flow mit Screens.')),
+    jFld('Nur teilweise gelöst?', jBind(h('input', { id: 'jf-part', placeholder: 'z. B. nur im Profil, nicht in der Übersicht' }), () => r.partial, v => { r.partial = v || undefined; })),
+    btns(h('button', { type: 'button', class: 'btn', onclick: () => { J.sel = L.n.id; jRender(); } }, '← Zum Bedarf')));
+}
+function jRender() {
+  jMap();
+  jInsp();
+  jStat();
+  if (J.focus) { const f = $(`#${J.focus}`); J.focus = null; if (f) { f.focus(); const n = f.value?.length || 0; f.setSelectionRange?.(n, n); } }
+}
+
 function renderJourney() {
   const doc = $('#doc');
-  const f = flow();
-  const j = S.data.journeys.find(x => x.id === f?.journey) || S.data.journeys[0];
-  if (!j) { fill(doc, h('div', { class: 'empty' }, h('div', {}, h('b', {}, 'Noch keine Journey'), 'In Claude Code: /wireflow:journey – aus Research, Interviews oder dem, was das Team weiß.'))); return; }
-  const ins = id => S.data.knowledge.insights.find(i => i.id === id);
-  const cols = j.phases.length;
-  const grid = h('div', { class: 'jgrid', style: `grid-template-columns:repeat(${cols},minmax(190px,1fr))` }, ...j.phases.map(p => h('section', { class: 'jcol' },
-    h('h3', {}, p.title),
-    h('h4', {}, 'Handlungen'), h('ul', {}, ...(p.actions || []).map(a => h('li', {}, a))),
-    h('h4', {}, 'Pain Points'), h('ul', { class: 'pp' }, ...(p.painPoints || []).map(pp => {
-      const i = pp.insight ? ins(pp.insight) : null;
-      return h('li', {}, pp.text, h('div', {}, i ? kchip(i.wissensstand, `${KLABEL[i.wissensstand] || i.wissensstand} · ${i.id}`) : kchip('offen', 'ohne Beleg')));
-    })),
-    h('h4', {}, 'Chancen'), h('ul', {}, ...(p.opportunities || []).map(o => h('li', {}, o))),
-    p.flow ? h('div', { class: 'btns' }, btn(`Flow öffnen: ${S.data.flows.find(x => x.id === p.flow)?.title || p.flow}`, () => { S.flowId = p.flow; setMode('design'); })) : null,
-  )));
-  const emo = h('div', { class: 'emo', 'aria-label': 'Emotionskurve' });
-  fill(doc, 
-    h('h1', {}, j.title),
-    h('p', { class: 'sub' }, [j.variant ? `${j.variant === 'ist' ? 'Ist-Journey' : j.variant === 'soll' ? 'Soll-Journey' : j.variant}` : '', j.persona, j.scenario].filter(Boolean).join(' · ')),
-    emo,
-    grid,
-  );
-  requestAnimationFrame(() => {
-    const W = emo.clientWidth;
-    const H = 86;
-    const colsEl = [...grid.children];
-    const base = grid.getBoundingClientRect().left;
-    const pts = j.phases.map((p, i) => { const r = colsEl[i].getBoundingClientRect(); return [r.left - base + r.width / 2, H / 2 - (p.emotion || 0) * 16]; });
-    emo.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Emotion je Phase"><line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke-dasharray="4 4"/><polyline points="${pts.map(p => p.join(',')).join(' ')}"/>${pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="5"><title>${esc(j.phases[i].title)}: ${j.phases[i].emotion ?? 0}</title></circle>`).join('')}</svg>`;
-  });
+  if (!S.data.journeys.length) { fill(doc, h('div', { class: 'empty' }, h('div', {}, h('b', {}, 'Noch keine Journey'), 'In Claude Code: /wireflow:journey – aus Research, Interviews oder dem, was das Team weiß.'))); J.id = null; return; }
+  const st = jSync();
+  if (st === 'same' && doc.querySelector(`.jroot[data-j="${J.id}"]`)) { if (!J.edit) jMap(); jStat(); return; }
+  const j = J.data;
+  const sel = S.data.journeys.length > 1 ? h('select', { 'aria-label': 'Journey', onchange: e => { J.id = e.target.value; J.data = null; renderJourney(); } }, S.data.journeys.map(x => h('option', { value: x.id, selected: x.id === J.id || null }, x.title || x.id))) : null;
+  const lint = h('input', { type: 'checkbox', id: 'jlint' });
+  lint.checked = J.lint;
+  lint.addEventListener('change', () => { J.lint = lint.checked; jRender(); });
+  fill(doc, h('div', { class: 'jroot', 'data-j': J.id },
+    h('div', { class: 'jhead' },
+      h('div', { class: 'jtitle' }, h('h1', {}, j.title || j.id), h('p', { class: 'sub' }, [j.variant === 'soll' ? 'Soll-Journey' : 'Ist-Journey', j.persona, j.scenario].filter(Boolean).join(' · '))),
+      h('div', { class: 'jbar', role: 'toolbar', 'aria-label': 'Story Map bearbeiten' }, sel,
+        h('button', { type: 'button', class: 'btn', id: 'jundo', title: '⌘Z', onclick: jUndo }, '↶ Rückgängig'),
+        h('button', { type: 'button', class: 'btn', id: 'jredo', title: '⌘⇧Z', onclick: jRedo }, '↷ Wiederholen'),
+        h('button', { type: 'button', class: 'btn', onclick: () => jAddAct(J.data.phases.length) }, '+ Phase'),
+        h('label', { class: 'btn' }, lint, 'Lösungsbegriffe'),
+        h('span', { class: 'jstat', id: 'jstat', 'aria-live': 'polite' }))),
+    h('div', { class: 'jbody' }, h('div', { class: 'jwall' }, h('div', { class: 'jboard', id: 'jboard' })), h('aside', { class: 'jinsp', id: 'jinsp', 'aria-label': 'Eigenschaften' }))));
+  jRender();
 }
 
 // ---------- Wissen ----------
@@ -1845,7 +2614,6 @@ function updateChatTab() {
 }
 function selectionMeta() {
   const n = nodeById(S.sel.node);
-  if (isSb(n)) return sbMeta(n);
   if (!n) return { flow: S.flowId };
   const scr = screenOf(n);
   const el = scr && S.sel.el && !S.sel.variant ? findEl(scr.tree, S.sel.el)?.node : null;
@@ -1856,7 +2624,6 @@ function selectionLabel() {
   const n = nodeById(S.sel.node);
   if (!n) return null;
   if (S.sel.variant) return `${n.title || n.id} · Variante`;
-  if (isSb(n)) { const el = S.sel.el ? findEl(sbScreen(n).tree, S.sel.el)?.node : null; return el ? `${el.name} · ${n.title}` : `Story ${n.title}`; }
   const scr = screenOf(n);
   const el = scr && S.sel.el ? findEl(scr.tree, S.sel.el)?.node : null;
   return el ? `${el.name} · ${el.id}` : n.title || n.label || n.id;
@@ -1982,8 +2749,6 @@ function syntax(s) {
 }
 function codePane(pane) {
   const n = nodeById(S.sel.node);
-  if (isSb(n)) { sbCodePane(pane, n); return; }
-  if (flow()?.storybook) { pane.append(h('p', { class: 'hint' }, 'Story auswählen – hier stehen ihr Stories-File, die Komponente und die Datei des gewählten Elements.')); return; }
   const ref = n?.type === 'screen' ? S.sel.variant || n.ref : null;
   if (!ref) {
     pane.append(h('p', { class: 'hint' }, 'Screen auswählen – hier steht sein Code: das Screen-Modul aus Komponenten des Design Systems und seine Zustände als Stories.'));
@@ -2024,12 +2789,13 @@ function variantRects(f) {
     const vs = n.variants || [];
     if (!vs.length) continue;
     const r = nodeRect(n);
-    const w = vs.length * (VW() + 60) - 60;
-    const hit = yy => taken.some(t => t.x < r.x + w + 40 && t.x + t.w > r.x - 40 && t.y < yy + VH() + 80 && t.y + t.h > yy - 80);
+    const { w: dw, h: dh } = devSize(n);
+    const w = vs.length * (dw + 60) - 60;
+    const hit = yy => taken.some(t => t.x < r.x + w + 40 && t.x + t.w > r.x - 40 && t.y < yy + dh + 80 && t.y + t.h > yy - 80);
     let y = r.y + r.h + 170;
     for (let guard = 0; hit(y) && guard < 30; guard++) y += 200;
     vs.forEach((v, i) => {
-      const rect = { x: r.x + i * (VW() + 60), y, w: VW(), h: VH() };
+      const rect = { x: r.x + i * (dw + 60), y, w: dw, h: dh };
       taken.push(rect);
       out.push({ n, v, rect, key: `v:${n.id}:${v.ref}` });
     });
@@ -2072,7 +2838,9 @@ function renderVariants(f) {
       h('span', { class: `tag ${v.mode === 'free' ? 'warn' : v.mode === 'original' ? '' : 'ai'}` }, `◇ ${MODE_LABEL[v.mode] || v.mode || 'Variante'}`),
       h('b', { title: v.rationale || '' }, v.label || 'Variante'),
       l ? h('span', { class: `tag ${l.errors.length ? 'bad' : l.score.pct < 100 ? 'warn' : 'ok'}` }, l.errors.length ? `${l.errors.length} Fehler` : `DS ${l.score.pct} %`) : null);
-    fr.box.style.width = `${VW()}px`;
+    const ds = devSize(n);
+    if (fr.w !== ds.w) { fr.w = ds.w; fr.vh = ds.h; fr.h = ds.h; fr.url = ''; }
+    fr.box.style.width = `${ds.w}px`;
     fr.box.style.height = `${fr.h}px`;
     ensureIframe(fr);
   }
@@ -2106,7 +2874,6 @@ function variantInspector(pane, n, ref) {
 // ---------- Lücken als Karten am Ort ----------
 function gapsOf(f) {
   const out = [];
-  if (f?.storybook) return out;
   const slots = {};
   for (const iss of f.issues || []) {
     const n = nodeById(iss.ref);
@@ -2168,7 +2935,7 @@ function selectionCenter() {
 }
 function openMenu(cx, cy) {
   const n = nodeById(S.sel.node);
-  if (!n || (n.type !== 'screen' && !isSb(n)) || S.mode !== 'design') return;
+  if (!n || n.type !== 'screen' || S.mode !== 'design') return;
   const pad = 200;
   S.menu = { x: Math.max(pad, Math.min(innerWidth - pad, cx)), y: Math.max(pad - 30, Math.min(innerHeight - pad + 30, cy)), open: null };
   renderMenu();
@@ -2226,7 +2993,6 @@ function reviewItems(subject) {
 }
 function menuItems() {
   const { n, hit } = selected();
-  if (isSb(n)) return sbMenuItems(n, hit);
   const f = flow();
   const title = n.title || n.id;
   const elInfo = hit && hit.parent && !S.sel.variant ? ` – mit Fokus auf ${hit.node.id} <${hit.node.name}>` : '';
@@ -2298,433 +3064,6 @@ function renderMenu() {
 }
 addEventListener('pointerdown', e => { if (S.menu && !e.target.closest?.('#radial')) closeMenu(); }, true);
 
-// ---------- Storybook als Renderer ----------
-// Das Storybook-Brett zeigt die Stories des Projekts als Frames – gerendert von Storybook
-// selbst (mit Decorators, Providern und Styles des Projekts). Nichts wird migriert: Args
-// lassen sich live ändern, Komponenten auswählen und prüfen; Änderungen am Code macht Claude.
-const SB_GAP_X = 90;
-const SB_GAP_Y = 70;
-const SB_PER_ROW = 8;
-const SB_COMP_W = 360;
-const leaf = t => String(t || '').split('/').pop().trim();
-const sbKey = () => `wireflow-sb:${S.data?.project?.name || location.port}`;
-function sbLoadPrefs() {
-  try {
-    const d = JSON.parse(localStorage.getItem(sbKey()) || '{}');
-    S.sb.pins = new Set(Array.isArray(d.pins) ? d.pins : []);
-    S.sb.pos = d.pos && typeof d.pos === 'object' ? d.pos : {};
-  } catch { /* privat */ }
-}
-function sbSavePrefs() {
-  try { localStorage.setItem(sbKey(), JSON.stringify({ pins: [...S.sb.pins], pos: S.sb.pos })); } catch { /* privat */ }
-}
-async function loadSb(refresh = false) {
-  let d;
-  try { d = await api(`/api/storybook${refresh ? '?refresh=1' : ''}`); } catch { return; }
-  const first = !S.sb.loaded;
-  const before = S.sb.flow?.nodes.length || 0;
-  Object.assign(S.sb, { status: d.status, url: d.url, base: d.base || '', hash: d.hash, hint: d.hint || '', dirs: d.dirs || [], groups: d.groups || [], loaded: true });
-  if (first) sbLoadPrefs();
-  S.sb.flow = sbFlow();
-  if (S.flowId === SB) {
-    if (!before && S.sb.flow.nodes.length) S.fitted = false;
-    validateSelection();
-    renderAll();
-  } else if (S.data) renderTop();
-}
-const sbH = (id, kind) => S.frames.get(id)?.h || (kind === 'component' ? 160 : VH());
-function sbNode(g, s, kind, x, y, w) {
-  const id = `sb:${s.id}`;
-  const o = S.sb.pos[id];
-  return { id, type: 'story', story: s.id, kind, group: g.title, file: g.file, component: g.component, name: s.name, exportName: s.exportName, title: `${leaf(g.title)} · ${s.name}`, x: o ? o.x : x, y: o ? o.y : y, w };
-}
-// Screens nebeneinander (je Komponente eine Spalte, ihre Zustände darunter), Komponenten-Stories darunter.
-function sbFlow() {
-  const nodes = [];
-  const screens = S.sb.groups.filter(g => g.screen);
-  const comps = S.sb.groups.filter(g => !g.screen);
-  const W = VW();
-  let x = 0;
-  let y = 0;
-  let col = 0;
-  let band = 0;
-  for (const g of screens) {
-    if (col === SB_PER_ROW) { col = 0; x = 0; y += band + SB_GAP_Y * 1.5; band = 0; }
-    let yy = y;
-    for (const s of g.stories) {
-      nodes.push(sbNode(g, s, 'screen', x, yy, W));
-      yy += sbH(`sb:${s.id}`, 'screen') + SB_GAP_Y;
-    }
-    band = Math.max(band, yy - y);
-    x += W + SB_GAP_X;
-    col++;
-  }
-  const list = screens.length
-    ? comps.flatMap(g => g.stories.filter(s => S.sb.pins.has(s.id)).map(s => [g, s]))
-    : comps.slice(0, 8).flatMap(g => g.stories.slice(0, 4).map(s => [g, s]));
-  if (list.length) {
-    y += screens.length ? band + SB_GAP_Y : 0;
-    let title = null;
-    let row = 0;
-    for (const [g, s] of list) {
-      if (title !== g.title) { if (title !== null) y += row + SB_GAP_Y; title = g.title; x = 0; row = 0; }
-      nodes.push(sbNode(g, s, 'component', x, y, SB_COMP_W));
-      x += SB_COMP_W + SB_GAP_X / 2;
-      row = Math.max(row, sbH(`sb:${s.id}`, 'component') + 30);
-    }
-  }
-  return { id: SB, title: 'Storybook', storybook: true, nodes, edges: [], entry: null, issues: [], knowledge: null };
-}
-let sbRelayoutTimer = 0;
-function sbRelayoutSoon() {
-  clearTimeout(sbRelayoutTimer);
-  sbRelayoutTimer = setTimeout(() => {
-    if (S.flowId !== SB || S.drag) return;
-    S.sb.flow = sbFlow();
-    if (S.mode === 'design') renderCanvas();
-  }, 80);
-}
-function sbMoved(id, pos) {
-  S.sb.pos[id] = { x: pos.x, y: pos.y };
-  sbSavePrefs();
-  S.sb.flow = sbFlow();
-  renderCanvas();
-}
-function sbOpen(storyId) {
-  const id = `sb:${storyId}`;
-  if (!nodeById(id)) {
-    S.sb.pins.add(storyId);
-    sbSavePrefs();
-    S.sb.flow = sbFlow();
-    renderCanvas();
-  }
-  select({ node: id });
-  setTimeout(() => centerOn(id), 60);
-}
-function sbUnpin(storyId) {
-  S.sb.pins.delete(storyId);
-  delete S.sb.pos[`sb:${storyId}`];
-  sbSavePrefs();
-  if (S.sel.node === `sb:${storyId}`) S.sel = { node: null, el: null, edge: null, variant: null };
-  S.sb.flow = sbFlow();
-  renderAll();
-}
-// Komponentenbaum aus dem Frame (React) – als Baum wie bei Screen-Modulen.
-function sbScreen(n) {
-  const fr = n && S.frames.get(n.id);
-  const t = fr?.sbTree;
-  const tree = !t ? null : t.length === 1 ? t[0] : { id: '', name: leaf(n.group), text: '', props: [], children: t };
-  return { tree, stories: [], component: n ? leaf(n.group) : '', lint: { warnings: [], errors: [] }, sb: true };
-}
-const sbSig = t => JSON.stringify(t, (k, v) => (k === 'text' || k === 'props' ? undefined : v));
-function sbTreeArrived(fr, tree) {
-  const sig = sbSig(tree);
-  fr.sbTree = tree;
-  if (sig === fr.sbSig) return;
-  fr.sbSig = sig;
-  if (S.sel.node === fr.id) {
-    if (S.sel.el && !findEl(sbScreen(nodeById(fr.id)).tree, S.sel.el)) S.sel.el = null;
-    renderLeft();
-    if (S.rightTab !== 'chat') renderRight();
-  }
-}
-const sbSrc = src => (!src ? '' : src.startsWith('/') ? src : `${S.sb.base ? `${S.sb.base.replace(/\/$/, '')}/` : ''}${src}`);
-const sbLink = id => (S.sb.url ? `${S.sb.url}/?path=/story/${encodeURIComponent(id)}` : null);
-function sbEl(n) {
-  if (!S.sel.el) return null;
-  const hit = findEl(sbScreen(n).tree, S.sel.el);
-  return hit ? hit.node : null;
-}
-function sbSelection() {
-  const n = nodeById(S.sel.node);
-  const fr = n && S.frames.get(n.id);
-  const el = isSb(n) ? sbEl(n) : null;
-  return {
-    flow: 'storybook',
-    modus: S.mode,
-    storybook: S.sb.url,
-    knoten: n?.id || null,
-    titel: n?.title || null,
-    story: isSb(n) ? { id: n.story, gruppe: n.group, name: n.name, export: n.exportName || null, datei: n.file, komponente: n.component, args: fr?.sbInfo?.args || null, link: sbLink(n.story) } : null,
-    element: el ? { id: el.id, komponente: el.name, text: el.text || null, quelle: sbSrc(el.src) || null, props: Object.fromEntries((el.props || []).map(p => [p.name, p.raw])) } : null,
-  };
-}
-function sbMeta(n) {
-  const el = sbEl(n);
-  const out = { flow: 'storybook', titel: n.title, story: n.story, datei: n.file || '', element: el?.id || '', komponente: el?.name || '', quelle: sbSrc(el?.src) };
-  return Object.fromEntries(Object.entries(out).filter(([, v]) => v));
-}
-function updateStory(n) {
-  const fr = S.frames.get(n.id);
-  fr.sb = n.story;
-  fr.kind = n.kind;
-  fr.w = n.w;
-  fr.ref = '';
-  if (n.kind === 'component' && !fr.sized) { fr.sized = true; fr.h = 160; }
-  fill(fr.title,
-    h('b', {}, leaf(n.group)),
-    h('span', { class: 'tag', title: `Story ${n.story}` }, n.name),
-    fr.failed ? h('span', { class: 'tag bad', title: fr.sbError || 'Fehler in der Story' }, 'Fehler') : null,
-    h('button', {
-      type: 'button',
-      class: 'fmenu',
-      title: 'Aktionen: Varianten, Zustände, Review (Rechtsklick oder Taste .)',
-      'aria-label': `Aktionen für ${n.title}`,
-      onpointerdown: ev => ev.stopPropagation(),
-      onclick: ev => {
-        const r = ev.currentTarget.getBoundingClientRect();
-        select({ node: n.id });
-        openMenu(r.left + r.width / 2, r.bottom + 120);
-      },
-    }, '✦'),
-  );
-  fr.el.classList.add('story');
-  fr.el.classList.toggle('comp', n.kind === 'component');
-  fr.box.style.width = `${n.w}px`;
-  fr.box.style.height = `${fr.h}px`;
-  ensureIframe(fr);
-}
-function updateNode(n) {
-  if (isSb(n)) updateStory(n);
-  else updateScreen(n);
-}
-function sbSetArgs(fr, args) {
-  if (fr.sbInfo) fr.sbInfo.args = { ...fr.sbInfo.args, ...args };
-  fr.iframe?.contentWindow?.postMessage({ wf: 1, type: 'sbArgs', args }, location.origin);
-}
-
-// Linke Spalte: Komponentenbaum der Story und die Stories wie in der Storybook-Seitenleiste.
-function sbLayers(pane) {
-  const n = nodeById(S.sel.node);
-  if (isSb(n)) {
-    const scr = sbScreen(n);
-    pane.append(h('div', { class: 'grp' }, leaf(n.group), h('em', {}, n.name)));
-    if (!scr.tree) pane.append(h('p', { class: 'hint' }, 'Komponentenbaum wird gelesen …'));
-    else {
-      const items = [];
-      walkTree(scr.tree, (el, depth) => {
-        if (!el.id) return;
-        const sp = spec(el.name);
-        items.push(h('li', {}, h('button', {
-          type: 'button',
-          'aria-current': String(S.sel.el === el.id),
-          style: `padding-left:${6 + depth * 14}px`,
-          title: sbSrc(el.src) || '',
-          onclick: () => select({ node: n.id, el: el.id }),
-          onmouseenter: () => { S.hover = { node: n.id, el: el.id }; renderOverlays(); },
-          onmouseleave: () => { S.hover = null; renderOverlays(); },
-        }, h('span', { class: 'ico' }, el.children.length ? '▤' : '◇'), h('span', { class: 'nm' }, el.name), el.text ? h('span', { class: 'tx' }, el.text) : null, sp ? h('em', { title: `Komponente aus ${S.data.ds.name || 'dem Design System'}` }, 'DS') : null)));
-      });
-      pane.append(h('ul', { class: 'tree' }, ...items));
-      pane.append(h('p', { class: 'hint' }, 'Live aus React, so wie Storybook die Story rendert. Ändern: Args rechts oder Claude (Rechtsklick).'));
-    }
-  }
-  const screens = S.sb.groups.filter(g => g.screen);
-  const comps = S.sb.groups.filter(g => !g.screen);
-  const item = (s, onBoard, pinned) => h('li', { class: 'sbi' },
-    h('button', {
-      type: 'button',
-      'aria-current': String(S.sel.node === `sb:${s.id}` && !S.sel.el),
-      title: onBoard ? s.id : 'Auf den Canvas holen',
-      onclick: () => sbOpen(s.id),
-    }, h('span', { class: 'ico' }, onBoard ? '▢' : '+'), h('span', { class: 'nm' }, s.name), s.tags.length ? h('em', {}, s.tags.join(' · ')) : null),
-    pinned ? h('button', { type: 'button', class: 'unpin', title: 'Vom Canvas nehmen', 'aria-label': `${s.name} vom Canvas nehmen`, onclick: () => sbUnpin(s.id) }, '×') : null);
-  const block = (label, groups, note) => {
-    if (!groups.length) return;
-    pane.append(h('div', { class: 'grp' }, label, h('em', {}, note)));
-    pane.append(h('ul', { class: 'tree sbtree' }, ...groups.flatMap(g => [
-      h('li', { class: 'sbg', title: g.file || '' }, g.title),
-      ...g.stories.map(s => item(s, !!nodeById(`sb:${s.id}`), !g.screen && S.sb.pins.has(s.id))),
-    ])));
-  };
-  if (S.sb.status !== 'verbunden') { pane.append(h('p', { class: 'hint' }, S.sb.hint || 'Suche Storybook …')); return; }
-  block('Screens', screens, `${screens.reduce((k, g) => k + g.stories.length, 0)} Stories`);
-  block('Komponenten', comps, screens.length ? '+ holt sie her' : `${comps.reduce((k, g) => k + g.stories.length, 0)} Stories`);
-}
-
-// Rechte Spalte: Story (Args live), Element (Props | Style), Übersicht.
-function sbBoardInspector(pane) {
-  pane.append(h('div', { class: 'ihead' }, h('h2', {}, 'Storybook'), h('code', {}, S.sb.url || 'nicht verbunden')));
-  if (S.sb.status !== 'verbunden') {
-    pane.append(h('p', { class: 'hint' }, S.sb.hint || 'Suche Storybook …'));
-    pane.append(h('div', { class: 'btns' }, btn('Erneut suchen', () => loadSb(true))));
-    return;
-  }
-  const screens = S.sb.groups.filter(g => g.screen);
-  const states = screens.reduce((k, g) => k + g.stories.length, 0);
-  const pinned = flow().nodes.filter(x => x.kind === 'component').length;
-  pane.append(h('div', { class: 'grp' }, 'Auf dem Canvas'), h('p', { class: 'hint' }, `${screens.length} Screens mit ${states} Zuständen${pinned ? ` · ${pinned} Komponenten-Stories` : ''}. Gerendert von Storybook selbst – mit euren Decorators, Providern und Styles. Nichts wird migriert.`));
-  pane.append(h('div', { class: 'grp' }, 'So arbeitest du hier'), h('ul', { class: 'hint steps' },
-    h('li', {}, 'Story anklicken: Args live ändern wie in den Controls und von Claude in den Code übernehmen lassen.'),
-    h('li', {}, 'Element anklicken: Komponente, Props, Style-Tokens und Kontrast.'),
-    h('li', {}, 'Rechtsklick: Varianten, Zustände und Reviews durch Claude – als neue Stories.')));
-  pane.append(h('div', { class: 'grp' }, 'Screens erkennen'), h('p', { class: 'hint' }, 'Als Screens gelten Titel wie „Screens/…“ oder „Pages/…“ und Stories aus Ordnern wie screens/ oder pages/. Anpassen in .wireflow/project.json: ', h('code', {}, '"storybook": { "screens": ["Bereich/"] }'), '.'));
-  pane.append(h('div', { class: 'btns' }, h('a', { class: 'btn', href: S.sb.url, target: '_blank', rel: 'noopener' }, 'Storybook öffnen ↗'), btn('Neu laden', () => loadSb(true))));
-}
-function sbStoryInspector(pane, n) {
-  const fr = S.frames.get(n.id);
-  const info = fr?.sbInfo;
-  pane.append(h('div', { class: 'ihead' },
-    h('h2', {}, leaf(n.group), h('span', { class: 'hsub' }, ` · ${n.name}`)),
-    h('code', {}, n.file || n.story),
-    h('span', { class: 'tag' }, 'Storybook')));
-  if (n.component) pane.append(h('p', { class: 'hint' }, 'Komponente: ', h('code', {}, n.component)));
-  if (fr?.failed) pane.append(h('p', { class: 'sberr' }, fr.sbError || 'Die Story wirft einen Fehler – Details im Storybook.'));
-  pane.append(h('div', { class: 'grp' }, 'Args', h('em', {}, 'live, wie die Controls')));
-  if (!info) { pane.append(h('p', { class: 'hint' }, 'Story wird geladen …')); return; }
-  const names = Object.keys(info.argTypes).filter(k => !info.argTypes[k].action);
-  for (const k of Object.keys(info.args || {})) if (!names.includes(k) && !info.argTypes[k]?.action) names.push(k);
-  if (!names.length) pane.append(h('p', { class: 'hint' }, 'Diese Story hat keine Args.'));
-  for (const k of names) pane.append(sbArgRow(fr, k, info.argTypes[k] || {}, info.args?.[k], info.initialArgs?.[k]));
-  const changed = names.filter(k => JSON.stringify(info.args?.[k]) !== JSON.stringify(info.initialArgs?.[k]));
-  if (changed.length) {
-    const diff = Object.fromEntries(changed.map(k => [k, info.args?.[k]]));
-    pane.append(h('p', { class: 'hint' }, `${changed.length} ${changed.length === 1 ? 'Arg' : 'Args'} geändert – nur im Canvas, die Story-Datei ist unverändert.`));
-    pane.append(h('div', { class: 'btns' },
-      btn('In Code übernehmen', () => askClaude(`Übernimm diese Args in die Storybook-Story „${n.title}“ (Datei ${n.file}, Export ${n.exportName || n.name}, ID ${n.story}): ${JSON.stringify(diff)}. Ändere nur die args dieser Story, sonst nichts, und sag kurz per canvas_reply Bescheid.`, 'auftrag'), false, 'ai'),
-      btn('Zurücksetzen', () => fr.iframe?.contentWindow?.postMessage({ wf: 1, type: 'sbReset' }, location.origin))));
-  }
-  pane.append(h('div', { class: 'btns' }, sbLink(n.story) ? h('a', { class: 'btn', href: sbLink(n.story), target: '_blank', rel: 'noopener' }, 'In Storybook öffnen ↗') : null));
-}
-function sbArgRow(fr, name, at, value, initial) {
-  const key = `sbarg:${name}`;
-  const set = v => sbSetArgs(fr, { [name]: v });
-  const changed = JSON.stringify(value) !== JSON.stringify(initial);
-  const label = h('label', { for: key, title: at.description || at.type || '' }, name, at.required ? h('span', { class: 'req' }, ' *') : null, changed ? h('span', { class: 'chg', title: 'Geändert gegenüber der Story' }, ' ●') : null);
-  let ctl;
-  const opts = at.options;
-  if (value && typeof value === 'object' && value.$wf === 'element') ctl = h('span', { class: 'code', title: 'React-Element – im Code ändern' }, `‹${value.name}›`);
-  else if (opts && opts.length <= 5 && opts.join('').length <= 34) {
-    ctl = h('div', { class: 'segctl', role: 'group', id: key, 'aria-label': name }, ...opts.map(o => h('button', {
-      type: 'button', 'aria-pressed': String(value !== undefined && String(value) === o), onclick: () => set(o),
-    }, o)));
-  } else if (opts) {
-    ctl = h('select', { id: key, 'data-key': key, onchange: ev => set(ev.target.value) }, ...opts.map(o => h('option', { value: o, selected: String(value) === o }, o)));
-  } else if (at.type === 'boolean' || at.control === 'boolean' || typeof value === 'boolean') {
-    const on = value === true;
-    ctl = h('button', { type: 'button', role: 'switch', class: 'switch', id: key, 'aria-checked': String(on), 'aria-label': name, onclick: () => set(!on) }, h('i'));
-  } else if (at.type === 'number' || at.control === 'number' || at.control === 'range' || typeof value === 'number') {
-    ctl = h('input', { type: 'number', id: key, 'data-key': key });
-    ctl.value = value === undefined ? '' : String(value);
-    ctl.addEventListener('change', () => set(ctl.value === '' ? undefined : Number(ctl.value)));
-    ctl.addEventListener('keydown', e => { if (e.key === 'Enter') ctl.blur(); });
-  } else if (value === undefined || typeof value === 'string') {
-    ctl = h('input', { type: 'text', id: key, 'data-key': key, placeholder: 'Nicht gesetzt' });
-    ctl.value = value ?? '';
-    ctl.addEventListener('change', () => set(ctl.value));
-    ctl.addEventListener('keydown', e => { if (e.key === 'Enter') ctl.blur(); });
-  } else {
-    ctl = h('textarea', { id: key, 'data-key': key, rows: '3', title: 'JSON' });
-    ctl.value = JSON.stringify(value);
-    ctl.addEventListener('change', () => { try { set(JSON.parse(ctl.value)); } catch { toast('Kein gültiges JSON', 'bad'); } });
-  }
-  if (ctl.classList?.contains('segctl')) return h('div', { class: 'row stack' }, h('div', { class: 'rlabel' }, label), ctl);
-  return h('div', { class: 'row' }, label, h('div', { class: 'ctl' }, ctl));
-}
-function sbElementInspector(pane, n) {
-  const el = sbEl(n);
-  if (!el) { sbStoryInspector(pane, n); return; }
-  const sp = spec(el.name);
-  const path = [];
-  for (let id = el.id; id; id = id.includes('/') ? id.slice(0, id.lastIndexOf('/')) : '') path.unshift(id.slice(id.lastIndexOf('/') + 1).replace(/\.\d+$/, ''));
-  pane.append(h('div', { class: 'ihead' },
-    h('h2', {}, el.name, el.text ? h('span', { class: 'hsub' }, ` · ${el.text.length > 26 ? `${el.text.slice(0, 25)}…` : el.text}`) : null),
-    h('code', { title: el.id }, path.join(' › ')),
-    sp ? h('span', { class: 'tag ok' }, S.data.ds.name || 'DS') : h('span', { class: 'tag' }, 'Komponente')));
-  if (sp?.description) pane.append(h('p', { class: 'hint' }, sp.description));
-  pane.append(h('div', { class: 'seg elseg', role: 'tablist', 'aria-label': 'Props oder Style' }, ...[['props', 'Props'], ['style', 'Style']].map(([id, label]) => h('button', {
-    type: 'button', role: 'tab', 'aria-selected': String(S.elTab === id), 'aria-pressed': String(S.elTab === id),
-    onclick: () => { S.elTab = id; renderRight(); },
-  }, label))));
-  const fr = S.frames.get(n.id);
-  if (S.elTab === 'style') {
-    const b = fr?.boxes?.[el.id];
-    pane.append(h('div', { class: 'grp' }, 'Größe', h('em', {}, b ? `${b[2]} × ${b[3]} px` : '–')));
-    const look = computedLook(fr, el.id);
-    pane.append(h('div', { class: 'grp' }, 'Aussehen', h('em', {}, `Tokens aus ${S.data.ds.name || 'dem Design System'}`)));
-    if (!look) pane.append(h('p', { class: 'hint' }, 'Wird gelesen …'));
-    else {
-      pane.append(h('div', { class: 'looks' }, ...look.rows.map(lookRow)));
-      if (look.contrast) {
-        const ok = look.contrast.ratio >= look.contrast.need;
-        pane.append(h('div', { class: `contrast ${ok ? 'ok' : 'bad'}` },
-          h('b', {}, `Kontrast ${look.contrast.ratio.toFixed(2).replace('.', ',')} : 1`),
-          h('span', {}, ok ? `erfüllt WCAG AA (${look.contrast.need.toString().replace('.', ',')} : 1${look.contrast.large ? ', großer Text' : ''})` : `zu gering – braucht ${look.contrast.need.toString().replace('.', ',')} : 1`)));
-      }
-      if (look.untokened) pane.append(h('p', { class: 'hint' }, `${look.untokened} Wert${look.untokened === 1 ? '' : 'e'} ohne Token.`));
-    }
-  } else {
-    pane.append(h('div', { class: 'grp' }, 'Props', h('em', {}, 'wie gerendert')));
-    if (!el.props?.length) pane.append(h('p', { class: 'hint' }, 'Keine Props.'));
-    for (const p of el.props || []) pane.append(h('div', { class: 'row' }, h('label', { title: p.name }, p.name), h('div', { class: 'ctl' }, h('span', { class: 'code', title: p.raw }, p.raw))));
-    if (el.src) pane.append(h('p', { class: 'hint' }, 'Im Code: ', h('code', {}, sbSrc(el.src))));
-  }
-  const inp = h('textarea', { class: 'ask', rows: '2', 'data-key': 'sb:ask', placeholder: `Was soll sich an ${el.name} ändern?` });
-  const go = () => {
-    const t = inp.value.trim();
-    if (!t) return;
-    askClaude(`${t}\n\nGemeint ist <${el.name}> (${el.id}) in der Storybook-Story „${n.title}“ (Datei ${n.file}${el.src ? `, Element entsteht in ${sbSrc(el.src)}` : ''}). Ändere den Code des Projekts, nutze Komponenten und Tokens des Design Systems und antworte kurz per canvas_reply.`, 'auftrag');
-  };
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); go(); } });
-  pane.append(h('div', { class: 'grp' }, 'Ändern', h('em', {}, 'durch Claude')), inp, h('div', { class: 'btns' }, btn('An Claude', go, false, 'ai')));
-}
-function sbCodePane(pane, n) {
-  const el = sbEl(n);
-  const files = [];
-  if (el?.src && !el.src.startsWith('/')) files.push(['Element', sbSrc(el.src)]);
-  if (n.file) files.push(['Story', n.file]);
-  if (n.component) files.push(['Komponente', n.component]);
-  const seen = new Set();
-  const list = files.filter(([, f]) => (seen.has(f) ? false : seen.add(f)));
-  if (!list.length) { pane.append(h('p', { class: 'hint' }, 'Für diese Story ist keine Datei bekannt.')); return; }
-  const cur = list.find(([, f]) => f === S.sb.file)?.[1] || list[0][1];
-  const key = `file:${cur}@${Math.floor(Date.now() / 4000)}`;
-  const d = S.codeCache.get(key);
-  if (!d) {
-    pane.append(h('p', { class: 'hint' }, 'Lade Code …'));
-    api(`/api/file?path=${encodeURIComponent(cur)}`).then(x => { S.codeCache.set(key, x); if (S.rightTab === 'code') renderRight(); }).catch(e => toast(e.message, 'bad'));
-    return;
-  }
-  const mark = el && cur === sbSrc(el.src) ? new RegExp(`<${el.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`) : null;
-  const pre = h('pre', { class: 'codeview', tabindex: '0', 'aria-label': `Quelltext ${cur}` });
-  d.source.split('\n').forEach((line, i) => {
-    const row = document.createElement('div');
-    row.className = `cl${mark && mark.test(line) ? ' on' : ''}`;
-    row.innerHTML = `<span class="ln">${i + 1}</span>${syntax(esc(line)) || ' '}`;
-    pre.append(row);
-  });
-  pane.append(
-    h('div', { class: 'ihead' }, h('code', {}, cur)),
-    list.length > 1 ? h('div', { class: 'seg sub', role: 'group', 'aria-label': 'Datei' }, ...list.map(([l, f]) => h('button', { type: 'button', 'aria-pressed': String(f === cur), title: f, onclick: () => { S.sb.file = f; renderRight(); } }, l))) : null,
-    pre,
-    h('p', { class: 'hint' }, 'Code des Projekts, wie Storybook ihn rendert. Änderungen (auch durch Claude) erscheinen über Storybook sofort im Frame.'),
-  );
-  requestAnimationFrame(() => pre.querySelector('.cl.on')?.scrollIntoView({ block: 'center' }));
-}
-function sbMenuItems(n, hit) {
-  const where = `Storybook-Story „${n.title}“ (ID ${n.story}, Datei ${n.file}${n.component ? `, Komponente ${n.component}` : ''})`;
-  const el = hit && hit.node.id && hit.parent ? hit.node : null;
-  const elInfo = el ? ` – mit Fokus auf <${el.name}> (${el.id}${el.src ? `, entsteht in ${sbSrc(el.src)}` : ''})` : '';
-  const ask = (text, kind) => () => askClaude(text, kind);
-  const toCode = () => { S.rightTab = 'code'; renderRight(); };
-  const toChat = () => {
-    S.rightTab = 'chat';
-    S.chat.attach = true;
-    S.chat.unread = 0;
-    renderRight();
-    setTimeout(() => $('#right [data-key="chat:input"]')?.focus(), 30);
-  };
-  const variants = mode => `Erzeuge 2 Varianten der ${where}${elInfo} im Modus ${MODE_LABEL[mode]}: ${MODE_HINT[mode]} Lege jede Variante als neue Story im selben Stories-File an (z. B. ${n.exportName || 'Story'}Variante1). Braucht eine Variante einen anderen Aufbau, kopiere die Komponente daneben (z. B. Name.variante-1.tsx) und lass das Original unverändert. Nenne den Unterschied je Variante in einem Satz per canvas_reply.`;
-  return [
-    { id: 'variants', label: 'Varianten', icon: '▦', angle: -90, sub: ['strict', 'guided', 'free'].map(mode => ({ label: MODE_LABEL[mode], title: MODE_HINT[mode], run: ask(variants(mode), 'varianten') })) },
-    { id: 'next', label: 'Weiter', icon: '→', angle: -30, sub: [{ label: '+ Nächster Screen', run: ask(`Entwirf den Screen, der auf die ${where}${elInfo} folgt: neue Komponente mit Story in derselben Gruppe, aus Komponenten des Design Systems und mit realistischen Args. Sag per canvas_reply, welche Datei und Story entstanden sind.`, 'weiter') }] },
-    { id: 'states', label: 'Zustände', icon: '◫', angle: 30, sub: ['Leer', 'Fehler', 'Laden', 'Erstnutzung', 'Offline'].map(z => ({ label: z, run: ask(`Lege für die ${where} den Zustand „${z}“ als neue Story im selben Stories-File an – passend zu den Patterns des Design Systems und mit realistischen Args. Ändere die Komponente nur, wenn sich der Zustand sonst nicht zeigen lässt, und sag kurz per canvas_reply, was er zeigt.`, 'zustand') })) },
-    { id: 'code', label: 'Code', icon: '</>', angle: 90, run: toCode },
-    { id: 'chat', label: 'Chat', icon: '✦', angle: 150, run: toChat },
-    { id: 'review', label: 'Review', icon: '◎', angle: 210, sub: reviewItems(`„${n.title}“ (Storybook-Story ${n.story}, Datei ${n.file})${elInfo}`) },
-  ];
-}
-
 // ---------- Kopf, Status, Modus ----------
 // Darstellung des Werkzeugs: wie das System, dunkel oder hell (wie im Click-Dummy)
 const THEMES = ['auto', 'dark', 'light'];
@@ -2764,28 +3103,15 @@ function renderTop() {
   darkBtn.hidden = !(S.data.ds.modes || []).includes('dark');
   if (darkBtn.hidden && S.fid === 'dark') S.fid = 'hifi';
   const sel = $('#flowSel');
-  const sbCount = S.sb.groups.reduce((k, g) => k + g.stories.length, 0);
-  const sbOpt = S.sb.status === 'verbunden' || S.sb.dirs.length || S.flowId === SB
-    ? `<option value="${SB}"${S.flowId === SB ? ' selected' : ''}>${S.sb.status === 'verbunden' ? `Storybook · ${sbCount} ${sbCount === 1 ? 'Story' : 'Stories'}` : 'Storybook (läuft nicht)'}</option>`
-    : '';
-  const opts = S.data.flows.map(f => `<option value="${esc(f.id)}"${f.id === S.flowId ? ' selected' : ''}>${esc(f.title || f.id)}</option>`).join('') + sbOpt;
+  const opts = S.data.flows.map(f => `<option value="${esc(f.id)}"${f.id === S.flowId ? ' selected' : ''}>${esc(f.title || f.id)}</option>`).join('');
   if (sel.innerHTML !== opts) sel.innerHTML = opts || '<option>Kein Flow</option>';
   sel.disabled = !opts;
-  document.querySelectorAll('[data-fid]').forEach(b => { b.disabled = S.flowId === SB; b.title = S.flowId === SB ? 'Storybook-Stories rendert Storybook selbst – mit euren Decorators und Styles' : b.dataset.fid === 'dark' ? 'Screens im Dunkelmodus des Design Systems' : ''; });
   document.querySelectorAll('[data-fid]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.fid === S.fid)));
 }
 function renderStatus() {
   const d = S.data;
   const f = flow();
-  const hints = { design: 'Rechtsklick oder .: Kontextmenü · Titel ziehen: verschieben · Fläche ziehen: schwenken · ⌘/Strg+Scrollen: zoomen · 0: alles zeigen', prototype: 'Variablen rechts steuern die Entscheidungen', journey: 'Pain Points zeigen ihren Beleg', knowledge: 'Annahmen nach Risiko sortiert' };
-  if (f?.storybook) {
-    const stories = S.sb.groups.reduce((k, g) => k + g.stories.length, 0);
-    fill($('#status'),
-      h('span', {}, S.sb.status === 'verbunden' ? `Storybook ${S.sb.url.replace(/^https?:\/\//, '')}` : 'Storybook läuft nicht'),
-      h('span', {}, `${stories} Stories · ${S.sb.groups.filter(g => g.screen).length} Screens · ${f.nodes.length} auf dem Canvas`),
-      h('span', { class: 'sp' }, 'Klick: Story oder Komponente wählen · Args rechts ändern die Story live · Rechtsklick oder .: Kontextmenü'));
-    return;
-  }
+  const hints = { design: 'Rechtsklick oder .: Kontextmenü · Titel ziehen: verschieben · Fläche ziehen: schwenken · ⌘/Strg+Scrollen: zoomen · 0: alles zeigen', prototype: 'Variablen rechts steuern die Entscheidungen', journey: 'Plus zwischen Schritten: einfügen · Doppelklick: umbenennen · ⌥+Pfeile: verschieben · ⌘Z: rückgängig', knowledge: 'Annahmen nach Risiko sortiert' };
   fill($('#status'), 
     h('span', {}, `${d.ds.name || 'Design System'} ${d.ds.version || ''} · ${d.ds.components.length} Komponenten · ${d.ds.patterns.length} Patterns`),
     h('span', {}, `${Object.keys(d.screens).length} Screens · ${d.flows.length} Flow(s)`),
@@ -2814,11 +3140,6 @@ function setMode(m) {
   $('#proto').hidden = m !== 'prototype';
   $('#doc').hidden = !(m === 'journey' || m === 'knowledge');
   stage.querySelector(':scope > .empty')?.toggleAttribute('hidden', m !== 'design');
-  if (m === 'prototype' && S.flowId === SB) {
-    S.flowId = S.data.flows[0]?.id || null;
-    S.sel = { node: null, el: null, edge: null, variant: null };
-    toast('Der Prototyp läuft über Flows – Storybook-Stories haben noch keine Verbindungen.', 'warn');
-  }
   if (m === 'prototype' && (S.proto.flowId !== S.flowId || !nodeById(S.proto.node))) protoStart();
   renderAll();
   syncSelection();
@@ -2839,8 +3160,16 @@ addEventListener('keydown', e => {
   const typing = e.target.closest?.('input,textarea,select,[contenteditable]');
   const mod = e.metaKey || e.ctrlKey;
   if (typing) { if (e.key === 'Escape') e.target.blur(); return; }
+  if (S.mode === 'journey') {
+    if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? jRedo() : jUndo(); return; }
+    if (e.key === 'Escape' && J.sel) { J.sel = null; jRender(); return; }
+  }
   if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
   if (S.mode === 'design') {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && S.multi.size > 1) { e.preventDefault(); removeMulti(); return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel.section) { e.preventDefault(); const sec = (flow()?.sections || []).find(x => x.id === S.sel.section); if (sec) { flowOp({ op: 'removeSection', id: sec.id }); select({}); toast(`Sektion „${sec.title}“ gelöscht – die Screens bleiben. ⌘Z macht es rückgängig.`); } return; }
+    if (!mod && !e.altKey && !e.shiftKey) { const t = { v: 'move', h: 'hand', f: 'frame', s: 'section' }[e.key.toLowerCase()]; if (t) { e.preventDefault(); setTool(t); return; } }
+    if (e.key === 'Escape' && (S.multi.size || S.sel.section || S.tool !== 'move')) { setTool('move'); select({}); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel.el) { e.preventDefault(); removeSelected(); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel.edge != null) { e.preventDefault(); flowOp({ op: 'disconnect', index: S.sel.edge }); select({}); return; }
     if (mod && e.key.toLowerCase() === 'd' && S.sel.el) { e.preventDefault(); duplicateSelected(); return; }
@@ -2877,6 +3206,7 @@ $('#flowSel').addEventListener('change', e => {
 addEventListener('resize', () => { if (S.mode === 'prototype') renderProto(); });
 
 async function init() {
+  buildToolbar();
   try {
     S.data = await api('/api/project');
     S.dataV = S.data.v;
@@ -2885,8 +3215,6 @@ async function init() {
     return;
   }
   S.flowId = S.data.flows[0]?.id || null;
-  await loadSb();
-  if ((!S.data.flows.length || new URLSearchParams(location.search).get('board') === 'storybook') && (S.sb.status === 'verbunden' || S.sb.dirs.length)) S.flowId = SB;
   try {
     const c = await api('/api/chat');
     Object.assign(S.chat, { connected: !!c.connected, channel: !!c.channel, messages: c.messages || [] });
