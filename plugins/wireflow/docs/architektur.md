@@ -122,6 +122,8 @@ Drei Wege, von denen immer genau einer zustellt: **Monitor** (Standard, auch üb
 
 ## Leitgedanken
 
+Die zwei Kernargumente des Werkzeugs – nachvollziehbare Entscheidungen und das bestehende Design System – stehen in [`kernargumente.md`](../../../concepts/wireflow-studio/kernargumente.md). Für die Architektur heißt das:
+
 1. **Echter Code statt Zeichnungen.** Screens bestehen aus den Komponenten des Design Systems; Prüfungen laufen gegen dessen Manifest.
 2. **Das Repository ist die Quelle.** Canvas, Claude und Editor arbeiten an denselben Dateien; Zusammenarbeit läuft über Git.
 3. **Claude Code ist der Motor.** Der Canvas schickt Aufträge in die laufende Sitzung, statt eine eigene KI mitzubringen.

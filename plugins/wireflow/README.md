@@ -1,6 +1,6 @@
 # Wireflow Studio – Plugin für Claude Code
 
-Journeys, Wireflows und Prototypen aus **echtem Code des eigenen Design Systems** – mit einem Canvas im Browser, einer Wissensbasis zu Nutzer:innen und Claude als Co-Designer. Das Konzept dazu steht in [`concepts/wireflow-studio`](../../concepts/wireflow-studio/README.md); dieses Plugin setzt **Stufe 1 (Einzelmodus)** um. Wie die Teile zusammenspielen: [Architektur](docs/architektur.md).
+Journeys, Wireflows und Prototypen aus **echtem Code des eigenen Design Systems** – mit einem Canvas im Browser, einer Wissensbasis zu Nutzer:innen und Claude als Co-Designer. Das Konzept dazu steht in [`concepts/wireflow-studio`](../../concepts/wireflow-studio/README.md); dieses Plugin setzt **Stufe 1 (Einzelmodus)** um. Wie die Teile zusammenspielen: [Architektur](docs/architektur.md). Wofür das Werkzeug steht: [die zwei Kernargumente](../../concepts/wireflow-studio/kernargumente.md) – nachvollziehbare Entscheidungen und das bestehende Design System.
 
 ```text
 Design System verknüpfen → Wissen erfassen → Journey → Flow → Screens aus DS-Komponenten → Prototyp

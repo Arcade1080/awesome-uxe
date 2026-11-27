@@ -33,6 +33,8 @@
 
 ## 1. Zusammenfassung
 
+> **Die zwei Kernargumente** ([ausführlich](kernargumente.md)): Jede Designentscheidung lässt sich auf Research, Best Practices oder ähnliche Signale zurückführen. Und das bestehende Design System zählt mit allem, was sich in der Organisation etabliert hat – nicht nur Komponenten, auch Patterns und Best Practices.
+
 **Wireflow Studio** ist ein **gemeinsamer Canvas für Teams**, auf dem User Journeys, Wireflows und Prototypen entstehen – begründet durch das, was das Team über seine Nutzer:innen und die Domain weiß. Drei Ideen tragen das Konzept:
 
 1. **Der Nutzerkontext ist der Kern.** Research, Domainwissen und die Situation der Nutzer:innen bilden das Warum. Flows werden abgebildet, und jede Annahme darin wird auf User Research gegründet – oder ausdrücklich als ungeprüft markiert. Der Canvas zeigt, was bekannt ist, was nur angenommen wird und was niemand weiß. Kontext und menschliches Urteilsvermögen entscheiden über Nutzerzentrierung; Claude sammelt, verknüpft und fragt nach, erfindet aber kein Nutzerwissen.
@@ -97,11 +99,11 @@ Das Plugin liefert alle drei.
 
 > **Vision:** Teams entwickeln gemeinsam auf einem Canvas Flows, die auf echtem Wissen über ihre Nutzer:innen beruhen. Sie sehen jederzeit, was belegt, was angenommen und was offen ist. Claude bringt Recherche und neue Perspektiven ein, die Menschen urteilen – und das Design System macht daraus umsetzbare Lösungen.
 
-1. **Nutzerkontext zuerst.** Jede Entscheidung lässt sich bis zu Research oder Domainwissen zurückverfolgen. Was belegt, angenommen oder offen ist, ist immer sichtbar.
+1. **Nutzerkontext zuerst.** Jede Entscheidung lässt sich auf Research, Domainwissen, Best Practices oder ähnliche Signale zurückführen ([Kernargument 1](kernargumente.md)). Was belegt, angenommen oder offen ist, ist immer sichtbar.
 2. **Menschen urteilen, Claude arbeitet zu.** Kontext und Urteilsvermögen des Teams entscheiden über Nutzerzentrierung. Claude erfindet kein Nutzerwissen, und synthetische Ergebnisse sind keine Evidenz. Vorschläge sind begründet und lassen sich annehmen, verwerfen und rückgängig machen.
 3. **KI öffnet den Blick.** Claude recherchiert ähnliche Lösungen und Analogien, entwickelt bewusst unterschiedliche Richtungen und nennt Quellen. Exploriert wird mit echten Komponenten; Ideen jenseits des Design Systems bleiben erlaubt und werden als Lücke sichtbar.
 4. **Ein Canvas für das ganze Team.** Alle Rollen arbeiten live am selben Stand; wer kein Claude Code nutzt, ist im Browser dabei. Kommentare und Freigaben hängen direkt an den Elementen.
-5. **Das Design System ist die Basis, Designs sind echter Code.** Screens bestehen aus Komponenten, Tokens und Patterns des verknüpften DS – als TSX, das auch in der App laufen kann. Strukturiert statt Pixelschieben; was fehlt, wird als DS-Lücke markiert, nicht erfunden.
+5. **Das Design System ist die Basis, Designs sind echter Code.** Screens bestehen aus Komponenten, Tokens und Patterns des verknüpften DS – als TSX, das auch in der App laufen kann. Strukturiert statt Pixelschieben; was fehlt, wird als DS-Lücke markiert, nicht erfunden. Berücksichtigt wird alles, was sich in der Organisation etabliert hat: Patterns, Richtlinien, Best Practices und frühere Entscheidungen ([Kernargument 2](kernargumente.md)).
 6. **Ein Modell, viele Sichten.** Wissensbasis, Journey, Wireflow, Design und Prototyp sind Ansichten desselben verknüpften Graphen; Wireframe und Hi-Fi sind derselbe Code in zwei Token-Modi.
 7. **Git als Gedächtnis.** Der Raum ist der Live-Stand, Git die Versionsgeschichte: Klartext-Dateien mit stabilen IDs, lesbare Diffs, Review per Pull Request.
 8. **Offen.** Standards und Brücken statt Insel: MCP, DTCG-Tokens, Storybook, Figma, Mermaid.
